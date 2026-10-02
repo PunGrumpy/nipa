@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      # While .changeset/ holds changesets, keep the version pull request up to date.
+      # Merging it bumps package.json and writes CHANGELOG.md.
+      - uses: changesets/action@v1
+        id: changesets
+        with:
+          version: bun run version
+          # Keep the title valid for lint-pr-title.yml.
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # After that pull request is merged, no changesets are left and package.json
+      # holds a version without a tag: tag it, build the binaries and publish a release
+      # with that version's CHANGELOG.md section as the notes.
+      - name: Check for an untagged version
+        id: version
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: |
+          version="$(jq -r .version package.json)"
+          if [ "$version" = "0.0.0" ] || git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the binaries
+        if: steps.version.outputs.release == 'true'
+        run: bun run build:release
+
+      - name: Publish the GitHub release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '$0 == "## " v {f=1; next} /^## /{f=0} f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" dist/nipa-* dist/SHA256SUMS \
+            --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md" --target "$GITHUB_SHA"
