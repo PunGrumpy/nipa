@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Nipa Cloud support
+    url: https://nipa.cloud
+    about: Problems with your Nipa Cloud account, projects or billing are not nipa-cli bugs.
