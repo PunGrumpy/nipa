@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run typecheck
+
+  test:
+    name: Test / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # bash, zsh and pwsh come with the runners; fish does not.
+      - name: Install fish and zsh
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fish zsh
+      - name: Install fish
+        if: runner.os == 'macOS'
+        run: brew install fish
+      - run: bun test
+      - name: Smoke-test the compiled binary
+        run: |
+          bun run build
+          ./dist/nipa --version
+          ./dist/nipa completion bash > /dev/null
+
+  changeset:
+    name: Changeset
+    if: "github.event_name == 'pull_request' && github.event.pull_request.title != 'chore: version packages'"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # Fails when the pull request has no changeset. Add one with `bun changeset`,
+      # or `bun changeset --empty` for changes users don't see.
+      - run: bunx changeset status --since=origin/${{ github.base_ref }}
