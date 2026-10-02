@@ -1,6 +1,11 @@
 #!/usr/bin/env bun
 
 import pkg from "../package.json" with { type: "json" };
+import {
+  completeProjects,
+  completion,
+  completionUsage,
+} from "./commands/completion";
 import { exec, execUsage } from "./commands/exec";
 import { login, loginUsage } from "./commands/login";
 import {
@@ -13,15 +18,14 @@ import {
   whoami,
   whoamiUsage,
 } from "./commands/session";
+import type { CommandSpec } from "./lib/completion";
+import { SHELLS } from "./lib/env";
 import { KeystoneError } from "./lib/keystone";
 import { StoreError } from "./lib/store";
 import { bold, CliError, dim, printError } from "./lib/ui";
 
-interface Command {
-  name: string;
-  summary: string;
+interface Command extends CommandSpec {
   usage: string;
-  aliases?: readonly string[];
   /** Arguments go to another program untouched, including --help. */
   passthrough?: boolean;
   run: (args: string[]) => Promise<number>;
@@ -29,6 +33,20 @@ interface Command {
 
 const commands: Command[] = [
   {
+    flags: [
+      {
+        description: "log in as this user",
+        long: "username",
+        short: "u",
+        values: [],
+      },
+      {
+        description: "scope to this project",
+        long: "project",
+        short: "p",
+        values: [],
+      },
+    ],
     name: "login",
     run: async (args) => {
       await login(args);
@@ -44,12 +62,14 @@ const commands: Command[] = [
     usage: logoutUsage,
   },
   {
+    flags: [{ description: "print JSON", long: "json" }],
     name: "whoami",
     run: whoami,
     summary: "Show the user, project and session expiry",
     usage: whoamiUsage,
   },
   {
+    args: "projects",
     name: "switch",
     run: switchProject,
     summary: "Use another project",
@@ -57,6 +77,8 @@ const commands: Command[] = [
   },
   {
     aliases: ["openstack"],
+    args: "delegate",
+    delegateTo: "openstack",
     name: "os",
     passthrough: true,
     run: (args) => exec(["openstack", ...args]),
@@ -66,6 +88,8 @@ const commands: Command[] = [
   },
   {
     aliases: ["terraform"],
+    args: "delegate",
+    delegateTo: "terraform",
     name: "tf",
     passthrough: true,
     run: (args) => exec(["terraform", ...args]),
@@ -74,6 +98,7 @@ const commands: Command[] = [
       "Usage: nipa tf <args...>\n\nShort for `nipa exec terraform <args...>`.\n",
   },
   {
+    args: "delegate",
     name: "exec",
     passthrough: true,
     run: exec,
@@ -81,10 +106,27 @@ const commands: Command[] = [
     usage: execUsage,
   },
   {
+    flags: [
+      { description: "shell syntax to print", long: "shell", values: SHELLS },
+    ],
     name: "env",
     run: env,
     summary: "Print the OS_* variables for your shell",
     usage: envUsage,
+  },
+  {
+    args: "shells",
+    name: "completion",
+    run: (args) => completion(args, commands),
+    summary: "Print the tab completion script for your shell",
+    usage: completionUsage,
+  },
+  {
+    hidden: true,
+    name: "__complete",
+    run: completeProjects,
+    summary: "Values for completion scripts",
+    usage: "Usage: nipa __complete projects\n",
   },
 ];
 
@@ -95,6 +137,7 @@ const findCommand = (word: string): Command | undefined =>
 
 const help = (): string => {
   const list = commands
+    .filter((c) => !c.hidden)
     .map((c) => `    ${c.name.padEnd(11)} ${c.summary}`)
     .join("\n");
   const version = dim(`v${pkg.version}`);
