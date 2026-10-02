@@ -2,7 +2,7 @@
 
 Log in to Nipa Cloud once with your password and an OTP code, then run `openstack`, `terraform` or any OpenStack tool with that session.
 
-Nipa Cloud accounts with MFA can't use a plain `openrc` file, and application credentials are refused while MFA is on. `nipa` does the multi-factor login against Keystone and keeps the token for you, so every other tool just works:
+Nipa Cloud accounts with MFA can't use a plain `openrc` file, and Keystone refuses application credentials while MFA is on. `nipa` does the multi-factor login, saves the token and passes it to the tools you run:
 
 ```console
 $ nipa login
@@ -39,7 +39,7 @@ To build from source, install [Bun](https://bun.sh) and run `bun install && bun 
 | --- | --- |
 | `nipa login [-u email] [-p project]` | Asks for your password and OTP code, then saves a token scoped to a project. The first time, it lists your projects to pick from. |
 | `nipa whoami [--json]` | Prints the user, project and how long the token has left. Only the user name goes to stdout. |
-| `nipa switch [project]` | Scopes the session to another project, by name or ID. No password or OTP code needed. |
+| `nipa switch [project]` | Scopes the session to another project, by name or ID. It doesn't ask for your password or an OTP code. |
 | `nipa os <args>` | Runs `openstack <args>` with the session. |
 | `nipa tf <args>` | Runs `terraform <args>` with the session. |
 | `nipa exec <cmd> <args>` | Runs any command with the session, for example `ansible-playbook` or a Python script using `openstacksdk`. |
@@ -49,7 +49,7 @@ To build from source, install [Bun](https://bun.sh) and run `bun install && bun 
 
 When the token has expired, `nipa os`, `nipa tf` and `nipa exec` ask you to log in again before they run. In a script, with no terminal to ask, they fail with a message instead.
 
-`nipa exec` removes any `OS_*` variable already in your shell before it adds the session's, so a stale `OS_PASSWORD` or `OS_CLOUD` from an old `openrc` can't override the token. The exit code is the command's own.
+`nipa exec` removes any `OS_*` variable already in your shell before it adds the session's, so a stale `OS_PASSWORD` or `OS_CLOUD` from an old `openrc` can't override the token. `nipa exec` exits with the command's exit code.
 
 ### Load the session into your shell
 
@@ -80,20 +80,20 @@ Completion covers commands, options and their values. `nipa switch <Tab>` and `n
 
 ## Where nipa keeps its files
 
-`~/.config/nipa/`, or `$XDG_CONFIG_HOME/nipa/`, or the directory in `NIPA_CONFIG_DIR`:
+`nipa` keeps its files in `NIPA_CONFIG_DIR` when it is set, otherwise in `$XDG_CONFIG_HOME/nipa/`, otherwise in `~/.config/nipa/`.
 
 | File | Contents |
 | --- | --- |
 | `config.json` | Keystone URL, user domain, region, your user name and the last project. Kept after `nipa logout`. |
 | `auth.json` | The token, its expiry, the user and the project. Deleted by `nipa logout`. |
 
-Both files are written with mode `0600` in a `0700` directory. The token is a bearer token: anyone who reads `auth.json` can act as you until it expires.
+`nipa` writes both files with mode `0600` in a `0700` directory. The token is a bearer token. Anyone who reads `auth.json` can act as you until it expires.
 
 The defaults are Nipa Cloud's: `https://identity-api.nipa.cloud/v3`, user domain `nipacloud` and region `NCP-TH`. Edit `config.json` to use another Keystone.
 
 ## How login works
 
-`nipa login` sends one Keystone request with both the `password` and `totp` methods, which is what an MFA rule of `password + totp` requires. If the project is known, the token is scoped to it in the same request. Otherwise `nipa` gets an unscoped token, lists your projects and exchanges the token for a scoped one. `nipa switch` makes the same exchange with the token method.
+`nipa login` sends one Keystone request with both the `password` and `totp` methods, which is what an MFA rule of `password + totp` requires. If `nipa` knows the project, it scopes the token to it in the same request. Otherwise `nipa` gets an unscoped token, lists your projects and exchanges the token for a scoped one. `nipa switch` makes the same exchange with the token method.
 
 When Keystone refuses a login because of MFA rules, it returns an _auth receipt_ instead of a token. `nipa` reads it and tells you which methods your account needs, instead of a generic "401 Unauthorized".
 
@@ -107,7 +107,7 @@ bun run check           # Ultracite (oxlint + oxfmt)
 bun run typecheck
 ```
 
-The tests run against a fake Keystone that enforces password + TOTP, so they need no account. Completion tests for a shell are skipped when that shell isn't installed; CI runs all of them.
+The tests run against a fake Keystone that enforces password + TOTP, so they need no account. The completion tests skip a shell that isn't installed. CI installs all four and runs every test.
 
 Commit messages and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org) without a scope, for example `feat: add nipa switch`.
 
