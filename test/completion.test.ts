@@ -28,7 +28,9 @@ const shellRun = (cmd: string[]) => runProcess(cmd, testEnv(dir));
 const nipa = (...args: string[]) =>
   runProcess(["bun", ENTRY, ...args], testEnv(dir));
 
-const script = (shell: string): string => path.join(dir, `completion.${shell}`);
+/** PowerShell only dot-sources files that end in .ps1. */
+const script = (shell: string): string =>
+  path.join(dir, `completion.${shell === "pwsh" ? "ps1" : shell}`);
 
 const lines = (text: string): string[] =>
   text.trim().split(/\r?\n/u).filter(Boolean);
