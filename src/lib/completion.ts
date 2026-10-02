@@ -2,30 +2,35 @@
 // new command or option completes without editing them. Project names come from
 // the hidden `nipa __complete projects` command when the user presses Tab.
 
+/** What follows a flag on the command line. */
+export type FlagValue =
+  | { kind: "none" }
+  | { kind: "text"; name: string }
+  | { kind: "choice"; choices: readonly [string, ...string[]] }
+  | { kind: "project" };
+
 export interface FlagSpec {
   long: string;
   short?: string;
   description: string;
-  /** Fixed values for the flag's argument; `[]` means it takes a free value. */
-  values?: readonly string[];
+  value: FlagValue;
 }
 
-/**
- * What the positional arguments complete to:
- * - `projects`: project names from the session
- * - `shells`: the shells `nipa completion` supports
- * - `delegate`: another program's own completion (openstack, terraform or any command)
- */
-export type ArgKind = "projects" | "shells" | "delegate";
+/** What the positional arguments complete to. Without `args`, nothing. */
+export type ArgSpec =
+  | { kind: "projects" }
+  | { kind: "shells" }
+  /** The rest of the line completes as if typed after `program`. */
+  | { kind: "program"; program: string }
+  /** The next word is a command, and the rest completes as that command. */
+  | { kind: "command" };
 
 export interface CommandSpec {
   name: string;
   summary: string;
   aliases?: readonly string[];
   flags?: readonly FlagSpec[];
-  args?: ArgKind;
-  /** For `delegate`: the program to complete as, or the next word for `exec`. */
-  delegateTo?: string;
+  args?: ArgSpec;
   hidden?: boolean;
 }
 
@@ -36,80 +41,112 @@ export type CompletionShell = (typeof COMPLETION_SHELLS)[number];
 export const isCompletionShell = (value: string): value is CompletionShell =>
   COMPLETION_SHELLS.some((shell) => shell === value);
 
+/** Commands whose arguments belong to another program, including --help. */
+export const isPassthrough = (spec: CommandSpec): boolean =>
+  spec.args?.kind === "program" || spec.args?.kind === "command";
+
 const visible = (specs: readonly CommandSpec[]) =>
   specs.filter((c) => !c.hidden);
 
 const flagWords = (flag: FlagSpec): string[] =>
   flag.short ? [`--${flag.long}`, `-${flag.short}`] : [`--${flag.long}`];
 
-const takesValue = (flag: FlagSpec): boolean => flag.values !== undefined;
-
 const names = (spec: CommandSpec): string[] => [
   spec.name,
   ...(spec.aliases ?? []),
 ];
 
+const PROJECTS_COMMAND = "nipa __complete projects";
+
 // --- bash -------------------------------------------------------------------
 
 /** Project names may contain spaces, so split the list on newlines only. */
-const BASH_PROJECTS =
-  'local IFS=$\'\\n\'; COMPREPLY=($(compgen -W "$(nipa __complete projects 2>/dev/null)" -- "$cur"))';
+const BASH_PROJECTS = `local IFS=$'\\n'; COMPREPLY=($(compgen -W "$(${PROJECTS_COMMAND} 2>/dev/null)" -- "$cur"))`;
+
+const bashWords = (words: readonly string[]): string =>
+  `COMPREPLY=($(compgen -W "${words.join(" ")}" -- "$cur"))`;
+
+/** The reply after a flag that takes a value; undefined for flags that don't. */
+const bashFlagValue = (value: FlagValue): string | undefined => {
+  switch (value.kind) {
+    case "none": {
+      return undefined;
+    }
+    case "text": {
+      return "COMPREPLY=()";
+    }
+    case "choice": {
+      return bashWords(value.choices);
+    }
+    case "project": {
+      return BASH_PROJECTS;
+    }
+    default: {
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
+/** `_command_offset` comes from the bash-completion package. Without it, complete file names. */
+const bashOffset = (call: string): string =>
+  `if declare -F _command_offset >/dev/null; then ${call}; else COMPREPLY=($(compgen -f -- "$cur")); fi`;
+
+const bashArgs = (args: ArgSpec): string => {
+  switch (args.kind) {
+    case "projects": {
+      return BASH_PROJECTS;
+    }
+    case "shells": {
+      return bashWords(COMPLETION_SHELLS);
+    }
+    case "program": {
+      return bashOffset(`COMP_WORDS[1]=${args.program}; _command_offset 1`);
+    }
+    case "command": {
+      return bashOffset("_command_offset 2");
+    }
+    default: {
+      const _exhaustive: never = args;
+      return _exhaustive;
+    }
+  }
+};
 
 const bashCase = (spec: CommandSpec): string => {
-  const pattern = names(spec).join("|");
+  const flags = spec.flags ?? [];
   const lines: string[] = [];
-  const valued = (spec.flags ?? []).filter(takesValue);
+  const valued = flags.flatMap((flag) => {
+    const reply = bashFlagValue(flag.value);
+    return reply === undefined
+      ? []
+      : [`        ${flagWords(flag).join("|")}) ${reply}; return ;;`];
+  });
   if (valued.length > 0) {
-    lines.push('      case "$prev" in');
-    for (const flag of valued) {
-      const values = (flag.values ?? []).join(" ");
-      let reply = "COMPREPLY=()";
-      if (values) {
-        reply = `COMPREPLY=($(compgen -W "${values}" -- "$cur"))`;
-      } else if (flag.long === "project") {
-        reply = BASH_PROJECTS;
-      }
-      lines.push(`        ${flagWords(flag).join("|")}) ${reply}; return ;;`);
-    }
-    lines.push("      esac");
+    lines.push('      case "$prev" in', ...valued, "      esac");
   }
-  const flags = (spec.flags ?? []).flatMap(flagWords).join(" ");
-  if (flags) {
-    lines.push(
-      `      if [[ $cur == -* ]]; then COMPREPLY=($(compgen -W "${flags}" -- "$cur")); return; fi`
-    );
+  if (flags.length > 0) {
+    const words = bashWords(flags.flatMap(flagWords));
+    lines.push(`      if [[ $cur == -* ]]; then ${words}; return; fi`);
   }
-  if (spec.args === "projects") {
-    lines.push(`      ${BASH_PROJECTS}`);
-  } else if (spec.args === "shells") {
-    lines.push(
-      `      COMPREPLY=($(compgen -W "${COMPLETION_SHELLS.join(" ")}" -- "$cur"))`
-    );
-  } else if (spec.args === "delegate") {
-    // _command_offset comes from the bash-completion package; without it, complete file names.
-    const program = spec.delegateTo
-      ? `COMP_WORDS[1]=${spec.delegateTo}; _command_offset 1`
-      : "_command_offset 2";
-    lines.push(
-      `      if declare -F _command_offset >/dev/null; then ${program}; else COMPREPLY=($(compgen -f -- "$cur")); fi`
-    );
+  if (spec.args) {
+    lines.push(`      ${bashArgs(spec.args)}`);
   }
-  return lines.length > 0
-    ? `    ${pattern})\n${lines.join("\n")}\n      ;;`
-    : "";
+  if (lines.length === 0) {
+    return "";
+  }
+  return `    ${names(spec).join("|")})\n${lines.join("\n")}\n      ;;`;
 };
 
 const bash = (specs: readonly CommandSpec[]): string => {
-  const commands = visible(specs)
-    .map((c) => c.name)
-    .join(" ");
+  const commands = visible(specs).map((c) => c.name);
   return `# nipa completion for bash
 # Load it from ~/.bashrc:  eval "$(nipa completion bash)"
 _nipa() {
   local cur=\${COMP_WORDS[COMP_CWORD]} prev=\${COMP_WORDS[COMP_CWORD-1]}
   COMPREPLY=()
   if [[ $COMP_CWORD -eq 1 ]]; then
-    COMPREPLY=($(compgen -W "${commands} --help --version" -- "$cur"))
+    ${bashWords([...commands, "--help", "--version"])}
     return
   fi
   case \${COMP_WORDS[1]} in
@@ -125,37 +162,68 @@ complete -o default -F _nipa nipa
 const zshQuote = (text: string): string =>
   text.replaceAll("'", "'\\''").replaceAll(":", "\\:");
 
+/** The `:message:action` part of an _arguments spec. */
+const zshFlagValue = (flag: FlagSpec): string => {
+  const { value } = flag;
+  switch (value.kind) {
+    case "none": {
+      return "";
+    }
+    case "text": {
+      return `:${value.name}: `;
+    }
+    case "choice": {
+      return `:${flag.long}:(${value.choices.join(" ")})`;
+    }
+    case "project": {
+      return ":project:_nipa_projects";
+    }
+    default: {
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
 const zshFlag = (flag: FlagSpec): string => {
   const words = flagWords(flag);
   const exclusive = words.length > 1 ? `(${words.join(" ")})` : "";
   const spelled = words.length > 1 ? `{${words.join(",")}}` : words[0];
-  let action = "";
-  if (flag.values?.length) {
-    action = `:${flag.long}:(${flag.values.join(" ")})`;
-  } else if (flag.values) {
-    action =
-      flag.long === "project"
-        ? `:${flag.long}:_nipa_projects`
-        : `:${flag.long}: `;
-  }
-  return `'${exclusive}'${spelled}'[${zshQuote(flag.description)}]${action}'`;
+  return `'${exclusive}'${spelled}'[${zshQuote(flag.description)}]${zshFlagValue(flag)}'`;
 };
 
-const zshCase = (spec: CommandSpec): string => {
-  const pattern = names(spec).join("|");
+/** The body of a command's case arm, after `shift words; (( CURRENT-- ))`. */
+const zshBody = (spec: CommandSpec): string => {
   const specs = (spec.flags ?? []).map(zshFlag);
-  if (spec.args === "projects") {
-    specs.push("'1:project:_nipa_projects'");
-  } else if (spec.args === "shells") {
-    specs.push(`'1:shell:(${COMPLETION_SHELLS.join(" ")})'`);
+  const { args } = spec;
+  switch (args?.kind) {
+    case undefined: {
+      break;
+    }
+    case "projects": {
+      specs.push("'1:project:_nipa_projects'");
+      break;
+    }
+    case "shells": {
+      specs.push(`'1:shell:(${COMPLETION_SHELLS.join(" ")})'`);
+      break;
+    }
+    case "program": {
+      return `words[1]=${args.program}; _normal`;
+    }
+    case "command": {
+      return "_normal";
+    }
+    default: {
+      const _exhaustive: never = args;
+      return _exhaustive;
+    }
   }
-  if (spec.args === "delegate") {
-    const rename = spec.delegateTo ? `words[1]=${spec.delegateTo}; ` : "";
-    return `    ${pattern}) shift words; (( CURRENT-- )); ${rename}_normal ;;`;
-  }
-  const body = specs.length > 0 ? `_arguments -s ${specs.join(" ")}` : ":";
-  return `    ${pattern}) shift words; (( CURRENT-- )); ${body} ;;`;
+  return specs.length > 0 ? `_arguments -s ${specs.join(" ")}` : ":";
 };
+
+const zshCase = (spec: CommandSpec): string =>
+  `    ${names(spec).join("|")}) shift words; (( CURRENT-- )); ${zshBody(spec)} ;;`;
 
 const zsh = (specs: readonly CommandSpec[]): string => {
   const commands = visible(specs)
@@ -168,7 +236,7 @@ const zsh = (specs: readonly CommandSpec[]): string => {
 
 _nipa_projects() {
   local -a projects
-  projects=(\${(f)"$(nipa __complete projects 2>/dev/null)"})
+  projects=(\${(f)"$(${PROJECTS_COMMAND} 2>/dev/null)"})
   _describe -t projects 'project' projects
 }
 
@@ -199,38 +267,62 @@ fi
 const fishQuote = (text: string): string =>
   `'${text.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
 
+const FISH_PROJECTS = `'(${PROJECTS_COMMAND} 2>/dev/null)'`;
+
+/** The options after `-l <flag>` that describe its value. */
+const fishFlagValue = (value: FlagValue): string => {
+  switch (value.kind) {
+    case "none": {
+      return "";
+    }
+    case "text": {
+      return " -r";
+    }
+    case "choice": {
+      return ` -r -a ${fishQuote(value.choices.join(" "))}`;
+    }
+    case "project": {
+      return ` -r -a ${FISH_PROJECTS}`;
+    }
+    default: {
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
+/** The `-a` argument for a command's positional arguments. */
+const fishArgs = (args: ArgSpec): string => {
+  switch (args.kind) {
+    case "projects": {
+      return FISH_PROJECTS;
+    }
+    case "shells": {
+      return fishQuote(COMPLETION_SHELLS.join(" "));
+    }
+    case "program": {
+      // complete the rest of the line as if it were typed after the program
+      return `'(complete -C "${args.program} "(string join " " -- (commandline -opc)[3..])" "(commandline -ct))'`;
+    }
+    case "command": {
+      return "'(__fish_complete_subcommand --fcs-skip=2)'";
+    }
+    default: {
+      const _exhaustive: never = args;
+      return _exhaustive;
+    }
+  }
+};
+
 const fishLines = (spec: CommandSpec): string[] => {
   const condition = `'__fish_seen_subcommand_from ${names(spec).join(" ")}'`;
-  const lines: string[] = [];
-  for (const flag of spec.flags ?? []) {
+  const lines = (spec.flags ?? []).map((flag) => {
     const short = flag.short ? ` -s ${flag.short}` : "";
-    let value = "";
-    if (flag.values?.length) {
-      value = ` -r -a ${fishQuote(flag.values.join(" "))}`;
-    } else if (flag.values) {
-      value =
-        flag.long === "project"
-          ? " -r -a '(nipa __complete projects 2>/dev/null)'"
-          : " -r";
-    }
-    lines.push(
-      `complete -c nipa -n ${condition} -l ${flag.long}${short}${value} -d ${fishQuote(flag.description)}`
-    );
-  }
-  if (spec.args === "projects") {
-    lines.push(
-      `complete -c nipa -n ${condition} -a '(nipa __complete projects 2>/dev/null)'`
-    );
-  } else if (spec.args === "shells") {
-    lines.push(
-      `complete -c nipa -n ${condition} -a ${fishQuote(COMPLETION_SHELLS.join(" "))}`
-    );
-  } else if (spec.args === "delegate") {
-    // complete the rest of the line as if it were typed after the target program
-    const target = spec.delegateTo
-      ? `(complete -C "${spec.delegateTo} "(string join " " -- (commandline -opc)[3..])" "(commandline -ct))`
-      : "(__fish_complete_subcommand --fcs-skip=2)";
-    lines.push(`complete -c nipa -n ${condition} -a '${target}'`);
+    const value = fishFlagValue(flag.value);
+    return `complete -c nipa -n ${condition} -l ${flag.long}${short}${value} -d ${fishQuote(flag.description)}`;
+  });
+  if (spec.args) {
+    lines.push(`complete -c nipa -n ${condition} -a ${fishArgs(spec.args)}`);
   }
   return lines;
 };
@@ -254,36 +346,75 @@ ${visible(specs).flatMap(fishLines).join("\n")}
 
 const pwshQuote = (text: string): string => `'${text.replaceAll("'", "''")}'`;
 
+const pwshList = (words: readonly string[]): string =>
+  `@(${words.map(pwshQuote).join(", ")})`;
+
+const PWSH_PROJECTS = `@(${PROJECTS_COMMAND} 2>$null)`;
+
+/** The values after a flag, or undefined for flags that take none or free text. */
+const pwshFlagValue = (value: FlagValue): string | undefined => {
+  switch (value.kind) {
+    case "none":
+    case "text": {
+      return undefined;
+    }
+    case "choice": {
+      return pwshList(value.choices);
+    }
+    case "project": {
+      return PWSH_PROJECTS;
+    }
+    default: {
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
+/** Positional values; PowerShell can't hand over to another program's completer. */
+const pwshArgs = (args: ArgSpec): string | undefined => {
+  switch (args.kind) {
+    case "projects": {
+      return PWSH_PROJECTS;
+    }
+    case "shells": {
+      return pwshList(COMPLETION_SHELLS);
+    }
+    case "program":
+    case "command": {
+      return undefined;
+    }
+    default: {
+      const _exhaustive: never = args;
+      return _exhaustive;
+    }
+  }
+};
+
 const pwshCase = (spec: CommandSpec): string => {
-  const flags = (spec.flags ?? []).flatMap(flagWords).map(pwshQuote).join(", ");
-  const valued = (spec.flags ?? [])
-    .filter((f) => f.values?.length)
-    .map(
-      (f) =>
-        `        if (${flagWords(f)
-          .map((w) => `$prev -eq ${pwshQuote(w)}`)
-          .join(
-            " -or "
-          )}) { return Complete @(${(f.values ?? []).map(pwshQuote).join(", ")}) }`
-    );
-  const projectFlag = (spec.flags ?? []).some((f) => f.long === "project");
-  if (projectFlag) {
-    valued.push(
-      "        if ($prev -eq '--project' -or $prev -eq '-p') { return Complete @(nipa __complete projects 2>$null) }"
+  const flags = spec.flags ?? [];
+  const lines = flags.flatMap((flag) => {
+    const values = pwshFlagValue(flag.value);
+    if (values === undefined) {
+      return [];
+    }
+    const test = flagWords(flag)
+      .map((word) => `$prev -eq ${pwshQuote(word)}`)
+      .join(" -or ");
+    return [`        if (${test}) { return Complete ${values} }`];
+  });
+  if (flags.length > 0) {
+    const all = pwshList(flags.flatMap(flagWords));
+    lines.push(
+      `        if ($wordToComplete -like '-*') { return Complete ${all} }`
     );
   }
-  let positional = "";
-  if (spec.args === "projects") {
-    positional = "        Complete @(nipa __complete projects 2>$null)";
-  } else if (spec.args === "shells") {
-    positional = `        Complete @(${COMPLETION_SHELLS.map(pwshQuote).join(", ")})`;
+  const positional = spec.args && pwshArgs(spec.args);
+  if (positional) {
+    lines.push(`        Complete ${positional}`);
   }
-  const flagLine = flags
-    ? `        if ($wordToComplete -like '-*') { return Complete @(${flags}) }`
-    : "";
-  const body = [...valued, flagLine, positional].filter(Boolean).join("\n");
-  const pattern = names(spec).map(pwshQuote).join(", ");
-  return `      { $_ -in @(${pattern}) } {\n${body || "        return"}\n      }`;
+  const body = lines.length > 0 ? lines.join("\n") : "        return";
+  return `      { $_ -in ${pwshList(names(spec))} } {\n${body}\n      }`;
 };
 
 const pwsh = (specs: readonly CommandSpec[]): string => {
@@ -333,7 +464,8 @@ export const completionScript = (
       return pwsh(specs);
     }
     default: {
-      throw new Error(`unknown shell: ${shell satisfies never}`);
+      const _exhaustive: never = shell;
+      return _exhaustive;
     }
   }
 };

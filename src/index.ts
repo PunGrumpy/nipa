@@ -18,6 +18,7 @@ import {
   whoami,
   whoamiUsage,
 } from "./commands/session";
+import { isPassthrough } from "./lib/completion";
 import type { CommandSpec } from "./lib/completion";
 import { SHELLS } from "./lib/env";
 import { KeystoneError } from "./lib/keystone";
@@ -26,8 +27,6 @@ import { bold, CliError, dim, printError } from "./lib/ui";
 
 interface Command extends CommandSpec {
   usage: string;
-  /** Arguments go to another program untouched, including --help. */
-  passthrough?: boolean;
   run: (args: string[]) => Promise<number>;
 }
 
@@ -38,13 +37,13 @@ const commands: Command[] = [
         description: "log in as this user",
         long: "username",
         short: "u",
-        values: [],
+        value: { kind: "text", name: "email" },
       },
       {
         description: "scope to this project",
         long: "project",
         short: "p",
-        values: [],
+        value: { kind: "project" },
       },
     ],
     name: "login",
@@ -62,14 +61,16 @@ const commands: Command[] = [
     usage: logoutUsage,
   },
   {
-    flags: [{ description: "print JSON", long: "json" }],
+    flags: [
+      { description: "print JSON", long: "json", value: { kind: "none" } },
+    ],
     name: "whoami",
     run: whoami,
     summary: "Show the user, project and session expiry",
     usage: whoamiUsage,
   },
   {
-    args: "projects",
+    args: { kind: "projects" },
     name: "switch",
     run: switchProject,
     summary: "Use another project",
@@ -77,10 +78,8 @@ const commands: Command[] = [
   },
   {
     aliases: ["openstack"],
-    args: "delegate",
-    delegateTo: "openstack",
+    args: { kind: "program", program: "openstack" },
     name: "os",
-    passthrough: true,
     run: (args) => exec(["openstack", ...args]),
     summary: "Run openstack with the session",
     usage:
@@ -88,26 +87,27 @@ const commands: Command[] = [
   },
   {
     aliases: ["terraform"],
-    args: "delegate",
-    delegateTo: "terraform",
+    args: { kind: "program", program: "terraform" },
     name: "tf",
-    passthrough: true,
     run: (args) => exec(["terraform", ...args]),
     summary: "Run terraform with the session",
     usage:
       "Usage: nipa tf <args...>\n\nShort for `nipa exec terraform <args...>`.\n",
   },
   {
-    args: "delegate",
+    args: { kind: "command" },
     name: "exec",
-    passthrough: true,
     run: exec,
     summary: "Run any command with the session",
     usage: execUsage,
   },
   {
     flags: [
-      { description: "shell syntax to print", long: "shell", values: SHELLS },
+      {
+        description: "shell syntax to print",
+        long: "shell",
+        value: { choices: SHELLS, kind: "choice" },
+      },
     ],
     name: "env",
     run: env,
@@ -115,7 +115,7 @@ const commands: Command[] = [
     usage: envUsage,
   },
   {
-    args: "shells",
+    args: { kind: "shells" },
     name: "completion",
     run: (args) => completion(args, commands),
     summary: "Print the tab completion script for your shell",
@@ -178,7 +178,7 @@ const main = async (argv: string[]): Promise<number> => {
       hint: "Run `nipa --help` to see the commands.",
     });
   }
-  if (!command.passthrough && args.some((a) => HELP_FLAGS.has(a))) {
+  if (!isPassthrough(command) && args.some((a) => HELP_FLAGS.has(a))) {
     console.log(command.usage);
     return 0;
   }
