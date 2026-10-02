@@ -97,7 +97,10 @@ export const switchProject = async (args: string[]): Promise<number> => {
   });
   const config = await loadConfig();
   const session = await requireSession();
-  const projects = await listProjects(config.authUrl, session.token);
+  const projects = await listProjects({
+    authUrl: config.authUrl,
+    token: session.token,
+  });
   const project = await pickProject(projects, positionals[0]);
   if (project.id === session.project.id) {
     success(`Already using ${bold(project.name)}`);
@@ -108,7 +111,11 @@ export const switchProject = async (args: string[]): Promise<number> => {
   let next: Session;
   try {
     next = toSession(
-      await rescope(config.authUrl, session.token, project.id),
+      await rescope({
+        authUrl: config.authUrl,
+        projectId: project.id,
+        token: session.token,
+      }),
       project
     );
   } finally {
@@ -134,7 +141,7 @@ export const logout = async (): Promise<number> => {
   }
   if (isActive(session)) {
     try {
-      await revoke(config.authUrl, session.token);
+      await revoke({ authUrl: config.authUrl, token: session.token });
     } catch {
       // Best effort: the local session is deleted either way, and the token expires on its own.
     }

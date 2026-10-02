@@ -48,7 +48,10 @@ export const completeProjects = async (args: string[]): Promise<number> => {
     return 0;
   }
   const config = await loadConfig();
-  const projects = await listProjects(config.authUrl, session.token);
+  const projects = await listProjects({
+    authUrl: config.authUrl,
+    token: session.token,
+  });
   process.stdout.write(projects.map((p) => `${p.name}\n`).join(""));
   return 0;
 };

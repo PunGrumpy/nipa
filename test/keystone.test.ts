@@ -61,7 +61,7 @@ describe("request bodies", () => {
   });
 
   test("rescope uses the token method", () => {
-    expect(rescopeBody("tok", "p2")).toEqual({
+    expect(rescopeBody({ projectId: "p2", token: "tok" })).toEqual({
       auth: {
         identity: { methods: ["token"], token: { id: "tok" } },
         scope: { project: { id: "p2" } },
@@ -115,8 +115,9 @@ describe("against a fake Keystone", () => {
   };
 
   test("logs in scoped to a project", async () => {
-    const token = await loginWithPasswordTotp(keystone.url, {
+    const token = await loginWithPasswordTotp({
       ...credentials,
+      authUrl: keystone.url,
       projectId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
     expect(token.value).toStartWith("tok-");
@@ -129,8 +130,9 @@ describe("against a fake Keystone", () => {
   });
 
   test("wrong OTP code is a 401 with a readable message", async () => {
-    const attempt = loginWithPasswordTotp(keystone.url, {
+    const attempt = loginWithPasswordTotp({
       ...credentials,
+      authUrl: keystone.url,
       passcode: "000000",
     });
     await expect(attempt).rejects.toThrow(KeystoneError);
@@ -158,22 +160,37 @@ describe("against a fake Keystone", () => {
   });
 
   test("lists enabled projects sorted by name, then rescopes", async () => {
-    const unscoped = await loginWithPasswordTotp(keystone.url, credentials);
+    const unscoped = await loginWithPasswordTotp({
+      ...credentials,
+      authUrl: keystone.url,
+    });
     expect(unscoped.project).toBeUndefined();
-    const projects = await listProjects(keystone.url, unscoped.value);
+    const projects = await listProjects({
+      authUrl: keystone.url,
+      token: unscoped.value,
+    });
     expect(projects.map((p) => p.name)).toEqual(["Alpha", "Beta"]);
     const beta = projects.find((p) => p.name === "Beta");
-    const scoped = await rescope(keystone.url, unscoped.value, beta?.id ?? "");
+    const scoped = await rescope({
+      authUrl: keystone.url,
+      projectId: beta?.id ?? "",
+      token: unscoped.value,
+    });
     expect(scoped.project?.name).toBe("Beta");
   });
 
   test("revoked tokens stop working", async () => {
-    const token = await loginWithPasswordTotp(keystone.url, credentials);
-    await revoke(keystone.url, token.value);
-    await expect(listProjects(keystone.url, token.value)).rejects.toThrow(
-      KeystoneError
-    );
+    const token = await loginWithPasswordTotp({
+      ...credentials,
+      authUrl: keystone.url,
+    });
+    await revoke({ authUrl: keystone.url, token: token.value });
+    await expect(
+      listProjects({ authUrl: keystone.url, token: token.value })
+    ).rejects.toThrow(KeystoneError);
     // revoking twice is fine
-    await expect(revoke(keystone.url, token.value)).resolves.toBeUndefined();
+    await expect(
+      revoke({ authUrl: keystone.url, token: token.value })
+    ).resolves.toBeUndefined();
   });
 });

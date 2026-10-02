@@ -90,8 +90,21 @@ export const passwordTotpBody = (input: PasswordTotpInput): AuthRequest => {
   return request;
 };
 
+/** A token and the Keystone that issued it, for calls made with that token. */
+export interface TokenRequest {
+  authUrl: string;
+  token: string;
+}
+
+export interface RescopeRequest extends TokenRequest {
+  projectId: string;
+}
+
 /** Exchanges an existing token for one scoped to another project. */
-export const rescopeBody = (token: string, projectId: string): AuthRequest => ({
+export const rescopeBody = ({
+  token,
+  projectId,
+}: Pick<RescopeRequest, "token" | "projectId">): AuthRequest => ({
   auth: {
     identity: { methods: ["token"], token: { id: token } },
     scope: { project: { id: projectId } },
@@ -194,16 +207,16 @@ const issue = async (authUrl: string, request: AuthRequest): Promise<Token> => {
   return toToken(value, parsed.data);
 };
 
-export const loginWithPasswordTotp = (
-  authUrl: string,
-  input: PasswordTotpInput
-): Promise<Token> => issue(authUrl, passwordTotpBody(input));
+export const loginWithPasswordTotp = ({
+  authUrl,
+  ...input
+}: PasswordTotpInput & { authUrl: string }): Promise<Token> =>
+  issue(authUrl, passwordTotpBody(input));
 
-export const rescope = (
-  authUrl: string,
-  token: string,
-  projectId: string
-): Promise<Token> => issue(authUrl, rescopeBody(token, projectId));
+export const rescope = ({
+  authUrl,
+  ...request
+}: RescopeRequest): Promise<Token> => issue(authUrl, rescopeBody(request));
 
 const ProjectsSchema = z.object({
   projects: z.array(
@@ -223,10 +236,10 @@ export const toProjects = (body: z.infer<typeof ProjectsSchema>): Project[] =>
     .toSorted((a, b) => a.name.localeCompare(b.name));
 
 /** Projects the token's user can scope to, sorted by name. */
-export const listProjects = async (
-  authUrl: string,
-  token: string
-): Promise<Project[]> => {
+export const listProjects = async ({
+  authUrl,
+  token,
+}: TokenRequest): Promise<Project[]> => {
   const res = await fetch(`${identityUrl(authUrl)}/auth/projects`, {
     headers: { "X-Auth-Token": token },
   });
@@ -243,7 +256,10 @@ export const listProjects = async (
   return toProjects(parsed.data);
 };
 
-export const revoke = async (authUrl: string, token: string): Promise<void> => {
+export const revoke = async ({
+  authUrl,
+  token,
+}: TokenRequest): Promise<void> => {
   const res = await fetch(`${identityUrl(authUrl)}/auth/tokens`, {
     headers: { "X-Auth-Token": token, "X-Subject-Token": token },
     method: "DELETE",

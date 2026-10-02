@@ -75,25 +75,29 @@ export const toSession = (token: Token, project: Project): Session => ({
   user: token.user,
 });
 
-const authenticate = async (
-  config: Config,
-  credentials: { username: string; password: string; passcode: string },
-  wantedProject?: string
-): Promise<Session> => {
-  const { username, password: pass, passcode } = credentials;
-  const base = {
-    passcode,
-    password: pass,
-    userDomain: config.userDomain,
-    username,
-  };
+interface AuthenticateInput {
+  config: Config;
+  credentials: { username: string; password: string; passcode: string };
+  /** A project name or ID from --project; falls back to the last project used. */
+  wantedProject?: string;
+}
 
-  // Known project: one request. Otherwise log in unscoped, list, then rescope.
-  // The OTP code is single-use, so never retry the password step.
+const authenticate = async ({
+  config,
+  credentials,
+  wantedProject,
+}: AuthenticateInput): Promise<Session> => {
+  const { authUrl } = config;
+  const base = { ...credentials, userDomain: config.userDomain };
+
+  // With a project ID, one request is enough. Otherwise log in unscoped, list
+  // the projects and rescope. The OTP code works once, so never repeat the
+  // password step.
   const known = wantedProject ?? config.project?.id;
   if (known && PROJECT_ID_PATTERN.test(known)) {
-    const token = await loginWithPasswordTotp(config.authUrl, {
+    const token = await loginWithPasswordTotp({
       ...base,
+      authUrl,
       projectId: known,
     });
     if (!token.project) {
@@ -102,10 +106,14 @@ const authenticate = async (
     return toSession(token, token.project);
   }
 
-  const unscoped = await loginWithPasswordTotp(config.authUrl, base);
-  const projects = await listProjects(config.authUrl, unscoped.value);
+  const unscoped = await loginWithPasswordTotp({ ...base, authUrl });
+  const projects = await listProjects({ authUrl, token: unscoped.value });
   const project = await pickProject(projects, known);
-  const scoped = await rescope(config.authUrl, unscoped.value, project.id);
+  const scoped = await rescope({
+    authUrl,
+    projectId: project.id,
+    token: unscoped.value,
+  });
   return toSession(scoped, project);
 };
 
@@ -157,11 +165,11 @@ export const login = async (args: string[] = []): Promise<Session> => {
   spin.start("Verifying");
   let session: Session;
   try {
-    session = await authenticate(
+    session = await authenticate({
       config,
-      { passcode, password: pass, username },
-      values.project
-    );
+      credentials: { passcode, password: pass, username },
+      wantedProject: values.project,
+    });
     spin.clear();
   } catch (error) {
     spin.clear();
