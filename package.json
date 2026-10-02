@@ -31,7 +31,8 @@
     "check": "ultracite check",
     "fix": "ultracite fix",
     "changeset": "changeset",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:release": "bun scripts/build-release.ts"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
