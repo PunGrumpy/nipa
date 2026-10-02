@@ -1,5 +1,5 @@
 // Output helpers. Everything but command results goes to stderr, so
-// `nipa env | source` and `nipa whoami --json | jq` stay clean.
+// `nipa env | source` and `nipa whoami --json | jq` read only the data.
 
 import { isCancel } from "@clack/prompts";
 import pc from "picocolors";
@@ -19,7 +19,7 @@ export class CliError extends Error {
   }
 }
 
-/** Shared by every prompt: render on stderr, without the clack side bar. */
+/** Options for every prompt. They render on stderr, without the clack side bar. */
 export const promptOptions = {
   output: process.stderr,
   withGuide: false,

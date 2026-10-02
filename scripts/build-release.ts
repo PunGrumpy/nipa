@@ -18,7 +18,7 @@ const root = path.join(import.meta.dir, "..");
 const dist = path.join(root, "dist");
 await mkdir(dist, { recursive: true });
 
-// One target at a time: each downloads its own Bun runtime, and the log stays readable.
+// Build one target at a time. Each downloads its own Bun runtime, and the log stays in order.
 /* oxlint-disable no-await-in-loop */
 const sums: string[] = [];
 for (const { name, target } of TARGETS) {

@@ -1,5 +1,5 @@
-// Config and session files under ~/.config/nipa (or $NIPA_CONFIG_DIR).
-// Both are written 0600 inside a 0700 directory: the session holds a bearer token.
+// Config and session files under ~/.config/nipa (or $NIPA_CONFIG_DIR). nipa
+// writes both 0600 inside a 0700 directory because the session holds a bearer token.
 
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";

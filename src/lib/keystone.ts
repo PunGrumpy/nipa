@@ -1,4 +1,4 @@
-// Keystone v3 client: the few calls nipa needs to turn a password + OTP code
+// Keystone v3 client with the calls nipa needs to turn a password and OTP code
 // into a project-scoped token, switch projects and revoke the token.
 
 import { z } from "zod";

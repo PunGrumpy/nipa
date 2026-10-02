@@ -142,7 +142,9 @@ const help = (): string => {
     .join("\n");
   const version = dim(`v${pkg.version}`);
   return `
-  ${bold("nipa")} ${version} — Nipa Cloud from your terminal
+  ${bold("nipa")} ${version}
+
+  Log in to Nipa Cloud once, then run openstack and terraform with the session.
 
   ${dim("Usage:")} nipa <command> [options]
 

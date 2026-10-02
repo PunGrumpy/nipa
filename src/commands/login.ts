@@ -27,8 +27,8 @@ const PROJECT_ID_PATTERN = /^[\da-f]{32}$/u;
 
 export const loginUsage = `Usage: nipa login [options]
 
-Log in to Nipa Cloud with your password and an OTP code. The token is saved
-in ~/.config/nipa/auth.json and reused until it expires.
+Log in to Nipa Cloud with your password and an OTP code. nipa saves the token
+in ~/.config/nipa/auth.json and reuses it until it expires.
 
 Options:
   -u, --username <email>   log in as this user (default: the last one)

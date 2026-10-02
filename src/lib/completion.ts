@@ -1,6 +1,6 @@
-// Shell completion scripts, generated from the same command list the CLI uses
-// so they never drift. Dynamic values (project names) come from the hidden
-// `nipa __complete projects` command at completion time.
+// Shell completion scripts, generated from the command list the CLI uses, so a
+// new command or option completes without editing them. Project names come from
+// the hidden `nipa __complete projects` command when the user presses Tab.
 
 export interface FlagSpec {
   long: string;

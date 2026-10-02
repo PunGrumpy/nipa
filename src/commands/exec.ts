@@ -21,7 +21,7 @@ const INSTALL_HINTS = new Map([
   ["terraform", "Install it with `brew install hashicorp/tap/terraform`."],
 ]);
 
-/** PATH first, then ~/.local/bin, where pipx puts openstack. */
+/** Looks in PATH first, then in ~/.local/bin, where pipx installs openstack. */
 const resolve = (command: string): string | undefined => {
   const found = Bun.which(command);
   if (found) {
