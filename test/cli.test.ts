@@ -295,6 +295,15 @@ describe("with a session", () => {
     expect(info.mode.toString(8).slice(-3)).toBe("600");
   });
 
+  test("--debug logs each request without tokens", async () => {
+    const { stderr } = await run(["--debug", "switch", "Alpha"]);
+    expect(stderr).toContain("[debug]");
+    expect(stderr).toMatch(
+      /201 POST http:\/\/localhost:\d+\/v3\/auth\/tokens/u
+    );
+    expect(stderr).not.toContain("tok-");
+  });
+
   test("logout revokes and deletes the session", async () => {
     const { code, stderr } = await run(["logout"]);
     expect(code).toBe(0);

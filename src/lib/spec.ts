@@ -63,6 +63,12 @@ export const PROFILE_FLAG: FlagSpec = {
 export const GLOBAL_FLAGS: readonly FlagSpec[] = [
   PROFILE_FLAG,
   {
+    description: "Log each HTTP request (or set NIPA_DEBUG=1)",
+    long: "debug",
+    short: "d",
+    value: { kind: "none" },
+  },
+  {
     description: "Turn off colors (or set NO_COLOR=1)",
     long: "no-color",
     value: { kind: "none" },

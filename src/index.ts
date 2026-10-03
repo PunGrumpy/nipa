@@ -4,7 +4,7 @@ import pkg from "../package.json" with { type: "json" };
 import { createCommands, MAIN_EXAMPLES } from "./commands/registry";
 import type { Command } from "./commands/registry";
 import { commandHelp, mainHelp } from "./lib/help";
-import { NetworkError } from "./lib/http";
+import { isDebug, NetworkError } from "./lib/http";
 import { KeystoneError } from "./lib/keystone";
 import { isPassthrough } from "./lib/spec";
 import { StoreError } from "./lib/store";
@@ -12,6 +12,7 @@ import { CliError, printError } from "./lib/ui";
 
 interface GlobalOptions {
   profile?: string;
+  debug: boolean;
   help: boolean;
   version: boolean;
 }
@@ -46,6 +47,11 @@ const takeGlobals = (input: {
         }
         options.profile = value;
         i += 1;
+        break;
+      }
+      case "-d":
+      case "--debug": {
+        options.debug = true;
         break;
       }
       case "-h":
@@ -111,7 +117,7 @@ const unknownCommand = (
 
 const main = async (argv: readonly string[]): Promise<number> => {
   const commands = createCommands();
-  const options: GlobalOptions = { help: false, version: false };
+  const options: GlobalOptions = { debug: false, help: false, version: false };
   const [word, ...afterCommand] = takeGlobals({
     args: argv,
     options,
@@ -145,6 +151,9 @@ const main = async (argv: readonly string[]): Promise<number> => {
   const args = isPassthrough(command)
     ? afterCommand
     : takeGlobals({ args: afterCommand, options, untilCommand: false });
+  if (options.debug) {
+    process.env.NIPA_DEBUG = "1";
+  }
   if (options.help) {
     console.log(commandHelp(command));
     return 0;
@@ -161,12 +170,17 @@ const isUsageError = (error: Error): boolean =>
   "code" in error &&
   String(error.code).startsWith("ERR_PARSE_ARGS");
 
+const DEBUG_HINT = "Run it again with --debug to see each request.";
+
 const toCliError = (error: Error): CliError | undefined => {
   if (error instanceof CliError) {
     return error;
   }
   if (error instanceof KeystoneError) {
-    return new CliError(error.message);
+    const serverSide = error.status === 0 || error.status >= 500;
+    return new CliError(error.message, {
+      hint: serverSide && !isDebug() ? DEBUG_HINT : undefined,
+    });
   }
   if (error instanceof NetworkError) {
     return new CliError(error.message, {
