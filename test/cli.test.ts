@@ -260,7 +260,15 @@ describe("with a session", () => {
   });
 
   test("--help after exec goes to the command, not to nipa", async () => {
-    const { stdout } = await run(["exec", "echo", "--help"]);
+    // sh's builtin echo, because GNU echo answers --help itself
+    const { stdout } = await run([
+      "exec",
+      "sh",
+      "-c",
+      'echo "$1"',
+      "sh",
+      "--help",
+    ]);
     expect(stdout.trim()).toBe("--help");
   });
 
