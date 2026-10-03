@@ -2,6 +2,7 @@
 
 import pkg from "../package.json" with { type: "json" };
 import { createCommands, MAIN_EXAMPLES } from "./commands/registry";
+import type { Command } from "./commands/registry";
 import { commandHelp, mainHelp } from "./lib/help";
 import { NetworkError } from "./lib/http";
 import { KeystoneError } from "./lib/keystone";
@@ -75,6 +76,39 @@ const takeGlobals = (input: {
   return rest;
 };
 
+/** Edit distance, for "did you mean" on a mistyped command. */
+const distance = (a: string, b: string): number => {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        (previous[j] ?? 0) + 1,
+        (current[j - 1] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + cost
+      );
+    }
+    previous = current;
+  }
+  return previous[b.length] ?? 0;
+};
+
+const unknownCommand = (
+  word: string,
+  commands: readonly Command[]
+): CliError => {
+  const [closest] = commands
+    .filter((c) => !c.hidden)
+    .map((c) => ({ name: c.name, score: distance(word, c.name) }))
+    .toSorted((a, b) => a.score - b.score);
+  const hint =
+    closest && closest.score <= 2
+      ? `Did you mean \`nipa ${closest.name}\`?`
+      : "Run `nipa --help` to see the commands.";
+  return new CliError(`unknown command "${word}"`, { exitCode: 2, hint });
+};
+
 const main = async (argv: readonly string[]): Promise<number> => {
   const commands = createCommands();
   const options: GlobalOptions = { help: false, version: false };
@@ -105,10 +139,7 @@ const main = async (argv: readonly string[]): Promise<number> => {
     (c) => c.name === word || c.aliases?.includes(word)
   );
   if (!command) {
-    throw new CliError(`unknown command "${word}"`, {
-      exitCode: 2,
-      hint: "Run `nipa --help` to see the commands.",
-    });
+    throw unknownCommand(word, commands);
   }
   // Words after os, tf and exec belong to that program, including --help.
   const args = isPassthrough(command)

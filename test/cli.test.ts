@@ -83,10 +83,11 @@ describe("help and usage", () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
-  test("an unknown command exits 2", async () => {
+  test("a mistyped command suggests the closest one", async () => {
     const { code, stderr } = await run(["logn"]);
     expect(code).toBe(2);
     expect(stderr).toContain('unknown command "logn"');
+    expect(stderr).toContain("Did you mean `nipa login`?");
   });
 
   test("bad options exit 2", async () => {
