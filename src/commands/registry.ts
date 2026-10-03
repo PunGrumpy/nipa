@@ -1,5 +1,3 @@
-// Every command, with the text for its help page and completion.
-
 import { SHELLS } from "../lib/env";
 import type { CommandSpec, Example } from "../lib/spec";
 import { complete, completion } from "./completion";

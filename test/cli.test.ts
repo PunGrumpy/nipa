@@ -1,5 +1,3 @@
-// End to end: run the CLI as a process against a temp config dir and a fake Keystone.
-
 import {
   afterAll,
   beforeAll,
@@ -29,7 +27,6 @@ let keystone: FakeKeystone;
 const run = (args: string[], extraEnv: Record<string, string> = {}) =>
   runProcess(["bun", ENTRY, ...args], { ...testEnv(dir), ...extraEnv });
 
-/** Only the exit code, for tests that check nothing else. */
 const exitCode = async (args: string[]): Promise<number> => {
   const { code } = await run(args);
   return code;
@@ -299,7 +296,6 @@ describe("with a session", () => {
 
   test("files are private", async () => {
     const info = await stat(path.join(dir, "auth.json"));
-    // the last three octal digits are the permission bits
     expect(info.mode.toString(8).slice(-3)).toBe("600");
   });
 

@@ -1,6 +1,3 @@
-// Completion scripts: syntax for every shell, and real Tab presses where the
-// shell is installed (bash and fish locally; pwsh on the CI runner).
-
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -23,7 +20,6 @@ let keystone: FakeKeystone;
 
 const has = (shell: string): boolean => Bun.which(shell) !== null;
 
-/** pwsh takes a few seconds to start, more than bun's default 5 s test timeout. */
 const PWSH_TIMEOUT_MS = 30_000;
 
 const shellRun = (cmd: string[]) => runProcess(cmd, testEnv(dir));
@@ -38,7 +34,6 @@ const script = (shell: string): string =>
 const lines = (text: string): string[] =>
   text.trim().split(/\r?\n/u).filter(Boolean);
 
-/** Simulates a bash Tab press: COMP_WORDS is the line split into words. */
 const bashComplete = async (...words: string[]) => {
   const quoted = words.map((w) => `'${w}'`).join(" ");
   const { stdout } = await shellRun([

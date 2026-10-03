@@ -13,7 +13,7 @@ const INSTALL_HINTS = new Map([
   ["terraform", "Install it with `brew install hashicorp/tap/terraform`."],
 ]);
 
-/** Looks in PATH first, then in ~/.local/bin, where pipx installs openstack. */
+// pipx installs openstack in ~/.local/bin, which isn't always on PATH.
 const resolve = (command: string): string | undefined => {
   const found = Bun.which(command);
   if (found) {
@@ -42,7 +42,6 @@ export const exec = async (input: {
     });
   }
   const { active, session } = await requireSession(input.globals);
-  // Outside prod, say where the command runs, so a staging plan isn't mistaken for prod.
   if (active.name !== DEFAULT_PROFILE) {
     const host = dim(`(${new URL(active.profile.authUrl).host})`);
     log(`Using profile ${bold(active.name)} ${host}`);
@@ -68,7 +67,6 @@ export const exec = async (input: {
   process.off("SIGINT", onInterrupt);
   process.off("SIGTERM", onTerminate);
 
-  // Shell convention: killed by signal N exits with 128 + N.
   if (child.signalCode) {
     return 128 + constants.signals[child.signalCode];
   }

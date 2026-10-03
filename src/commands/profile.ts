@@ -100,7 +100,6 @@ const validateUrl = (value: string): string | true =>
   ProfileSchema.shape.authUrl.safeParse(value).success ||
   "Enter an http or https URL, such as https://keystone.example.com/v3";
 
-/** A flag's value, or the answer to a prompt when the flag is missing and a person is there. */
 const valueOrAsk = (input: {
   value: string | undefined;
   flag: string;
@@ -150,7 +149,6 @@ const add = async ({ args }: CommandInput): Promise<number> => {
   if (urlProblem !== true) {
     throw usageError(`invalid --auth-url "${authUrl}"`, urlProblem);
   }
-  // User domain and region have defaults, so they are asked for only in a terminal.
   const interactive = canPrompt();
   const userDomain =
     values["user-domain"] ??
@@ -267,7 +265,7 @@ const remove = async ({ args }: CommandInput): Promise<number> => {
     try {
       await revoke({ authUrl: profile.authUrl, token: session.token });
     } catch {
-      // Removing the profile deletes the session anyway, and the token expires on its own.
+      // The token expires on its own.
     }
   }
   await clearSession(name);
@@ -305,7 +303,6 @@ export const profile = async ({ args }: CommandInput): Promise<number> => {
   return await run({ args: rest });
 };
 
-/** Profile names, one per line, for completion scripts. */
 export const profileNames = async (): Promise<string[]> => {
   const config = await loadConfig();
   return Object.keys(config.profiles).toSorted();

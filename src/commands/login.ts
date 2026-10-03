@@ -30,9 +30,7 @@ import {
   withSpinner,
 } from "../lib/ui";
 
-/** Global options that every command receives. */
 export interface Globals {
-  /** From `--profile`. NIPA_PROFILE and the current profile come after it. */
   profile?: string;
 }
 
@@ -58,11 +56,9 @@ export const activeProfile = async (
   return { config, name, profile };
 };
 
-/** `nipa login` for the default profile, `nipa login -P <name>` for others. */
 export const loginCommand = (profile: string): string =>
   profile === DEFAULT_PROFILE ? "nipa login" : `nipa login -P ${profile}`;
 
-/** The prompts login shows. Tests pass answers instead of a terminal. */
 export interface LoginPrompts {
   email: (previous?: string) => Promise<string>;
   password: () => Promise<string>;
@@ -130,13 +126,12 @@ export const toSession = (token: Token, project: Project): Session => ({
   user: token.user,
 });
 
-/** Sends the OTP code, and asks for the next code after a wrong one, up to three times. */
 const verifyOtp = async (input: {
   account: Account;
   receipt: string;
   ask: LoginPrompts["otp"];
 }): Promise<Token> => {
-  // Each attempt waits for a new code from the person, so the loop is sequential.
+  // Each attempt waits for the person's next code.
   /* oxlint-disable no-await-in-loop */
   for (let attempt = 1; ; attempt += 1) {
     const passcode = await input.ask(attempt);
@@ -161,10 +156,6 @@ const verifyOtp = async (input: {
   /* oxlint-enable no-await-in-loop */
 };
 
-/**
- * The whole login: email, password, an OTP code when the account's MFA rules
- * ask for one, then a project. Returns a token scoped to that project.
- */
 export const authenticate = async (input: {
   profile: Profile;
   prompts: LoginPrompts;
@@ -213,7 +204,6 @@ export const authenticate = async (input: {
   return toSession(scoped, project);
 };
 
-/** Saves the session and remembers the user and project for the next login. */
 export const saveLogin = async (input: {
   active: ActiveProfile;
   session: Session;
@@ -231,7 +221,6 @@ export const saveLogin = async (input: {
   await saveSession({ profile: active.name, session });
 };
 
-/** Runs the login prompts on the terminal and saves the session. */
 const interactiveLogin = async (input: {
   active: ActiveProfile;
   username?: string;
@@ -259,7 +248,7 @@ const interactiveLogin = async (input: {
   return session;
 };
 
-/** The active profile's session. Logs in first when it expired and a terminal can ask. */
+/** Logs in first when the session expired and nipa can prompt. */
 export const requireSession = async (
   globals: Globals
 ): Promise<{ active: ActiveProfile; session: Session }> => {

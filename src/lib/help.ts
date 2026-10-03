@@ -1,5 +1,3 @@
-// `nipa --help` and `nipa <command> --help`, in the layout of the Vercel CLI.
-
 import pc from "picocolors";
 
 import { COMMAND_GROUPS, flagPlaceholder, GLOBAL_FLAGS, visible } from "./spec";
@@ -10,7 +8,6 @@ type Row = readonly [label: string, description: string];
 const INDENT = "    ";
 const LINE_WIDTH = 80;
 
-/** Every table on a page shares one label width, so the descriptions line up. */
 const table = (rows: readonly Row[], width: number): string =>
   rows
     .map(
@@ -22,7 +19,6 @@ const table = (rows: readonly Row[], width: number): string =>
 const labelWidth = (rows: readonly Row[]): number =>
   Math.max(0, ...rows.map(([label]) => label.length));
 
-/** Breaks a paragraph into lines of at most 80 columns, each starting with `indent`. */
 const wrap = (text: string, indent: string): string => {
   const lines: string[] = [];
   let line = "";

@@ -1,11 +1,7 @@
-// fetch with `--debug` logging. The log has the method, URL, status and time,
-// never headers or bodies, because those hold tokens and passwords.
-
 import pc from "picocolors";
 
 import { formatElapsed } from "./ui";
 
-/** On with `--debug`, or with NIPA_DEBUG=1 in the environment. */
 export const isDebug = (): boolean => process.env.NIPA_DEBUG === "1";
 
 export const debug = (message: string): void => {
@@ -14,7 +10,6 @@ export const debug = (message: string): void => {
   }
 };
 
-/** The request never got an HTTP response: DNS, TLS, a refused connection or a timeout. */
 export class NetworkError extends Error {
   readonly url: string;
 
@@ -25,6 +20,7 @@ export class NetworkError extends Error {
   }
 }
 
+// Never log headers or bodies. They hold tokens and passwords.
 export const request = async (
   url: string,
   init: RequestInit = {}

@@ -1,12 +1,3 @@
-// Profiles and sessions under ~/.config/nipa (or $NIPA_CONFIG_DIR). nipa
-// writes both files 0600 inside a 0700 directory because sessions hold bearer tokens.
-//
-// config.json  { currentProfile, profiles: { <name>: Profile } }
-// auth.json    { sessions: { <name>: Session } }
-//
-// Files from nipa 0.1 had one profile's fields, or one session, at the top
-// level. They load as the `prod` profile and are rewritten on the next save.
-
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -17,7 +8,6 @@ import { ProjectSchema } from "./keystone";
 
 export const DEFAULT_PROFILE = "prod";
 
-/** Nipa Cloud production, the profile every install starts with. */
 export const PROD_PROFILE = {
   authUrl: "https://identity-api.nipa.cloud/v3",
   region: "NCP-TH",
@@ -34,14 +24,12 @@ export const ProfileSchema = z.object({
 
 export type Profile = z.infer<typeof ProfileSchema>;
 
-/** Lowercase letters, digits and hyphens, starting with a letter: `prod`, `staging-2`. */
 export const PROFILE_NAME = /^[a-z][\da-z-]{0,31}$/u;
 
 const ProfilesSchema = z.record(z.string().regex(PROFILE_NAME), ProfileSchema);
 
 type Profiles = z.infer<typeof ProfilesSchema>;
 
-/** Every config has prod, even one edited by hand. */
 const withProd = (profiles: Profiles): Profiles => ({
   [DEFAULT_PROFILE]: PROD_PROFILE,
   ...profiles,
@@ -57,6 +45,8 @@ const ConfigSchema = z
 
 export type Config = z.infer<typeof ConfigSchema>;
 
+// nipa 0.1 files hold one profile or one session at the top level. They load
+// as prod, and the next save writes them in the new format.
 const LegacyConfigSchema = ProfileSchema.extend({
   authUrl: ProfileSchema.shape.authUrl.default(PROD_PROFILE.authUrl),
   region: ProfileSchema.shape.region.default(PROD_PROFILE.region),

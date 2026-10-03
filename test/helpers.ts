@@ -1,5 +1,3 @@
-// Shared setup for tests that run nipa as a process.
-
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -18,7 +16,7 @@ export interface RunResult {
   stderr: string;
 }
 
-/** Runs a command and collects its output. stdin is closed, as in a script. */
+/** stdin is closed, so nipa can't prompt. */
 export const runProcess = async (
   cmd: string[],
   env: Record<string, string>
@@ -37,7 +35,6 @@ export const runProcess = async (
   return { code, stderr, stdout };
 };
 
-/** The environment a test process sees: a private HOME and config dir, no colors. */
 export const testEnv = (dir: string) => ({
   HOME: dir,
   NIPA_CONFIG_DIR: dir,
@@ -45,7 +42,6 @@ export const testEnv = (dir: string) => ({
   PATH: `${path.join(dir, "bin")}:${process.env.PATH ?? ""}`,
 });
 
-/** Puts a `nipa` wrapper on the test PATH, for completion scripts that call `nipa __complete`. */
 export const installNipaShim = async (dir: string): Promise<void> => {
   const bin = path.join(dir, "bin");
   await mkdir(bin, { recursive: true });
@@ -54,7 +50,6 @@ export const installNipaShim = async (dir: string): Promise<void> => {
   await chmod(shim, 0o755);
 };
 
-/** A real token from the fake Keystone, scoped to Alpha. */
 const issueToken = async (keystoneUrl: string): Promise<string> => {
   const res = await fetch(`${keystoneUrl}/v3/auth/tokens`, {
     body: JSON.stringify({
@@ -74,7 +69,6 @@ const issueToken = async (keystoneUrl: string): Promise<string> => {
 
 const alpha = { domainId: "d1", id: ALPHA_ID, name: "Alpha" };
 
-/** config.json and auth.json as `nipa login` saves them, with prod pointing at the fake Keystone. */
 export const seedSession = async (
   dir: string,
   keystoneUrl: string
@@ -103,7 +97,6 @@ export const seedSession = async (
   );
 };
 
-/** The same login in the nipa 0.1 file format, with one profile's fields at the top level. */
 export const seedLegacySession = async (
   dir: string,
   keystoneUrl: string

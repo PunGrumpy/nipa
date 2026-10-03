@@ -1,5 +1,4 @@
-// Terminal output and prompts. Everything except a command's result goes to
-// stderr, so `nipa env | source` and `nipa whoami --json | jq` read only data.
+// Everything except a command's result goes to stderr, so pipes get only data.
 
 import { confirm, input, password, select } from "@inquirer/prompts";
 import pc from "picocolors";
@@ -19,11 +18,9 @@ export class CliError extends Error {
   }
 }
 
-/** Under a second in milliseconds, then whole seconds: `[278ms]`, `[3s]`. */
 export const formatElapsed = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${Math.round(ms / 1000)}s`;
 
-/** Hours and minutes left, for token expiry: `23h 59m`, `5m`. */
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
   const hours = Math.floor(minutes / 60);
@@ -34,7 +31,6 @@ export const log = (message: string): void => {
   console.error(`${pc.dim(">")} ${message}`);
 };
 
-/** `> Success! message [3s]`, with the time the step took when given. */
 export const success = (message: string, elapsedMs?: number): void => {
   const time = elapsedMs === undefined ? "" : `[${formatElapsed(elapsedMs)}]`;
   const elapsed = time ? ` ${pc.dim(time)}` : "";
@@ -54,11 +50,8 @@ export const printError = (error: CliError): void => {
 
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const SPINNER_DELAY_MS = 300;
+const ERASE_LINE = "\r\u001B[2K";
 
-/**
- * Runs a task with a spinner on stderr. The spinner appears only when the
- * task takes longer than 300 ms, and never when stderr is not a terminal.
- */
 export const withSpinner = async <T>(
   message: string,
   task: () => Promise<T>
@@ -85,19 +78,17 @@ export const withSpinner = async <T>(
     clearTimeout(delay);
     clearInterval(interval);
     if (drawn) {
-      // carriage return, then erase the line
-      process.stderr.write("\r\u001B[2K");
+      process.stderr.write(ERASE_LINE);
     }
   }
 };
 
-/** Prompts can run only when a person can answer them. */
 export const canPrompt = (): boolean =>
   process.stdin.isTTY === true && process.stderr.isTTY === true;
 
 const promptContext = { output: process.stderr };
 
-/** Turns Ctrl-C in a prompt into a clean exit with code 130. */
+// inquirer throws ExitPromptError on Ctrl-C.
 const prompt = async <T>(ask: () => Promise<T>): Promise<T> => {
   try {
     return await ask();
@@ -138,7 +129,7 @@ export const askConfirm = (options: {
   default: boolean;
 }): Promise<boolean> => prompt(() => confirm(options, promptContext));
 
-/** Pads plain-text cells into aligned columns; color is applied after padding. */
+/** Pass plain text. Color codes would count toward the width. */
 export const columns = (rows: readonly (readonly string[])[]): string[][] => {
   const widths: number[] = [];
   for (const row of rows) {

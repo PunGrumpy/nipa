@@ -1,5 +1,4 @@
-// A small Keystone for tests. me@example.com has the MFA rule password + totp,
-// so a password alone gets an auth receipt. plain@example.com has no MFA.
+// me@example.com has the MFA rule password + totp. plain@example.com has no MFA.
 
 import { randomUUID } from "node:crypto";
 
@@ -34,7 +33,6 @@ const USERS = new Map([
 
 export interface FakeKeystone {
   url: string;
-  /** Every request as `METHOD /path`, in order. */
   requests: string[];
   stop: () => void;
 }
@@ -100,7 +98,6 @@ export const startFakeKeystone = (): FakeKeystone => {
     );
   };
 
-  /** What Keystone does when the password is right but the MFA rules want TOTP too. */
   const receiptFor = (user: typeof FAKE_USER): Response => {
     const receipt = `rcpt-${randomUUID()}`;
     receipts.set(receipt, user);
@@ -113,7 +110,6 @@ export const startFakeKeystone = (): FakeKeystone => {
     );
   };
 
-  /** Password, OTP code or both, for the user named in the request or in the receipt. */
   const verifyUser = (
     req: Request,
     identity: Identity,

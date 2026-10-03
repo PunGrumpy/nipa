@@ -1,8 +1,3 @@
-// Tab completion scripts for bash, zsh, fish and PowerShell, generated from
-// the command specs. Global options may come before the command, as in
-// `nipa -P staging tf plan`, so every script first finds the command word.
-// Project and profile names come from `nipa __complete <kind>` on each Tab.
-
 import {
   flagWords,
   GLOBAL_FLAGS,
@@ -20,12 +15,10 @@ type CompletionShell = (typeof COMPLETION_SHELLS)[number];
 export const isCompletionShell = (value: string): value is CompletionShell =>
   COMPLETION_SHELLS.some((shell) => shell === value);
 
-/** The kinds of names `nipa __complete` prints. */
 type DynamicKind = "projects" | "profiles";
 
 const dynamic = (kind: DynamicKind): string => `nipa __complete ${kind}`;
 
-/** The global option with a value, which the search for the command word skips over. */
 const PROFILE_WORDS = flagWords(PROFILE_FLAG);
 
 const passthroughNames = (specs: readonly CommandSpec[]): string[] =>
@@ -35,8 +28,6 @@ const allFlags = (spec: CommandSpec): FlagSpec[] => [
   ...(spec.flags ?? []),
   ...GLOBAL_FLAGS,
 ];
-
-// --- bash -------------------------------------------------------------------
 
 const bashValue = (value: FlagValue): string | undefined => {
   switch (value.kind) {
@@ -84,7 +75,6 @@ const bashArgs = (args: ArgSpec): string => {
   }
 };
 
-/** The case arm for a command, or a subcommand when `depth` is 1. */
 const bashArm = (spec: CommandSpec, depth: number): string => {
   const pad = "  ".repeat(depth * 2 + 2);
   const lines: string[] = [];
@@ -126,15 +116,13 @@ const bash = (specs: readonly CommandSpec[]): string => {
   return `# nipa completion for bash
 # Load it from ~/.bashrc:  eval "$(nipa completion bash)"
 
-# Replies with the words that start with $cur. Arguments may hold several
-# words, one per line, so project names with spaces stay whole.
+# One word per line, so project names with spaces stay whole.
 _nipa_reply() {
   local IFS=$'\\n'
   COMPREPLY=($(compgen -W "$*" -- "$cur"))
 }
 
-# Completes from word $1 as a separate command line. _command_offset comes
-# from the bash-completion package; without it, complete file names.
+# _command_offset comes from the bash-completion package.
 _nipa_offset() {
   if declare -F _command_offset >/dev/null; then
     _command_offset "$1"
@@ -146,7 +134,6 @@ _nipa_offset() {
 _nipa() {
   local cur=\${COMP_WORDS[COMP_CWORD]} prev=\${COMP_WORDS[COMP_CWORD-1]}
   COMPREPLY=()
-  # Find the command word, skipping global options and the --profile value.
   local i=1 command=""
   while [[ $i -lt $COMP_CWORD ]]; do
     case \${COMP_WORDS[i]} in
@@ -169,8 +156,6 @@ ${shown.map((spec) => bashArm(spec, 0)).join("\n")}
 complete -o default -F _nipa nipa
 `;
 };
-
-// --- zsh --------------------------------------------------------------------
 
 const zshQuote = (text: string): string =>
   text.replaceAll("'", "'\\''").replaceAll(":", "\\:");
@@ -229,7 +214,7 @@ const zshArg = (args: ArgSpec): string => {
   }
 };
 
-/** The body of a case arm. On entry, words[1] is this command's name. */
+/** On entry, words[1] is this command's name. */
 const zshBody = (spec: CommandSpec, pad: string): string => {
   if (spec.subcommands?.length) {
     const subs = visible(spec.subcommands);
@@ -289,7 +274,6 @@ const zsh = (specs: readonly CommandSpec[]): string => {
 # Load it from ~/.zshrc, after compinit:  eval "$(nipa completion zsh)"
 # Or save it as _nipa in a directory on your $fpath.
 
-# _nipa_dynamic <kind> <label>: values from \`nipa __complete <kind>\`
 _nipa_dynamic() {
   local -a values
   values=(\${(f)"$(nipa __complete $1 2>/dev/null)"})
@@ -297,7 +281,6 @@ _nipa_dynamic() {
 }
 
 _nipa() {
-  # Find the command word, skipping global options and the --profile value.
   local i=2 command=""
   while (( i < CURRENT )); do
     case $words[i] in
@@ -337,8 +320,6 @@ fi
 `;
 };
 
-// --- fish -------------------------------------------------------------------
-
 const fishQuote = (text: string): string =>
   `'${text.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
 
@@ -350,18 +331,17 @@ const fishValue = (value: FlagValue): string => {
     case "none": {
       return "";
     }
-    // -x: the flag needs a value, and file names aren't values for it
     case "text": {
-      return " -x";
+      return " --exclusive";
     }
     case "choice": {
-      return ` -x -a ${fishQuote(value.choices.join(" "))}`;
+      return ` --exclusive -a ${fishQuote(value.choices.join(" "))}`;
     }
     case "project": {
-      return ` -x -a ${fishDynamic("projects")}`;
+      return ` --exclusive -a ${fishDynamic("projects")}`;
     }
     case "profile": {
-      return ` -x -a ${fishDynamic("profiles")}`;
+      return ` --exclusive -a ${fishDynamic("profiles")}`;
     }
     default: {
       const _exhaustive: never = value;
@@ -430,7 +410,6 @@ const fish = (specs: readonly CommandSpec[]): string => {
   return `# nipa completion for fish
 # Save it:  nipa completion fish > ~/.config/fish/completions/nipa.fish
 
-# Prints the position of the command word, skipping global options and the --profile value.
 function __nipa_command_index
     set -l tokens (commandline -opc)
     set -l i 2
@@ -452,15 +431,12 @@ function __nipa_needs_command
     not __nipa_command_index >/dev/null
 end
 
-# True when the command word is one of the arguments.
 function __nipa_using
     set -l i (__nipa_command_index); or return 1
     set -l tokens (commandline -opc)
     contains -- $tokens[$i] $argv
 end
 
-# Completes the words after the command as their own command line, after the
-# program in $argv when there is one (nipa os, nipa tf) or as is (nipa exec).
 function __nipa_complete_as
     set -l i (__nipa_command_index); or return
     set -l tokens (commandline -opc)
@@ -474,8 +450,6 @@ ${top.join("\n")}
 ${shown.flatMap((spec) => fishLines(spec)).join("\n")}
 `;
 };
-
-// --- PowerShell -------------------------------------------------------------
 
 const pwshQuote = (text: string): string => `'${text.replaceAll("'", "''")}'`;
 
@@ -504,7 +478,7 @@ const pwshValue = (value: FlagValue): string | undefined => {
   }
 };
 
-/** Positional values. PowerShell can't hand over to another program's completer. */
+/** PowerShell can't hand over to another program's completer. */
 const pwshArgs = (args: ArgSpec): string | undefined => {
   switch (args.kind) {
     case "projects":
@@ -525,7 +499,7 @@ const pwshArgs = (args: ArgSpec): string | undefined => {
   }
 };
 
-/** The body of a switch arm. `$c` is the position of this spec's word. */
+/** `$c` is the position of this spec's word. */
 const pwshBody = (spec: CommandSpec, pad: string): string => {
   if (spec.subcommands?.length) {
     const subs = visible(spec.subcommands);
@@ -596,7 +570,6 @@ ${commands}
   # The word being completed is either the last element or a new, empty one.
   $index = if ($wordToComplete) { $words.Count - 1 } else { $words.Count }
   $prev = if ($index -ge 1) { $words[$index - 1] } else { '' }
-  # Find the command word, skipping global options and the --profile value.
   $c = 1
   $command = $null
   while ($c -lt $index) {

@@ -1,7 +1,5 @@
-// The description of every command. `nipa --help`, `nipa <command> --help`
-// and the completion scripts are all generated from it, so they can't drift.
+// The help pages and the completion scripts are generated from these specs.
 
-/** What follows a flag on the command line. */
 export type FlagValue =
   | { kind: "none" }
   | { kind: "text"; name: string }
@@ -16,7 +14,6 @@ export interface FlagSpec {
   value: FlagValue;
 }
 
-/** What a command's positional arguments complete to. Without `args`, nothing. */
 export type ArgSpec =
   | { kind: "projects" }
   | { kind: "profiles" }
@@ -37,11 +34,8 @@ type CommandGroup = (typeof COMMAND_GROUPS)[number];
 
 export interface CommandSpec {
   name: string;
-  /** One line for `nipa --help`. */
   summary: string;
-  /** What follows the name in the usage line, such as `[project]`. */
   usage?: string;
-  /** Paragraphs for `nipa <command> --help`. */
   description?: string;
   group?: CommandGroup;
   aliases?: readonly string[];
@@ -52,7 +46,6 @@ export interface CommandSpec {
   hidden?: boolean;
 }
 
-/** The one global option that takes a value. */
 export const PROFILE_FLAG: FlagSpec = {
   description: "Use this profile (or set NIPA_PROFILE)",
   long: "profile",
@@ -102,7 +95,6 @@ export const names = (spec: CommandSpec): string[] => [
 export const flagWords = (flag: FlagSpec): string[] =>
   flag.short ? [`--${flag.long}`, `-${flag.short}`] : [`--${flag.long}`];
 
-/** The value part of a flag in help text, such as ` <email>`. */
 export const flagPlaceholder = (value: FlagValue): string => {
   switch (value.kind) {
     case "none": {

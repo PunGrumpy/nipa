@@ -39,10 +39,7 @@ const projectNames = async (globals: Globals): Promise<string[]> => {
   return projects.map((p) => p.name);
 };
 
-/**
- * Hidden: prints values for the completion scripts, one per line. It never
- * prompts and prints nothing without a session, so a Tab press can't hang.
- */
+/** Never prompts, so a Tab press can't hang. */
 export const complete = async (input: {
   args: string[];
   globals: Globals;

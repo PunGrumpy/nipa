@@ -23,10 +23,6 @@ const usageError = (
   hint = "Run `nipa --help` to see the options."
 ) => new CliError(message, { exitCode: 2, hint });
 
-/**
- * Takes the global options out of `args` and returns the other words. With
- * `untilCommand`, stops at the first word that isn't an option.
- */
 const takeGlobals = (input: {
   args: readonly string[];
   options: GlobalOptions;
@@ -83,8 +79,7 @@ const takeGlobals = (input: {
   return rest;
 };
 
-/** Edit distance, for "did you mean" on a mistyped command. */
-const distance = (a: string, b: string): number => {
+const editDistance = (a: string, b: string): number => {
   let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i += 1) {
     const current = [i];
@@ -107,7 +102,7 @@ const unknownCommand = (
 ): CliError => {
   const [closest] = commands
     .filter((c) => !c.hidden)
-    .map((c) => ({ name: c.name, score: distance(word, c.name) }))
+    .map((c) => ({ name: c.name, score: editDistance(word, c.name) }))
     .toSorted((a, b) => a.score - b.score);
   const hint =
     closest && closest.score <= 2
@@ -148,7 +143,6 @@ const main = async (argv: readonly string[]): Promise<number> => {
   if (!command) {
     throw unknownCommand(word, commands);
   }
-  // Words after os, tf and exec belong to that program, including --help.
   const args = isPassthrough(command)
     ? afterCommand
     : takeGlobals({ args: afterCommand, options, untilCommand: false });
@@ -169,7 +163,6 @@ const main = async (argv: readonly string[]): Promise<number> => {
   return code;
 };
 
-/** node:util parseArgs throws a TypeError with an ERR_PARSE_ARGS_* code for bad options. */
 const isUsageError = (error: Error): boolean =>
   error instanceof TypeError &&
   "code" in error &&

@@ -1,6 +1,3 @@
-// Tells you when a newer nipa is on GitHub. nipa checks at most once a day,
-// caches the answer, and skips the check in CI, in scripts and for dev builds.
-
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -31,7 +28,6 @@ const cachePath = (env: NodeJS.ProcessEnv = process.env): string =>
     "update.json"
   );
 
-/** `1.2.3` as numbers; anything after a `-` (a prerelease) is ignored. */
 const parts = (version: string): number[] =>
   version.replace(/^v/u, "").split("-")[0]?.split(".").map(Number) ?? [];
 
@@ -47,7 +43,6 @@ export const isNewer = (latest: string, current: string): boolean => {
   return false;
 };
 
-/** The check runs only for release builds, on a terminal, outside CI. */
 export const shouldCheck = (input: {
   version: string;
   env: NodeJS.ProcessEnv;
@@ -109,11 +104,8 @@ export const updateNotice = (latest: string, current: string): string => {
   ].join("\n");
 };
 
-/**
- * Prints the notice from the cached check, then refreshes the cache when it is
- * older than a day. Called after the command ran, so a slow network never
- * delays the command itself.
- */
+// Prints the answer from the last check and refreshes it for the next run, so
+// no command waits on GitHub.
 export const checkForUpdate = async (version: string): Promise<void> => {
   if (
     !shouldCheck({

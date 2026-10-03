@@ -1,7 +1,3 @@
-// Keystone v3 client. Login sends the password first; when the account's MFA
-// rules want more, Keystone answers with an auth receipt and nipa sends the
-// OTP code with that receipt. Tokens can then switch projects or be revoked.
-
 import { z } from "zod";
 
 import { request } from "./http";
@@ -31,7 +27,6 @@ export class KeystoneError extends Error {
   }
 }
 
-/** Accepts `https://host`, `https://host/` or `https://host/v3/` and returns `https://host/v3`. */
 export const identityUrl = (authUrl: string): string => {
   let base = authUrl;
   while (base.endsWith("/")) {
@@ -43,7 +38,6 @@ export const identityUrl = (authUrl: string): string => {
   return `${base}/v3`;
 };
 
-/** Who is logging in, and where. Without a project ID the token is unscoped. */
 export interface Account {
   authUrl: string;
   username: string;
@@ -93,13 +87,11 @@ export const totpBody = (account: Account, passcode: string): AuthRequest =>
     account.projectId
   );
 
-/** Exchanges an existing token for one scoped to another project. */
 export const rescopeBody = (token: string, projectId: string): AuthRequest =>
   authRequest({ methods: ["token"], token: { id: token } }, projectId);
 
 const ErrorSchema = z.object({
   error: z.object({ message: z.string().optional() }).optional(),
-  // An auth receipt: the credentials so far were right, but the MFA rules need more.
   receipt: z.object({}).loose().optional(),
   required_auth_methods: z.array(z.array(z.string())).optional(),
 });
@@ -111,12 +103,10 @@ const readError = async (res: Response): Promise<ErrorBody> => {
     const parsed = ErrorSchema.safeParse(JSON.parse(await res.text()));
     return parsed.success ? parsed.data : {};
   } catch {
-    // not JSON, for example an HTML page from a proxy
     return {};
   }
 };
 
-/** Turns a failed response into a sentence a user can act on. */
 export const errorMessage = (input: {
   status: number;
   body: ErrorBody;
@@ -211,8 +201,8 @@ type PasswordResult =
   | { kind: "mfa"; receipt: string };
 
 /**
- * Sends the password. Accounts without MFA get a token. Accounts whose MFA
- * rules include TOTP get a receipt to send with the OTP code.
+ * Accounts without MFA get a token. Accounts whose MFA rules include TOTP get
+ * an auth receipt to send with the OTP code.
  */
 export const loginWithPassword = async (
   account: Account,
@@ -239,7 +229,6 @@ export const loginWithPassword = async (
   return fail(res, "wrong email or password");
 };
 
-/** Sends the OTP code with the receipt from {@link loginWithPassword}. */
 export const continueWithTotp = async (input: {
   account: Account;
   receipt: string;
@@ -254,7 +243,6 @@ export const continueWithTotp = async (input: {
   return res.ok ? readToken(res) : fail(res, "wrong OTP code");
 };
 
-/** A token and the Keystone that issued it, for calls made with that token. */
 interface TokenRequest {
   authUrl: string;
   token: string;
@@ -289,7 +277,6 @@ const toProjects = (body: z.infer<typeof ProjectsSchema>): Project[] =>
     .map((p) => ({ domainId: p.domain_id, id: p.id, name: p.name }))
     .toSorted((a, b) => a.name.localeCompare(b.name));
 
-/** Projects the token's user can scope to, sorted by name. */
 export const listProjects = async ({
   authUrl,
   token,
@@ -318,8 +305,7 @@ export const revoke = async ({
     headers: { "X-Auth-Token": token, "X-Subject-Token": token },
     method: "DELETE",
   });
-  // The token authenticates its own revocation, so 401 and 404 both mean it
-  // already expired or was revoked, which is the outcome logout wants.
+  // The token authenticates its own revocation, so 401 and 404 mean it's already invalid.
   if (!(res.ok || res.status === 401 || res.status === 404)) {
     await fail(res, SESSION_GONE);
   }
@@ -329,7 +315,6 @@ const VersionSchema = z.object({
   version: z.object({ id: z.string(), status: z.string() }),
 });
 
-/** Checks that a URL is a Keystone v3 endpoint and returns its version, such as `v3.14`. */
 export const probe = async (authUrl: string): Promise<string> => {
   const url = identityUrl(authUrl);
   const res = await request(url, { signal: AbortSignal.timeout(10_000) });
@@ -337,7 +322,6 @@ export const probe = async (authUrl: string): Promise<string> => {
   try {
     parsed = VersionSchema.safeParse(await res.json());
   } catch {
-    // not JSON, so not Keystone
     parsed = VersionSchema.safeParse(null);
   }
   if (!(res.ok && parsed.success)) {

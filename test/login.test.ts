@@ -1,6 +1,3 @@
-// The login flow with answers instead of a terminal: which prompts it shows,
-// when it asks for an OTP code, and how it picks a project.
-
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { authenticate } from "../src/commands/login";
@@ -33,7 +30,6 @@ afterAll(() => {
   keystone.stop();
 });
 
-/** Prompts that answer from lists and record what was asked. */
 const answers = (input: {
   email?: string;
   codes?: string[];

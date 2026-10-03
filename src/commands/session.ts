@@ -73,7 +73,6 @@ export const whoami = async ({
     console.log(JSON.stringify(out, null, 2));
     return 0;
   }
-  // Piped or captured: only the user name, so `$(nipa whoami)` works in scripts.
   if (!process.stdout.isTTY) {
     console.log(session.user.name);
     return 0;
@@ -152,7 +151,7 @@ export const logout = async ({ globals }: CommandInput): Promise<number> => {
         revoke({ authUrl: active.profile.authUrl, token: session.token })
       );
     } catch {
-      // The local session is deleted either way, and the token expires on its own.
+      // The token expires on its own.
     }
   }
   await clearSession(active.name);
