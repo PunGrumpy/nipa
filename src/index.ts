@@ -9,6 +9,7 @@ import { KeystoneError } from "./lib/keystone";
 import { isPassthrough } from "./lib/spec";
 import { StoreError } from "./lib/store";
 import { CliError, printError } from "./lib/ui";
+import { checkForUpdate } from "./lib/update";
 
 interface GlobalOptions {
   profile?: string;
@@ -158,10 +159,14 @@ const main = async (argv: readonly string[]): Promise<number> => {
     console.log(commandHelp(command));
     return 0;
   }
-  return await command.run({
+  const code = await command.run({
     args,
     globals: { profile: options.profile },
   });
+  if (command.name !== "__complete" && command.name !== "completion") {
+    await checkForUpdate(pkg.version);
+  }
+  return code;
 };
 
 /** node:util parseArgs throws a TypeError with an ERR_PARSE_ARGS_* code for bad options. */
