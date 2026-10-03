@@ -1,5 +1,11 @@
-// Config and session files under ~/.config/nipa (or $NIPA_CONFIG_DIR). nipa
-// writes both 0600 inside a 0700 directory because the session holds a bearer token.
+// Profiles and sessions under ~/.config/nipa (or $NIPA_CONFIG_DIR). nipa
+// writes both files 0600 inside a 0700 directory because sessions hold bearer tokens.
+//
+// config.json  { currentProfile, profiles: { <name>: Profile } }
+// auth.json    { sessions: { <name>: Session } }
+//
+// Files from nipa 0.1 had one profile's fields, or one session, at the top
+// level. They load as the `prod` profile and are rewritten on the next save.
 
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -9,21 +15,58 @@ import { z } from "zod";
 
 import { ProjectSchema } from "./keystone";
 
-export const DEFAULT_CONFIG = {
+export const DEFAULT_PROFILE = "prod";
+
+/** Nipa Cloud production, the profile every install starts with. */
+export const PROD_PROFILE = {
   authUrl: "https://identity-api.nipa.cloud/v3",
   region: "NCP-TH",
   userDomain: "nipacloud",
 } as const;
 
-const ConfigSchema = z.object({
-  authUrl: z.url().default(DEFAULT_CONFIG.authUrl),
+export const ProfileSchema = z.object({
+  authUrl: z.url({ protocol: /^https?$/u }),
   project: ProjectSchema.optional(),
-  region: z.string().default(DEFAULT_CONFIG.region),
-  userDomain: z.string().default(DEFAULT_CONFIG.userDomain),
+  region: z.string().min(1),
+  userDomain: z.string().min(1),
   username: z.string().optional(),
 });
 
+export type Profile = z.infer<typeof ProfileSchema>;
+
+/** Lowercase letters, digits and hyphens, starting with a letter: `prod`, `staging-2`. */
+export const PROFILE_NAME = /^[a-z][\da-z-]{0,31}$/u;
+
+const ProfilesSchema = z.record(z.string().regex(PROFILE_NAME), ProfileSchema);
+
+type Profiles = z.infer<typeof ProfilesSchema>;
+
+/** Every config has prod, even one edited by hand. */
+const withProd = (profiles: Profiles): Profiles => ({
+  [DEFAULT_PROFILE]: PROD_PROFILE,
+  ...profiles,
+});
+
+const ConfigSchema = z
+  .object({
+    currentProfile: z.string().default(DEFAULT_PROFILE),
+    profiles: ProfilesSchema.default({}),
+  })
+  .strict()
+  .transform((config) => ({ ...config, profiles: withProd(config.profiles) }));
+
 export type Config = z.infer<typeof ConfigSchema>;
+
+const LegacyConfigSchema = ProfileSchema.extend({
+  authUrl: ProfileSchema.shape.authUrl.default(PROD_PROFILE.authUrl),
+  region: ProfileSchema.shape.region.default(PROD_PROFILE.region),
+  userDomain: ProfileSchema.shape.userDomain.default(PROD_PROFILE.userDomain),
+}).transform((profile): Config => ({
+  currentProfile: DEFAULT_PROFILE,
+  profiles: withProd({ [DEFAULT_PROFILE]: profile }),
+}));
+
+const ConfigFileSchema = z.union([ConfigSchema, LegacyConfigSchema]);
 
 const SessionSchema = z.object({
   expiresAt: z.iso.datetime({ offset: true }),
@@ -34,6 +77,20 @@ const SessionSchema = z.object({
 
 export type Session = z.infer<typeof SessionSchema>;
 
+const SessionsSchema = z.record(z.string(), SessionSchema);
+
+type Sessions = z.infer<typeof SessionsSchema>;
+
+const AuthFileSchema = z.union([
+  z
+    .object({ sessions: SessionsSchema })
+    .strict()
+    .transform((file) => file.sessions),
+  SessionSchema.transform((session): Sessions => ({
+    [DEFAULT_PROFILE]: session,
+  })),
+]);
+
 export class StoreError extends Error {
   constructor(message: string) {
     super(message);
@@ -41,15 +98,15 @@ export class StoreError extends Error {
   }
 }
 
-/** Tokens this close to expiry count as expired, so a command does not fail halfway. */
-export const EXPIRY_MARGIN_MS = 60_000;
+/** Tokens this close to expiry count as expired, so a command doesn't fail halfway. */
+const EXPIRY_MARGIN_MS = 60_000;
 
-export const configDir = (env: NodeJS.ProcessEnv = process.env): string =>
+const configDir = (env: NodeJS.ProcessEnv = process.env): string =>
   env.NIPA_CONFIG_DIR ??
   path.join(env.XDG_CONFIG_HOME ?? path.join(homedir(), ".config"), "nipa");
 
 const configPath = () => path.join(configDir(), "config.json");
-const sessionPath = () => path.join(configDir(), "auth.json");
+const authPath = () => path.join(configDir(), "auth.json");
 
 const readText = async (file: string): Promise<string | undefined> => {
   try {
@@ -74,7 +131,7 @@ const readJson = async <T>(
   try {
     json = JSON.parse(text);
   } catch {
-    throw new StoreError(`${file} is not valid JSON`);
+    throw new StoreError(`${file} isn't valid JSON`);
   }
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -85,7 +142,7 @@ const readJson = async <T>(
 
 const writeJson = async (
   file: string,
-  value: Config | Session
+  value: Config | { sessions: Sessions }
 ): Promise<void> => {
   await mkdir(configDir(), { mode: 0o700, recursive: true });
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
@@ -94,19 +151,45 @@ const writeJson = async (
 };
 
 export const loadConfig = async (): Promise<Config> =>
-  (await readJson(configPath(), ConfigSchema)) ?? ConfigSchema.parse({});
+  (await readJson(configPath(), ConfigFileSchema)) ?? {
+    currentProfile: DEFAULT_PROFILE,
+    profiles: withProd({}),
+  };
 
 export const saveConfig = (config: Config): Promise<void> =>
   writeJson(configPath(), config);
 
-export const loadSession = (): Promise<Session | undefined> =>
-  readJson(sessionPath(), SessionSchema);
+const loadSessions = async (): Promise<Sessions> =>
+  (await readJson(authPath(), AuthFileSchema)) ?? {};
 
-export const saveSession = (session: Session): Promise<void> =>
-  writeJson(sessionPath(), session);
+export const loadSession = async (
+  profile: string
+): Promise<Session | undefined> => {
+  const sessions = await loadSessions();
+  return sessions[profile];
+};
 
-export const clearSession = (): Promise<void> =>
-  rm(sessionPath(), { force: true });
+export const saveSession = async (input: {
+  profile: string;
+  session: Session;
+}): Promise<void> => {
+  const sessions = await loadSessions();
+  await writeJson(authPath(), {
+    sessions: { ...sessions, [input.profile]: input.session },
+  });
+};
+
+export const clearSession = async (profile: string): Promise<void> => {
+  const sessions = await loadSessions();
+  const rest = Object.fromEntries(
+    Object.entries(sessions).filter(([key]) => key !== profile)
+  );
+  if (Object.keys(rest).length === 0) {
+    await rm(authPath(), { force: true });
+    return;
+  }
+  await writeJson(authPath(), { sessions: rest });
+};
 
 export const msUntilExpiry = (session: Session, now = Date.now()): number =>
   Date.parse(session.expiresAt) - now;

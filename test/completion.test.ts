@@ -23,6 +23,9 @@ let keystone: FakeKeystone;
 
 const has = (shell: string): boolean => Bun.which(shell) !== null;
 
+/** pwsh takes a few seconds to start, more than bun's default 5 s test timeout. */
+const PWSH_TIMEOUT_MS = 30_000;
+
 const shellRun = (cmd: string[]) => runProcess(cmd, testEnv(dir));
 
 const nipa = (...args: string[]) =>
@@ -96,9 +99,11 @@ describe("nipa completion", () => {
     expect(stderr).toContain("bash, zsh, fish, pwsh");
   });
 
-  test("__complete projects lists project names", async () => {
-    const { stdout } = await nipa("__complete", "projects");
-    expect(lines(stdout)).toEqual(["Alpha", "Beta"]);
+  test("__complete lists project and profile names", async () => {
+    const projects = await nipa("__complete", "projects");
+    expect(lines(projects.stdout)).toEqual(["Alpha", "Beta"]);
+    const profiles = await nipa("__complete", "profiles");
+    expect(lines(profiles.stdout)).toEqual(["prod"]);
   });
 
   test("hidden commands stay out of --help", async () => {
@@ -118,12 +123,23 @@ describe("bash", () => {
   });
 
   test("flags and flag values", async () => {
-    expect(await bashComplete("nipa", "whoami", "--")).toEqual(["--json"]);
+    expect(await bashComplete("nipa", "whoami", "--j")).toEqual(["--json"]);
     expect(await bashComplete("nipa", "env", "--shell", "f")).toEqual(["fish"]);
   });
 
   test("switch lists projects from the session", async () => {
     expect(await bashComplete("nipa", "switch", "")).toEqual(["Alpha", "Beta"]);
+  });
+
+  test("global options before the command", async () => {
+    expect(await bashComplete("nipa", "-P", "")).toEqual(["prod"]);
+    expect(await bashComplete("nipa", "-P", "prod", "sw")).toEqual(["switch"]);
+  });
+
+  test("profile subcommands and profile names", async () => {
+    const subcommands = await bashComplete("nipa", "profile", "");
+    expect(subcommands.toSorted()).toEqual(["add", "ls", "rm", "use"]);
+    expect(await bashComplete("nipa", "profile", "use", "")).toEqual(["prod"]);
   });
 });
 
@@ -160,18 +176,60 @@ describe.if(has("fish"))("fish", () => {
   test("completion lists shells", async () => {
     expect(await fishComplete("nipa completion p")).toEqual(["pwsh"]);
   });
+
+  test("global options before the command", async () => {
+    expect(await fishComplete("nipa -P ")).toEqual(["prod"]);
+    expect(await fishComplete("nipa -P prod sw")).toEqual(["switch"]);
+  });
+
+  test("profile subcommands and profile names", async () => {
+    const subcommands = await fishComplete("nipa profile ");
+    expect(subcommands.toSorted()).toEqual(["add", "ls", "rm", "use"]);
+    expect(await fishComplete("nipa profile use ")).toEqual(["prod"]);
+  });
 });
 
 describe.if(has("pwsh"))("pwsh", () => {
-  test("commands", async () => {
-    expect(await pwshComplete("nipa lo")).toEqual(["login", "logout"]);
-  });
+  test(
+    "commands",
+    async () => {
+      expect(await pwshComplete("nipa lo")).toEqual(["login", "logout"]);
+    },
+    PWSH_TIMEOUT_MS
+  );
 
-  test("flags", async () => {
-    expect(await pwshComplete("nipa whoami --")).toEqual(["--json"]);
-  });
+  test(
+    "flags",
+    async () => {
+      expect(await pwshComplete("nipa whoami --j")).toEqual(["--json"]);
+    },
+    PWSH_TIMEOUT_MS
+  );
 
-  test("switch lists projects from the session", async () => {
-    expect(await pwshComplete("nipa switch ")).toEqual(["Alpha", "Beta"]);
-  });
+  test(
+    "global options before the command",
+    async () => {
+      expect(await pwshComplete("nipa -P ")).toEqual(["prod"]);
+      expect(await pwshComplete("nipa -P prod sw")).toEqual(["switch"]);
+    },
+    PWSH_TIMEOUT_MS
+  );
+
+  test(
+    "profile subcommands and profile names",
+    async () => {
+      const subcommands = await pwshComplete("nipa profile ");
+      expect(subcommands.toSorted()).toEqual(["add", "ls", "rm", "use"]);
+      expect(await pwshComplete("nipa profile use ")).toEqual(["prod"]);
+    },
+    PWSH_TIMEOUT_MS
+  );
+
+  test(
+    "switch lists projects from the session",
+    async () => {
+      expect(await pwshComplete("nipa switch ")).toEqual(["Alpha", "Beta"]);
+    },
+    PWSH_TIMEOUT_MS
+  );
 });

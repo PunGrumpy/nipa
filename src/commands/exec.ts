@@ -3,18 +3,10 @@ import { constants, homedir } from "node:os";
 import path from "node:path";
 
 import { childEnv, sessionEnv } from "../lib/env";
-import { loadConfig } from "../lib/store";
-import { CliError } from "../lib/ui";
-import { requireSession } from "./session";
-
-export const execUsage = `Usage: nipa exec <command> [args...]
-
-Run a command with the session's OS_* variables. Any OS_* already in your
-shell is dropped first.
-
-  nipa exec ansible-playbook site.yml
-  nipa exec python -c 'import openstack; print(openstack.connect().identity)'
-`;
+import { DEFAULT_PROFILE } from "../lib/store";
+import { bold, CliError, dim, log } from "../lib/ui";
+import { requireSession } from "./login";
+import type { Globals } from "./login";
 
 const INSTALL_HINTS = new Map([
   ["openstack", "Install it with `pipx install python-openstackclient`."],
@@ -31,8 +23,11 @@ const resolve = (command: string): string | undefined => {
   return existsSync(local) ? local : undefined;
 };
 
-export const exec = async (args: string[]): Promise<number> => {
-  const [command, ...rest] = args;
+export const exec = async (input: {
+  args: string[];
+  globals: Globals;
+}): Promise<number> => {
+  const [command, ...rest] = input.args;
   if (!command) {
     throw new CliError("missing command", {
       exitCode: 2,
@@ -46,10 +41,18 @@ export const exec = async (args: string[]): Promise<number> => {
       hint: INSTALL_HINTS.get(command),
     });
   }
-  const [config, session] = await Promise.all([loadConfig(), requireSession()]);
+  const { active, session } = await requireSession(input.globals);
+  // Outside prod, say where the command runs, so a staging plan isn't mistaken for prod.
+  if (active.name !== DEFAULT_PROFILE) {
+    const host = dim(`(${new URL(active.profile.authUrl).host})`);
+    log(`Using profile ${bold(active.name)} ${host}`);
+  }
 
   const child = Bun.spawn([bin, ...rest], {
-    env: childEnv(process.env, sessionEnv(config, session)),
+    env: childEnv(
+      process.env,
+      sessionEnv({ profile: active.profile, session })
+    ),
     stdio: ["inherit", "inherit", "inherit"],
   });
   // The terminal already sends Ctrl-C to the child. Handling SIGINT here keeps
