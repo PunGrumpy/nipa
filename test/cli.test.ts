@@ -241,6 +241,12 @@ describe("with a session", () => {
     expect(before.stdout).toBe(after.stdout);
   });
 
+  test("words after -- go to the command, not to nipa", async () => {
+    const { code, stderr } = await run(["switch", "--", "--help"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain('no project named or with ID "--help"');
+  });
+
   test("env --shell fish", async () => {
     const { stdout } = await run(["env", "--shell", "fish"]);
     expect(stdout).toContain("set -gx OS_PROJECT_NAME 'Alpha'");

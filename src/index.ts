@@ -32,7 +32,7 @@ const takeGlobals = (input: {
   const rest: string[] = [];
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i] ?? "";
-    if (input.untilCommand && !arg.startsWith("-")) {
+    if (arg === "--" || (input.untilCommand && !arg.startsWith("-"))) {
       return [...rest, ...args.slice(i)];
     }
     switch (arg) {
