@@ -1,11 +1,8 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import path from "node:path";
-
 import pc from "picocolors";
 import { z } from "zod";
 
 import { debug, request } from "./http";
+import { readCache, writeCache } from "./store";
 
 const RELEASES = "https://github.com/PunGrumpy/nipa-cli/releases";
 const LATEST_API =
@@ -19,14 +16,9 @@ const CacheSchema = z.object({
 
 type Cache = z.infer<typeof CacheSchema>;
 
-const ReleaseSchema = z.object({ tag_name: z.string() });
+const CACHE_FILE = "update.json";
 
-const cachePath = (env: NodeJS.ProcessEnv = process.env): string =>
-  path.join(
-    env.XDG_CACHE_HOME ?? path.join(homedir(), ".cache"),
-    "nipa",
-    "update.json"
-  );
+const ReleaseSchema = z.object({ tag_name: z.string() });
 
 const parts = (version: string): number[] =>
   version.replace(/^v/u, "").split("-")[0]?.split(".").map(Number) ?? [];
@@ -52,17 +44,6 @@ export const shouldCheck = (input: {
   input.version !== "0.0.0" &&
   !input.env.CI &&
   !input.env.NIPA_NO_UPDATE_CHECK;
-
-const readCache = async (): Promise<Cache | undefined> => {
-  try {
-    const parsed = CacheSchema.safeParse(
-      JSON.parse(await readFile(cachePath(), "utf-8"))
-    );
-    return parsed.success ? parsed.data : undefined;
-  } catch {
-    return undefined;
-  }
-};
 
 const fetchLatest = async (): Promise<string | undefined> => {
   try {
@@ -116,7 +97,7 @@ export const checkForUpdate = async (version: string): Promise<void> => {
   ) {
     return;
   }
-  const cache = await readCache();
+  const cache = await readCache(CACHE_FILE, CacheSchema);
   if (cache && isNewer(cache.latest, version)) {
     console.error(updateNotice(cache.latest, version));
   }
@@ -125,8 +106,7 @@ export const checkForUpdate = async (version: string): Promise<void> => {
   }
   const latest = await fetchLatest();
   if (latest) {
-    await mkdir(path.dirname(cachePath()), { recursive: true });
     const next: Cache = { checkedAt: new Date().toISOString(), latest };
-    await writeFile(cachePath(), `${JSON.stringify(next)}\n`);
+    await writeCache(CACHE_FILE, next);
   }
 };

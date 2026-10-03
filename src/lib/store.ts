@@ -98,6 +98,30 @@ const configDir = (env: NodeJS.ProcessEnv = process.env): string =>
 const configPath = () => path.join(configDir(), "config.json");
 const authPath = () => path.join(configDir(), "auth.json");
 
+const cachePath = (name: string, env: NodeJS.ProcessEnv = process.env) =>
+  path.join(env.XDG_CACHE_HOME ?? path.join(homedir(), ".cache"), "nipa", name);
+
+export const readCache = async <T>(
+  name: string,
+  schema: z.ZodType<T>
+): Promise<T | undefined> => {
+  try {
+    const text = await readFile(cachePath(name), "utf-8");
+    const parsed = schema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const writeCache = async (
+  name: string,
+  value: z.core.util.JSONType
+): Promise<void> => {
+  await mkdir(path.dirname(cachePath(name)), { recursive: true });
+  await writeFile(cachePath(name), `${JSON.stringify(value)}\n`);
+};
+
 const readText = async (file: string): Promise<string | undefined> => {
   try {
     return await readFile(file, "utf-8");

@@ -1,8 +1,6 @@
-import { existsSync } from "node:fs";
-import { constants, homedir } from "node:os";
-import path from "node:path";
+import { constants } from "node:os";
 
-import { childEnv, sessionEnv } from "../lib/env";
+import { childEnv, findCommand, sessionEnv } from "../lib/env";
 import { DEFAULT_PROFILE } from "../lib/store";
 import { bold, CliError, dim, log } from "../lib/ui";
 import { requireSession } from "./login";
@@ -12,16 +10,6 @@ const INSTALL_HINTS = new Map([
   ["openstack", "Install it with `pipx install python-openstackclient`."],
   ["terraform", "Install it with `brew install hashicorp/tap/terraform`."],
 ]);
-
-// pipx installs openstack in ~/.local/bin, which isn't always on PATH.
-const resolve = (command: string): string | undefined => {
-  const found = Bun.which(command);
-  if (found) {
-    return found;
-  }
-  const local = path.join(homedir(), ".local", "bin", command);
-  return existsSync(local) ? local : undefined;
-};
 
 export const exec = async (input: {
   args: string[];
@@ -34,7 +22,7 @@ export const exec = async (input: {
       hint: "Usage: nipa exec <command> [args...]",
     });
   }
-  const bin = resolve(command);
+  const bin = findCommand(command);
   if (!bin) {
     throw new CliError(`command not found: ${command}`, {
       exitCode: 127,

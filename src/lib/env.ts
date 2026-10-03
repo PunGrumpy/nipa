@@ -1,4 +1,18 @@
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+
 import type { Profile, Session } from "./store";
+
+// pipx installs openstack in ~/.local/bin, which isn't always on PATH.
+export const findCommand = (command: string): string | undefined => {
+  const found = Bun.which(command);
+  if (found) {
+    return found;
+  }
+  const local = path.join(homedir(), ".local", "bin", command);
+  return existsSync(local) ? local : undefined;
+};
 
 export const sessionEnv = (input: { profile: Profile; session: Session }) => ({
   OS_AUTH_TYPE: "v3token",
