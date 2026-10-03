@@ -53,7 +53,7 @@ nipa runs `openstack server list` with your session, so the OpenStack client doe
 
 ## 4. Turn on tab completion
 
-nipa completes its commands, options and your project names when you press Tab. Add the line for your shell to its startup file:
+nipa completes its commands, options and your project names when you press Tab. After `nipa os`, it completes openstack's commands and options too. Add the line for your shell to its startup file:
 
 ```sh
 echo 'eval "$(nipa completion zsh)"' >> ~/.zshrc

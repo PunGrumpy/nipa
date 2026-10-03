@@ -68,6 +68,9 @@ const bashArgs = (args: ArgSpec): string => {
     case "command": {
       return '_nipa_offset "$((i + 1))"';
     }
+    case "openstack": {
+      return `_nipa_reply "$(nipa __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)"`;
+    }
     default: {
       const _exhaustive: never = args;
       return _exhaustive;
@@ -204,7 +207,8 @@ const zshArg = (args: ArgSpec): string => {
       return `'1:shell:(${COMPLETION_SHELLS.join(" ")})'`;
     }
     case "program":
-    case "command": {
+    case "command":
+    case "openstack": {
       return "";
     }
     default: {
@@ -245,6 +249,9 @@ const zshBody = (spec: CommandSpec, pad: string): string => {
     case "command": {
       return `${pad}  shift words; (( CURRENT-- )); _normal`;
     }
+    case "openstack": {
+      return `${pad}  _nipa_openstack`;
+    }
     default: {
       const specs = [
         ...allFlags(spec).map(zshFlag),
@@ -278,6 +285,12 @@ _nipa_dynamic() {
   local -a values
   values=(\${(f)"$(nipa __complete $1 2>/dev/null)"})
   _describe -t $1 $2 values
+}
+
+_nipa_openstack() {
+  local -a values
+  values=(\${(f)"$(nipa __complete openstack -- "\${(@)words[2,CURRENT-1]}" "$PREFIX" 2>/dev/null)"})
+  if (( $#values )); then compadd -a values; else _files; fi
 }
 
 _nipa() {
@@ -365,6 +378,9 @@ const fishArgs = (args: ArgSpec): string => {
     case "command": {
       return "'(__nipa_complete_as)'";
     }
+    case "openstack": {
+      return "'(__nipa_openstack)'";
+    }
     default: {
       const _exhaustive: never = args;
       return _exhaustive;
@@ -444,6 +460,17 @@ function __nipa_complete_as
     complete -C "$line"
 end
 
+function __nipa_openstack
+    set -l i (__nipa_command_index); or return
+    set -l tokens (commandline -opc)
+    set -l values (nipa __complete openstack -- $tokens[(math $i + 1)..-1] (commandline -ct) 2>/dev/null)
+    if set -q values[1]
+        printf '%s\\n' $values
+    else
+        __fish_complete_path (commandline -ct)
+    end
+end
+
 complete -c nipa -f
 ${GLOBAL_FLAGS.map((flag) => fishFlag(flag, notPassthrough)).join("\n")}
 ${top.join("\n")}
@@ -488,6 +515,9 @@ const pwshArgs = (args: ArgSpec): string | undefined => {
     case "shells": {
       return pwshList(COMPLETION_SHELLS);
     }
+    case "openstack": {
+      return "(Openstack ($c + 1))";
+    }
     case "program":
     case "command": {
       return undefined;
@@ -520,7 +550,8 @@ const pwshBody = (spec: CommandSpec, pad: string): string => {
     ].join("\n");
   }
   if (isPassthrough(spec)) {
-    return `${pad}  return`;
+    const values = spec.args && pwshArgs(spec.args);
+    return values ? `${pad}  return Complete ${values}` : `${pad}  return`;
   }
   const flags = allFlags(spec);
   const lines = flags.flatMap((flag) => {
@@ -566,6 +597,10 @@ ${commands}
     }
   }
   function Dynamic([string]$kind) { @(nipa __complete $kind 2>$null) }
+  function Openstack([int]$start) {
+    $typed = @($words | Select-Object -Skip $start -First ($index - $start))
+    @(nipa __complete openstack -- @typed $wordToComplete 2>$null)
+  }
   $words = @($commandAst.CommandElements | ForEach-Object { $_.ToString() })
   # The word being completed is either the last element or a new, empty one.
   $index = if ($wordToComplete) { $words.Count - 1 } else { $words.Count }

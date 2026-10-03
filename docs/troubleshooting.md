@@ -48,7 +48,15 @@ The file doesn't match the format nipa expects, for example after you edit it by
 
 ## Tab completion does nothing
 
-The completion script isn't loaded in your current shell. Open a new terminal after you add it to your startup file, or load it now with `eval "$(nipa completion bash)"`. In bash, completion after `nipa os` and `nipa tf` also needs the `bash-completion` package.
+The completion script isn't loaded in your current shell. Open a new terminal after you add it to your startup file, or load it now with `eval "$(nipa completion bash)"`. In bash, completion after `nipa tf` and `nipa exec` also needs the `bash-completion` package.
+
+## The first Tab after `nipa os` is slow
+
+nipa gets openstack's commands from `openstack complete`, which starts Python and loads every client plugin. nipa saves the list in `~/.cache/nipa/openstack.json` and runs `openstack complete` again only after the `openstack` executable changes.
+
+## `nipa os` doesn't complete a plugin's commands
+
+Installing a plugin, for example with `pipx inject python-openstackclient python-octaviaclient`, doesn't change the `openstack` executable, so nipa keeps the old list. Delete `~/.cache/nipa/openstack.json` and press Tab again.
 
 ## An old error appears after an update
 

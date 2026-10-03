@@ -21,7 +21,9 @@ export type ArgSpec =
   /** The rest of the line completes as if typed after `program`. */
   | { kind: "program"; program: string }
   /** The next word is a command, and the rest completes as that command. */
-  | { kind: "command" };
+  | { kind: "command" }
+  /** The rest of the line completes from `nipa __complete openstack`. */
+  | { kind: "openstack" };
 
 export interface Example {
   description: string;
@@ -82,7 +84,9 @@ export const GLOBAL_FLAGS: readonly FlagSpec[] = [
 
 /** Commands whose arguments belong to another program, including --help. */
 export const isPassthrough = (spec: CommandSpec): boolean =>
-  spec.args?.kind === "program" || spec.args?.kind === "command";
+  spec.args?.kind === "program" ||
+  spec.args?.kind === "command" ||
+  spec.args?.kind === "openstack";
 
 export const visible = <T extends CommandSpec>(specs: readonly T[]): T[] =>
   specs.filter((spec) => !spec.hidden);

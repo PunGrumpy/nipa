@@ -135,7 +135,7 @@ export const createCommands = (): Command[] => {
     },
     {
       aliases: ["openstack"],
-      args: { kind: "program", program: "openstack" },
+      args: { kind: "openstack" },
       description:
         "Runs `openstack <args...>` with the session. It's the same as `nipa exec openstack <args...>`.",
       examples: [
@@ -247,8 +247,8 @@ export const createCommands = (): Command[] => {
       hidden: true,
       name: "__complete",
       run: complete,
-      summary: "Print project or profile names for the completion scripts",
-      usage: "<projects|profiles>",
+      summary: "Print values for the completion scripts",
+      usage: "<projects|profiles|openstack -- <words...>>",
     },
   ];
   return commands;

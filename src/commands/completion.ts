@@ -1,9 +1,12 @@
+import { parseArgs } from "node:util";
+
 import {
   completionScript,
   COMPLETION_SHELLS,
   isCompletionShell,
 } from "../lib/completion";
 import { listProjects } from "../lib/keystone";
+import { openstackCompletions } from "../lib/openstack";
 import type { CommandSpec } from "../lib/spec";
 import { isActive, loadSession } from "../lib/store";
 import { CliError } from "../lib/ui";
@@ -44,7 +47,7 @@ export const complete = async (input: {
   args: string[];
   globals: Globals;
 }): Promise<number> => {
-  const [kind] = input.args;
+  const [kind, ...rest] = input.args;
   let values: string[];
   switch (kind) {
     case "projects": {
@@ -53,6 +56,15 @@ export const complete = async (input: {
     }
     case "profiles": {
       values = await profileNames();
+      break;
+    }
+    case "openstack": {
+      const { positionals } = parseArgs({
+        allowPositionals: true,
+        args: rest,
+        options: {},
+      });
+      values = await openstackCompletions(positionals);
       break;
     }
     default: {

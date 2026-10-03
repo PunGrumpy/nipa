@@ -60,7 +60,7 @@ These variables change where nipa keeps files and when it checks for updates:
 | Variable | What it does |
 | --- | --- |
 | `NIPA_CONFIG_DIR` | The directory for `config.json` and `auth.json`. The default is `$XDG_CONFIG_HOME/nipa`, then `~/.config/nipa` |
-| `XDG_CACHE_HOME` | The parent of the update check cache. The default is `~/.cache` |
+| `XDG_CACHE_HOME` | The parent of `nipa/update.json` and `nipa/openstack.json`. The default is `~/.cache` |
 | `NIPA_NO_UPDATE_CHECK` | Turns off the update check when set to any value |
 | `CI` | Turns off the update check when set to any value |
 
@@ -73,6 +73,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | `config.json` | `currentProfile`, and `profiles` with each profile's `authUrl`, `userDomain`, `region`, last `username` and last `project` |
 | `auth.json` | `sessions` with each profile's token, expiry time, user and project |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
+| `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
 
