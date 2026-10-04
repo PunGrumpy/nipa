@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { constants } from "node:os";
 
 import { childEnv, findCommand, sessionEnv } from "./env";
@@ -31,12 +33,12 @@ export const runTool = async ({
     });
   }
   const { active, session } = await signIn();
-  const child = Bun.spawn([bin, ...args], {
+  const child = spawn(bin, args, {
     env: childEnv(
       process.env,
       sessionEnv({ profile: active.profile, session })
     ),
-    stdio: ["inherit", "inherit", "inherit"],
+    stdio: "inherit",
   });
   // The terminal already sends Ctrl-C to the child. Handling SIGINT here keeps
   // nipa alive until the child exits, so terraform can finish cleanly.
@@ -47,12 +49,15 @@ export const runTool = async ({
   const onTerminate = () => child.kill("SIGTERM");
   process.on("SIGINT", onInterrupt);
   process.on("SIGTERM", onTerminate);
-  const code = await child.exited;
+  await once(child, "exit");
   process.off("SIGINT", onInterrupt);
   process.off("SIGTERM", onTerminate);
 
-  if (child.signalCode) {
-    return 128 + constants.signals[child.signalCode];
+  const { exitCode, signalCode } = child;
+  if (signalCode) {
+    return 128 + constants.signals[signalCode];
   }
-  return interrupted && code === 0 ? 128 + constants.signals.SIGINT : code;
+  return interrupted && exitCode === 0
+    ? 128 + constants.signals.SIGINT
+    : (exitCode ?? 1);
 };

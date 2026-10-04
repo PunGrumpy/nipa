@@ -70,8 +70,13 @@ const nextMarker = (links: readonly Link[] = []): string | undefined => {
   if (!next) {
     return undefined;
   }
-  const url = URL.parse(next.href, "http://localhost");
-  return url?.searchParams.get("marker") ?? undefined;
+  // URL.parse would need Node 22.1, and nipa runs on any Node 22.
+  try {
+    const url = new URL(next.href, "http://localhost");
+    return url.searchParams.get("marker") ?? undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 /** The servers from `marker` on: this page, then the pages after it. */
