@@ -52,6 +52,7 @@ Pick the page for what you want to do:
 | [CLI reference](docs/cli-reference.md) | You look up a command, option, variable, file or exit code |
 | [How nipa logs in with MFA](docs/how-login-works.md) | You want to know what nipa sends to Keystone and where it keeps the token |
 | [Fix login and session errors](docs/troubleshooting.md) | A command prints an error you don't recognize |
+| [Add a command to nipa](docs/add-a-command.md) | You add a command or subcommand to nipa |
 | [Release nipa](docs/releasing.md) | You maintain nipa and cut a release |
 
 ## Contribute to nipa
@@ -65,7 +66,7 @@ bun run check
 bun run typecheck
 ```
 
-The tests run against a fake Keystone, so they don't need an account. Commit messages and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org) without a scope, such as `feat: add nipa switch`. Every pull request that changes what users see needs a changeset, which [Release nipa](docs/releasing.md) explains.
+The tests run against a fake Keystone, so they don't need an account. To add a command, follow [Add a command to nipa](docs/add-a-command.md). Commit messages and pull request titles follow [Conventional Commits](https://www.conventionalcommits.org) without a scope, such as `feat: add nipa switch`. Every pull request that changes what users see needs a changeset, which [Release nipa](docs/releasing.md) explains.
 
 ## License
 
