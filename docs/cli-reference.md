@@ -142,4 +142,4 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 
 ## Update check
 
-On a terminal, nipa checks the [GitHub releases](https://github.com/PunGrumpy/nipa-cli/releases) for a newer version at most once every 24 hours, after the command finishes. It waits at most 1.5 seconds for the answer. When a newer version exists, nipa prints a box with the version and a link to its release notes.
+On a terminal, nipa checks the [GitHub releases](https://github.com/PunGrumpy/nipa/releases) for a newer version at most once every 24 hours, after the command finishes. It waits at most 1.5 seconds for the answer. When a newer version exists, nipa prints a box with the version and a link to its release notes.

@@ -13,10 +13,10 @@ You need these 2 things:
 
 ## 1. Install nipa
 
-Download the binary for your platform from the [latest release](https://github.com/PunGrumpy/nipa-cli/releases/latest). This example is for macOS on Apple silicon:
+Download the binary for your platform from the [latest release](https://github.com/PunGrumpy/nipa/releases/latest). This example is for macOS on Apple silicon:
 
 ```sh
-base=https://github.com/PunGrumpy/nipa-cli/releases/latest/download
+base=https://github.com/PunGrumpy/nipa/releases/latest/download
 curl -fsSL -o ~/.local/bin/nipa "$base/nipa-darwin-arm64"
 chmod +x ~/.local/bin/nipa
 nipa --version

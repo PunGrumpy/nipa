@@ -20,10 +20,10 @@ Nipa Cloud accounts with multi-factor authentication (MFA) can't use a plain ope
 
 ## Install nipa
 
-Download the binary for your platform from the [latest release](https://github.com/PunGrumpy/nipa-cli/releases/latest) and put it on your `PATH`:
+Download the binary for your platform from the [latest release](https://github.com/PunGrumpy/nipa/releases/latest) and put it on your `PATH`:
 
 ```sh
-base=https://github.com/PunGrumpy/nipa-cli/releases/latest/download
+base=https://github.com/PunGrumpy/nipa/releases/latest/download
 curl -fsSL -o ~/.local/bin/nipa "$base/nipa-darwin-arm64"
 chmod +x ~/.local/bin/nipa
 ```

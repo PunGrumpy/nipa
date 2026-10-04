@@ -12,12 +12,12 @@
     "terraform",
     "totp"
   ],
-  "homepage": "https://github.com/PunGrumpy/nipa-cli#readme",
-  "bugs": "https://github.com/PunGrumpy/nipa-cli/issues",
+  "homepage": "https://github.com/PunGrumpy/nipa#readme",
+  "bugs": "https://github.com/PunGrumpy/nipa/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PunGrumpy/nipa-cli.git",
+    "url": "git+https://github.com/PunGrumpy/nipa.git",
     "directory": "packages/cli"
   },
   "bin": {
