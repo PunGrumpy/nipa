@@ -1,6 +1,7 @@
 // me@example.com has the MFA rule password + totp. plain@example.com has no MFA.
 // The catalog puts Nova on the same server, where Alpha has 3 servers on 2
-// pages and the other projects have none.
+// pages and the other projects have none. With stripErrorBodies, every 401
+// has an empty body, like the ones Nipa's gateway sends.
 
 import { randomUUID } from "node:crypto";
 
@@ -191,7 +192,14 @@ const listServers = (req: Request, projectId: string | undefined) => {
   });
 };
 
-export const startFakeKeystone = (): FakeKeystone => {
+const stripBody = (res: Response): Response =>
+  res.status === 401
+    ? new Response(null, { headers: res.headers, status: 401 })
+    : res;
+
+export const startFakeKeystone = ({
+  stripErrorBodies = false,
+} = {}): FakeKeystone => {
   const tokens = new Map<string, typeof FAKE_USER>();
   const scopes = new Map<string, string | undefined>();
   const receipts = new Map<string, typeof FAKE_USER>();
@@ -295,31 +303,34 @@ export const startFakeKeystone = (): FakeKeystone => {
     );
   };
 
+  const handle = (req: Request): Response | Promise<Response> => {
+    const { origin, pathname } = new URL(req.url);
+    requests.push(`${req.method} ${pathname}`);
+    if (pathname === "/v3" || pathname === "/v3/") {
+      return Response.json({ version: { id: "v3.14", status: "stable" } });
+    }
+    if (pathname === "/v3/auth/tokens") {
+      return authTokens(req);
+    }
+    const routes = new Map([
+      [
+        "/compute/v2.1/servers/detail",
+        (t: string) => listServers(req, scopes.get(t)),
+      ],
+      ["/v3/auth/catalog", () => Response.json(catalog(origin))],
+      ["/v3/auth/projects", () => Response.json({ projects: PROJECTS })],
+    ]);
+    const route = routes.get(pathname);
+    if (!route) {
+      return new Response("not found", { status: 404 });
+    }
+    const token = req.headers.get("X-Auth-Token") ?? "";
+    return tokens.has(token) ? route(token) : unauthorized();
+  };
+
   const server = Bun.serve({
-    fetch: (req) => {
-      const { origin, pathname } = new URL(req.url);
-      requests.push(`${req.method} ${pathname}`);
-      if (pathname === "/v3" || pathname === "/v3/") {
-        return Response.json({ version: { id: "v3.14", status: "stable" } });
-      }
-      if (pathname === "/v3/auth/tokens") {
-        return authTokens(req);
-      }
-      const routes = new Map([
-        [
-          "/compute/v2.1/servers/detail",
-          (t: string) => listServers(req, scopes.get(t)),
-        ],
-        ["/v3/auth/catalog", () => Response.json(catalog(origin))],
-        ["/v3/auth/projects", () => Response.json({ projects: PROJECTS })],
-      ]);
-      const route = routes.get(pathname);
-      if (!route) {
-        return new Response("not found", { status: 404 });
-      }
-      const token = req.headers.get("X-Auth-Token") ?? "";
-      return tokens.has(token) ? route(token) : unauthorized();
-    },
+    fetch: async (req) =>
+      stripErrorBodies ? stripBody(await handle(req)) : handle(req),
     port: 0,
   });
 
