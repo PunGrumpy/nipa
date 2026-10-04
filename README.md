@@ -20,7 +20,7 @@ Nipa Cloud accounts with multi-factor authentication (MFA) can't use a plain ope
 
 ## Install nipa
 
-Install nipa from npm. It needs Node.js 22 or later:
+Install nipa from npm. It needs Node.js 22.13 or later:
 
 ```sh
 npm install -g nipa-cli
