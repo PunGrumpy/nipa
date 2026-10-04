@@ -33,19 +33,19 @@ If your shell says `command not found` after the download, add `~/.local/bin` to
 
 ## 2. Log in
 
-Run `nipa login`. It asks for your email and password, then for an OTP code from your authenticator app:
+Run `nipa login`. It asks for your email, your project ID and your password, then for an OTP code from your authenticator app:
 
 ```console
 $ nipa login
 > Logging in to prod (identity-api.nipa.cloud)
 ✔ Email me@example.com
+✔ Project ID 1234567890abcdef1234567890abcdef
 ✔ Password ********
 ✔ OTP code 123456
-✔ Which project? my-project
 > Success! Logged in as me@example.com, project my-project
 ```
 
-You only see the project question when your account has more than one project. nipa remembers your email and project. The next login fills in your email, so you press Enter, then type your password and a new OTP code.
+The project ID is the 32-character `OS_PROJECT_ID` value in your project's openrc file. nipa asks for it only on your first login, because Nipa Cloud gives a token only for a project. nipa remembers your email and project, so the next login fills in your email and you type your password and a new OTP code. To use another project later, run `nipa switch`.
 
 ## 3. List your servers
 

@@ -45,7 +45,7 @@ const freshDir = async () => {
 
 beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), "nipa-test-"));
-  keystone = startFakeKeystone();
+  keystone = startFakeKeystone({ gateway: true });
 });
 
 afterAll(async () => {

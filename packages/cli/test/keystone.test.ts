@@ -161,14 +161,15 @@ describe("toEndpoints", () => {
   });
 });
 
-describe("behind a gateway that strips 401 bodies", () => {
+describe("behind Nipa's gateway", () => {
   let keystone: FakeKeystone;
   let mfa: Account;
 
   beforeAll(() => {
-    keystone = startFakeKeystone({ stripErrorBodies: true });
+    keystone = startFakeKeystone({ gateway: true });
     mfa = {
       authUrl: keystone.url,
+      projectId: ALPHA_ID,
       userDomain: "nipacloud",
       username: FAKE_USER.name,
     };
@@ -178,7 +179,7 @@ describe("behind a gateway that strips 401 bodies", () => {
     keystone.stop();
   });
 
-  test("an auth receipt without rules still asks for the OTP code", async () => {
+  test("an auth receipt without rules still asks for the OTP code, and the token switches", async () => {
     const first = await loginWithPassword(mfa, FAKE_PASSWORD);
     if (first.kind !== "mfa") {
       throw new Error("expected an auth receipt");
@@ -189,6 +190,12 @@ describe("behind a gateway that strips 401 bodies", () => {
       receipt: first.receipt,
     });
     expect(token.user).toEqual(FAKE_USER);
+    const switched = await rescope({
+      authUrl: keystone.url,
+      projectId: ALPHA_ID,
+      token: token.value,
+    });
+    expect(switched.project?.id).toBe(ALPHA_ID);
   });
 
   test("a wrong password says so", async () => {

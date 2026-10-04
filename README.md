@@ -8,6 +8,7 @@ nipa is a command-line tool that logs in to Nipa Cloud with your password and a 
 $ nipa login
 > Logging in to prod (identity-api.nipa.cloud)
 ✔ Email me@example.com
+✔ Project ID 1234567890abcdef1234567890abcdef
 ✔ Password ********
 ✔ OTP code 123456
 > Success! Logged in as me@example.com, project my-project
