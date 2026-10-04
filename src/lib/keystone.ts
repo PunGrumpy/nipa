@@ -297,6 +297,59 @@ export const listProjects = async ({
   return toProjects(parsed.data);
 };
 
+export const EndpointsSchema = z.record(z.string(), z.string());
+
+/** Each service's public URL in one region, by type, such as "compute". */
+export type Endpoints = z.infer<typeof EndpointsSchema>;
+
+const CatalogSchema = z.object({
+  catalog: z.array(
+    z.object({
+      endpoints: z.array(
+        z.object({
+          interface: z.string(),
+          region: z.string().nullish(),
+          region_id: z.string().nullish(),
+          url: z.string(),
+        })
+      ),
+      type: z.string(),
+    })
+  ),
+});
+
+export const toEndpoints = (
+  body: z.infer<typeof CatalogSchema>,
+  region: string
+): Endpoints =>
+  Object.fromEntries(
+    body.catalog.flatMap((service): [string, string][] => {
+      const endpoint = service.endpoints.find(
+        (e) => e.interface === "public" && (e.region_id ?? e.region) === region
+      );
+      return endpoint ? [[service.type, endpoint.url]] : [];
+    })
+  );
+
+export const listEndpoints = async (
+  input: TokenRequest & { region: string }
+): Promise<Endpoints> => {
+  const res = await request(`${identityUrl(input.authUrl)}/auth/catalog`, {
+    headers: { "X-Auth-Token": input.token },
+  });
+  if (!res.ok) {
+    return fail(res, SESSION_GONE);
+  }
+  const parsed = CatalogSchema.safeParse(await res.json());
+  if (!parsed.success) {
+    throw new KeystoneError(
+      `unexpected catalog: ${z.prettifyError(parsed.error)}`,
+      res.status
+    );
+  }
+  return toEndpoints(parsed.data, input.region);
+};
+
 export const revoke = async ({
   authUrl,
   token,

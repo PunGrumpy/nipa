@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
-import { ProjectSchema } from "./keystone";
+import { EndpointsSchema, ProjectSchema } from "./keystone";
 
 export const DEFAULT_PROFILE = "prod";
 
@@ -59,6 +59,7 @@ const LegacyConfigSchema = ProfileSchema.extend({
 const ConfigFileSchema = z.union([ConfigSchema, LegacyConfigSchema]);
 
 const SessionSchema = z.object({
+  endpoints: EndpointsSchema.optional(),
   expiresAt: z.iso.datetime({ offset: true }),
   project: ProjectSchema,
   token: z.string().min(1),

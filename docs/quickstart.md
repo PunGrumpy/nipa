@@ -6,11 +6,10 @@ In this tutorial you install nipa, log in to Nipa Cloud with a one-time password
 
 ## What you need before you start
 
-You need these 3 things:
+You need these 2 things:
 
 - A Nipa Cloud account that you can log in to the portal with
 - The authenticator app that gives you OTP codes for that account
-- The OpenStack client, which `nipa os` runs: `pipx install python-openstackclient`
 
 ## 1. Install nipa
 
@@ -41,15 +40,23 @@ $ nipa login
 
 You only see the project question when your account has more than one project. nipa remembers your email and project. The next login fills in your email, so you press Enter, then type your password and a new OTP code.
 
-## 3. Run an OpenStack command
+## 3. List your servers
 
-Put `nipa os` in front of any `openstack` command:
+Run `nipa server ls`:
 
-```sh
-nipa os server list
+```console
+$ nipa server ls
+> Servers in my-project [312ms]
+
+  Name      Status        Address          Flavor            Age
+  web-2     ● Build       192.0.2.7        csa.large.v2      2m
+  web-1     ● Active      203.0.113.10     csa.large.v2      3d
+  db-1      ● Shutoff     198.51.100.4     csa.xlarge.v2     40d
 ```
 
-nipa runs `openstack server list` with your session, so the OpenStack client doesn't ask for a password. The session lasts until the token expires, which on Nipa Cloud is 24 hours. Run `nipa whoami` to see how long it has left.
+nipa calls the compute API with your session, so it doesn't ask for a password. The session lasts until the token expires, which on Nipa Cloud is 24 hours. Run `nipa whoami` to see how long it has left.
+
+For anything nipa has no command for yet, put `nipa os` in front of an `openstack` command, such as `nipa os volume list`. That runs the OpenStack client, which you install with `pipx install python-openstackclient`.
 
 ## 4. Turn on tab completion
 

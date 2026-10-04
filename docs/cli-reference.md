@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 10 commands. Without a command, it prints help.
+nipa has 11 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -14,6 +14,7 @@ nipa has 10 commands. Without a command, it prints help.
 | `nipa logout` | Revokes the current profile's token and deletes its session |
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code |
+| `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
@@ -31,7 +32,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
-| `--json` | `whoami`, `profile ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
@@ -71,7 +72,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | File | Contents |
 | --- | --- |
 | `config.json` | `currentProfile`, and `profiles` with each profile's `authUrl`, `userDomain`, `region`, last `username` and last `project` |
-| `auth.json` | `sessions` with each profile's token, expiry time, user and project |
+| `auth.json` | `sessions` with each profile's token, expiry time, user and project, and the service endpoints from Keystone's catalog once a command needs them |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
 
@@ -110,6 +111,32 @@ nipa exits with these codes:
 ```
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
+
+`nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the compute API's status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` or `floating`:
+
+```json
+{
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "servers": [
+    {
+      "addresses": [
+        {
+          "address": "192.0.2.5",
+          "network": "default",
+          "type": "fixed",
+          "version": 4
+        }
+      ],
+      "createdAt": "2030-01-01T00:00:00Z",
+      "flavor": "csa.large.v2",
+      "id": "9abc…",
+      "name": "web-1",
+      "status": "ACTIVE"
+    }
+  ]
+}
+```
 
 `nipa profile ls --json` prints an array with one object per profile. Each object has `name`, `current`, `loggedIn`, `authUrl`, `userDomain` and `region`. It also has `username` and `project` from the last login, and `user` while the session is active.
 

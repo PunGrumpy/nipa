@@ -30,7 +30,12 @@ export interface Example {
   command: string;
 }
 
-export const COMMAND_GROUPS = ["Session", "Run tools", "Setup"] as const;
+export const COMMAND_GROUPS = [
+  "Session",
+  "Resources",
+  "Run tools",
+  "Setup",
+] as const;
 
 type CommandGroup = (typeof COMMAND_GROUPS)[number];
 

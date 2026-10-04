@@ -249,6 +249,13 @@ describe("bash", () => {
     expect(subcommands.toSorted()).toEqual(["add", "ls", "rm", "use"]);
     expect(await bashComplete("nipa", "profile", "use", "")).toEqual(["prod"]);
   });
+
+  test("server subcommands and their flags", async () => {
+    expect(await bashComplete("nipa", "server", "")).toEqual(["ls"]);
+    expect(await bashComplete("nipa", "servers", "ls", "--j")).toEqual([
+      "--json",
+    ]);
+  });
 });
 
 describe("zsh", () => {

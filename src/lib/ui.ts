@@ -21,30 +21,53 @@ export class CliError extends Error {
 export const formatElapsed = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${Math.round(ms / 1000)}s`;
 
+const AGE_UNITS = [
+  ["d", 86_400_000],
+  ["h", 3_600_000],
+  ["m", 60_000],
+  ["s", 1000],
+] as const;
+
+/** Rounds to the largest unit, such as 3d or 45m, like the Vercel CLI. */
+export const formatAge = (ms: number): string => {
+  const age = Math.max(0, ms);
+  for (const [unit, size] of AGE_UNITS) {
+    if (age >= size) {
+      return `${Math.round(age / size)}${unit}`;
+    }
+  }
+  return `${Math.round(age)}ms`;
+};
+
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
   const hours = Math.floor(minutes / 60);
   return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 };
 
+// Bun's console.error turns the whole line red on a terminal.
+export const writeStderr = (line: string): void => {
+  process.stderr.write(`${line}\n`);
+};
+
 export const log = (message: string): void => {
-  console.error(`${pc.dim(">")} ${message}`);
+  writeStderr(`${pc.dim(">")} ${message}`);
 };
 
 export const success = (message: string, elapsedMs?: number): void => {
   const time = elapsedMs === undefined ? "" : `[${formatElapsed(elapsedMs)}]`;
   const elapsed = time ? ` ${pc.dim(time)}` : "";
-  console.error(`${pc.cyan("> Success!")} ${message}${elapsed}`);
+  writeStderr(`${pc.cyan("> Success!")} ${message}${elapsed}`);
 };
 
 export const note = (message: string): void => {
-  console.error(`${pc.bold(pc.yellow("> NOTE:"))} ${message}`);
+  writeStderr(`${pc.bold(pc.yellow("> NOTE:"))} ${message}`);
 };
 
 export const printError = (error: CliError): void => {
-  console.error(`${pc.bold(pc.red("Error:"))} ${error.message}`);
+  writeStderr(`${pc.bold(pc.red("Error:"))} ${error.message}`);
   if (error.hint) {
-    console.error(`${pc.dim(">")} ${error.hint}`);
+    writeStderr(`${pc.dim(">")} ${error.hint}`);
   }
 };
 
@@ -129,17 +152,49 @@ export const askConfirm = (options: {
   default: boolean;
 }): Promise<boolean> => prompt(() => confirm(options, promptContext));
 
-/** Pass plain text. Color codes would count toward the width. */
-export const columns = (rows: readonly (readonly string[])[]): string[][] => {
-  const widths: number[] = [];
-  for (const row of rows) {
-    for (const [index, cell] of row.entries()) {
-      widths[index] = Math.max(widths[index] ?? 0, cell.length);
-    }
-  }
-  return rows.map((row) =>
-    row.map((cell, index) => cell.padEnd(widths[index] ?? 0))
-  );
-};
+export const { bold, cyan, dim, gray, green, red, yellow } = pc;
 
-export const { bold, cyan, dim, green } = pc;
+export type Paint = (text: string) => string;
+
+/**
+ * `paint` colors the cell after padding, so color codes don't count toward
+ * the column's width.
+ */
+export interface Cell {
+  text: string;
+  paint?: Paint;
+}
+
+const COLUMN_GAP = " ".repeat(5);
+
+const heading: Paint = (text) => bold(cyan(text));
+
+/**
+ * Prints rows the way the Vercel CLI prints a list: between blank lines, 2
+ * spaces in, under bold cyan headings, with columns 5 spaces apart. A mark,
+ * such as ✔ for the current profile, replaces a row's first space.
+ */
+export const printTable = (table: {
+  headings: readonly string[];
+  rows: readonly (readonly Cell[])[];
+  marks?: readonly string[];
+}): void => {
+  const { headings, marks, rows } = table;
+  const widths = headings.map((text, column) =>
+    Math.max(text.length, ...rows.map((row) => row[column]?.text.length ?? 0))
+  );
+  const line = (cells: readonly Cell[]): string =>
+    cells
+      .map((cell, column) => {
+        const last = column === cells.length - 1;
+        const text = last ? cell.text : cell.text.padEnd(widths[column] ?? 0);
+        return cell.paint ? cell.paint(text) : text;
+      })
+      .join(COLUMN_GAP);
+  writeStderr("");
+  writeStderr(`  ${line(headings.map((text) => ({ paint: heading, text })))}`);
+  for (const [index, row] of rows.entries()) {
+    writeStderr(`${marks?.[index] ?? " "} ${line(row)}`);
+  }
+  writeStderr("");
+};

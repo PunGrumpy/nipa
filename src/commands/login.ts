@@ -34,7 +34,7 @@ export interface Globals {
   profile?: string;
 }
 
-interface ActiveProfile {
+export interface ActiveProfile {
   config: Config;
   name: string;
   profile: Profile;
@@ -58,6 +58,14 @@ export const activeProfile = async (
 
 export const loginCommand = (profile: string): string =>
   profile === DEFAULT_PROFILE ? "nipa login" : `nipa login -P ${profile}`;
+
+/** Says which Keystone a command uses, unless it's the default one. */
+export const announceProfile = (active: ActiveProfile): void => {
+  if (active.name !== DEFAULT_PROFILE) {
+    const host = dim(`(${new URL(active.profile.authUrl).host})`);
+    log(`Using profile ${bold(active.name)} ${host}`);
+  }
+};
 
 export interface LoginPrompts {
   email: (previous?: string) => Promise<string>;

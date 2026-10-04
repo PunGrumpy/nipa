@@ -5,6 +5,7 @@ import { exec } from "./exec";
 import { login } from "./login";
 import type { Globals } from "./login";
 import { profile } from "./profile";
+import { server } from "./server";
 import { env, logout, switchProject, whoami } from "./session";
 
 export interface Command extends CommandSpec {
@@ -73,6 +74,18 @@ const profileSubcommands: CommandSpec[] = [
   },
 ];
 
+const LIST_SERVERS = "List the servers in your project";
+
+const serverSubcommands: CommandSpec[] = [
+  {
+    aliases: ["list"],
+    flags: [JSON_FLAG],
+    name: "ls",
+    summary: LIST_SERVERS,
+    usage: "[--json]",
+  },
+];
+
 export const createCommands = (): Command[] => {
   const commands: Command[] = [
     {
@@ -134,14 +147,35 @@ export const createCommands = (): Command[] => {
       usage: "[project]",
     },
     {
+      aliases: ["servers"],
+      description:
+        "Lists the servers in your project with their status, address, flavor and age. nipa calls the compute API itself, so you don't need the OpenStack client.",
+      examples: [
+        {
+          command: "nipa server ls",
+          description: LIST_SERVERS,
+        },
+        {
+          command: "nipa server ls --json | jq -r '.servers[].name'",
+          description: "Print each server's name",
+        },
+      ],
+      group: "Resources",
+      name: "server",
+      run: server,
+      subcommands: serverSubcommands,
+      summary: LIST_SERVERS,
+      usage: "[ls]",
+    },
+    {
       aliases: ["openstack"],
       args: { kind: "openstack" },
       description:
         "Runs `openstack <args...>` with the session. It's the same as `nipa exec openstack <args...>`.",
       examples: [
         {
-          command: "nipa os server list",
-          description: "List the servers in your project",
+          command: "nipa os volume list",
+          description: "List the volumes in your project",
         },
       ],
       group: "Run tools",
@@ -257,8 +291,12 @@ export const createCommands = (): Command[] => {
 export const MAIN_EXAMPLES: readonly Example[] = [
   { command: "nipa login", description: "Log in and pick a project" },
   {
-    command: "nipa os server list",
-    description: "Run openstack with the session",
+    command: "nipa server ls",
+    description: LIST_SERVERS,
+  },
+  {
+    command: "nipa os volume list",
+    description: "Run any openstack command with the session",
   },
   {
     command: "nipa -P staging tf plan",

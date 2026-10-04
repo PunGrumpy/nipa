@@ -12,7 +12,7 @@ $ nipa login
 ✔ OTP code 123456
 > Success! Logged in as me@example.com, project my-project
 
-$ nipa os server list
+$ nipa server ls
 $ nipa tf plan
 ```
 
@@ -32,9 +32,10 @@ That's the binary for macOS on Apple silicon. The other files are `nipa-darwin-x
 
 ## What nipa does
 
-nipa has commands for 3 jobs:
+nipa has commands for 4 jobs:
 
 - **Session**: `login`, `logout`, `whoami` and `switch` to another project without a new OTP code
+- **Resources**: `server ls` lists the servers in your project without the OpenStack client
 - **Run tools**: `os` runs `openstack`, `tf` runs `terraform`, `exec` runs any command, and `env` prints the `OS_*` variables for your shell
 - **Setup**: `profile` adds another Keystone, such as staging, and `completion` prints tab completion for bash, zsh, fish or PowerShell
 

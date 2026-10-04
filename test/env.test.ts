@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { childEnv, detectShell, formatEnv, sessionEnv } from "../src/lib/env";
 import { isActive } from "../src/lib/store";
 import type { Profile, Session } from "../src/lib/store";
-import { formatDuration, formatElapsed } from "../src/lib/ui";
+import { formatAge, formatDuration, formatElapsed } from "../src/lib/ui";
 
 const profile: Profile = {
   authUrl: "https://id.example/v3",
@@ -87,5 +87,15 @@ describe("time", () => {
   test("formatElapsed", () => {
     expect(formatElapsed(278.4)).toBe("278ms");
     expect(formatElapsed(2600)).toBe("3s");
+  });
+
+  test("formatAge rounds to the largest unit, like ms", () => {
+    expect(formatAge(-5)).toBe("0ms");
+    expect(formatAge(350)).toBe("350ms");
+    expect(formatAge(45_000)).toBe("45s");
+    expect(formatAge(90 * 60_000)).toBe("2h");
+    expect(formatAge(26 * 3_600_000)).toBe("1d");
+    expect(formatAge(36 * 3_600_000)).toBe("2d");
+    expect(formatAge(400 * 86_400_000)).toBe("400d");
   });
 });
