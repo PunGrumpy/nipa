@@ -1,6 +1,6 @@
 {
   "name": "nipa-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Nipa Cloud from your terminal: log in with MFA once, then run openstack and terraform with the session.",
   "keywords": [
     "cli",
