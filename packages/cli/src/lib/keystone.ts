@@ -107,6 +107,11 @@ const readError = async (res: Response): Promise<ErrorBody> => {
   }
 };
 
+const mfaRulesMessage = (rules: string[][]): string =>
+  rules.length > 0
+    ? `this account needs ${rules.map((rule) => rule.join(" + ")).join(" or ")} to log in`
+    : "this account's MFA rules don't allow this login method";
+
 export const errorMessage = (input: {
   status: number;
   body: ErrorBody;
@@ -114,12 +119,7 @@ export const errorMessage = (input: {
 }): string => {
   const { body, status } = input;
   if (body.receipt) {
-    const rules = (body.required_auth_methods ?? []).map((rule) =>
-      rule.join(" + ")
-    );
-    return rules.length > 0
-      ? `this account needs ${rules.join(" or ")} to log in`
-      : "this account's MFA rules don't allow this login method";
+    return mfaRulesMessage(body.required_auth_methods ?? []);
   }
   if (status === 401) {
     return input.unauthorized;
@@ -215,16 +215,13 @@ export const loginWithPassword = async (
   const receipt = res.headers.get(RECEIPT_HEADER);
   if (res.status === 401 && receipt) {
     const body = await readError(res);
-    const wantsTotp = (body.required_auth_methods ?? []).some((rule) =>
-      rule.includes("totp")
-    );
-    if (wantsTotp) {
+    // Nipa's gateway sends 401s with an empty body, so the MFA rules can be
+    // missing. TOTP is the only second factor nipa supports, so ask for it.
+    const rules = body.required_auth_methods;
+    if (!rules || rules.some((rule) => rule.includes("totp"))) {
       return { kind: "mfa", receipt };
     }
-    throw new KeystoneError(
-      errorMessage({ body, status: res.status, unauthorized: "" }),
-      res.status
-    );
+    throw new KeystoneError(mfaRulesMessage(rules), res.status);
   }
   return fail(res, "wrong email or password");
 };
