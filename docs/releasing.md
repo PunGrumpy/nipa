@@ -29,7 +29,7 @@ A pull request that only changes tests, CI or docs can add an empty changeset wi
 When changesets reach `main`, the Release workflow opens a pull request titled "chore: version packages", and updates it with each new changeset. Merging it does 4 things:
 
 1. Bumps the version in `packages/cli/package.json` and adds the changesets to `packages/cli/CHANGELOG.md`
-2. Publishes `nipa-cli` to npm as `packages/cli/dist/nipa.js`, a bundle for Node.js 22 or later. npm trusts the Release workflow through Trusted Publishing, so the repository stores no npm token
+2. Publishes `nipa-cli` to npm as `packages/cli/dist/nipa.js`, a bundle for Node.js 22.13 or later. npm trusts the Release workflow through Trusted Publishing, so the repository stores no npm token
 3. Tags the commit `v<version>`
 4. Builds the binaries for macOS, Linux and Windows, and attaches them and a `SHA256SUMS` file to a GitHub release, with that version's `CHANGELOG.md` section as the notes
 

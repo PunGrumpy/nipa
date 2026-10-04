@@ -13,7 +13,7 @@ You need these 2 things:
 
 ## 1. Install nipa
 
-Install nipa from npm, which needs Node.js 22 or later, then check the version:
+Install nipa from npm, which needs Node.js 22.13 or later, then check the version:
 
 ```sh
 npm install -g nipa-cli

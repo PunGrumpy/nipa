@@ -4,7 +4,7 @@ nipa logs in to Nipa Cloud with your password and a one-time password (OTP) code
 
 ## Install nipa
 
-Install the `nipa` command from npm. It needs Node.js 22 or later:
+Install the `nipa` command from npm. It needs Node.js 22.13 or later:
 
 ```sh
 npm install -g nipa-cli
