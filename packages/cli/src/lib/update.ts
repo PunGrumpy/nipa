@@ -5,9 +5,9 @@ import { debug, request } from "./http";
 import { readCache, writeCache } from "./store";
 import { writeStderr } from "./ui";
 
-const RELEASES = "https://github.com/PunGrumpy/nipa-cli/releases";
+const RELEASES = "https://github.com/PunGrumpy/nipa/releases";
 const LATEST_API =
-  "https://api.github.com/repos/PunGrumpy/nipa-cli/releases/latest";
+  "https://api.github.com/repos/PunGrumpy/nipa/releases/latest";
 const CHECK_EVERY_MS = 24 * 60 * 60 * 1000;
 
 const CacheSchema = z.object({

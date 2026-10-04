@@ -6,7 +6,7 @@ This page shows how to add a command with subcommands to nipa, using `nipa volum
 
 ## Where a command lives
 
-Each command has a folder in `src/commands`, laid out like the Vercel CLI's:
+The CLI lives in `packages/cli`, and the paths on this page start there. Each command has a folder in `src/commands`, laid out like the Vercel CLI's:
 
 - **`command.ts`**: the command as plain data, with its name, aliases, flags, arguments and subcommands
 - **`index.ts`**: binds that data to code with `handle`, `route` or `forward`
@@ -98,10 +98,10 @@ Import the command in `src/commands/index.ts`, and add it to a section of the ma
 
 ## 5. Test the command and add a changeset
 
-Add a test to `test/cli.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/fake-keystone.ts`. Then run the checks that continuous integration (CI) runs:
+Add a test to `test/cli.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/fake-keystone.ts`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
 
 ```sh
-bun test
+bun run test
 bun run check
 bun run typecheck
 ```
