@@ -20,14 +20,12 @@ import {
   bold,
   canPrompt,
   CliError,
-  columns,
-  dim,
   green,
   log,
   note,
+  printTable,
   success,
   withSpinner,
-  writeStderr,
 } from "../lib/ui";
 
 interface CommandInput {
@@ -69,20 +67,18 @@ const list = async ({ args }: CommandInput): Promise<number> => {
     const who = isActive(session)
       ? `${session.user.name} (${session.project.name})`
       : "-";
-    return [name, host(profile), profile.region, who];
+    return [name, host(profile), profile.region, who].map((text) => ({
+      text,
+    }));
   });
-  const [header, ...body] = columns([
-    ["name", "keystone", "region", "logged in as"],
-    ...rows,
-  ]);
   log(`${names.length} ${names.length === 1 ? "profile" : "profiles"}`);
-  const heading = `  ${header?.join("  ") ?? ""}`;
-  writeStderr(dim(heading.trimEnd()));
-  for (const [index, row] of body.entries()) {
-    const current = names[index] === config.currentProfile;
-    const line = `${current ? green("✔") : " "} ${row.join("  ")}`;
-    writeStderr(line.trimEnd());
-  }
+  printTable({
+    headings: ["Name", "Keystone", "Region", "Logged in as"],
+    marks: names.map((name) =>
+      name === config.currentProfile ? green("✔") : " "
+    ),
+    rows,
+  });
   return 0;
 };
 

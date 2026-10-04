@@ -134,17 +134,49 @@ export const askConfirm = (options: {
   default: boolean;
 }): Promise<boolean> => prompt(() => confirm(options, promptContext));
 
-/** Pass plain text. Color codes would count toward the width. */
-export const columns = (rows: readonly (readonly string[])[]): string[][] => {
-  const widths: number[] = [];
-  for (const row of rows) {
-    for (const [index, cell] of row.entries()) {
-      widths[index] = Math.max(widths[index] ?? 0, cell.length);
-    }
-  }
-  return rows.map((row) =>
-    row.map((cell, index) => cell.padEnd(widths[index] ?? 0))
-  );
-};
-
 export const { bold, cyan, dim, green } = pc;
+
+export type Paint = (text: string) => string;
+
+/**
+ * `paint` colors the cell after padding, so color codes don't count toward
+ * the column's width.
+ */
+export interface Cell {
+  text: string;
+  paint?: Paint;
+}
+
+const COLUMN_GAP = " ".repeat(5);
+
+const heading: Paint = (text) => bold(cyan(text));
+
+/**
+ * Prints rows the way the Vercel CLI prints a list: between blank lines, 2
+ * spaces in, under bold cyan headings, with columns 5 spaces apart. A mark,
+ * such as ✔ for the current profile, replaces a row's first space.
+ */
+export const printTable = (table: {
+  headings: readonly string[];
+  rows: readonly (readonly Cell[])[];
+  marks?: readonly string[];
+}): void => {
+  const { headings, marks, rows } = table;
+  const widths = headings.map((text, column) =>
+    Math.max(text.length, ...rows.map((row) => row[column]?.text.length ?? 0))
+  );
+  const line = (cells: readonly Cell[]): string =>
+    cells
+      .map((cell, column) => {
+        const last = column === cells.length - 1;
+        const text = last ? cell.text : cell.text.padEnd(widths[column] ?? 0);
+        return cell.paint ? cell.paint(text) : text;
+      })
+      .join(COLUMN_GAP);
+  writeStderr("");
+  writeStderr(`  ${line(headings.map((text) => ({ paint: heading, text })))}`);
+  for (const [index, row] of rows.entries()) {
+    writeStderr(`${marks?.[index] ?? " "} ${line(row)}`);
+  }
+  writeStderr("");
+};
