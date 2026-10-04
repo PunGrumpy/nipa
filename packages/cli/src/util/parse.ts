@@ -1,4 +1,3 @@
-import { usageError } from "../lib/ui";
 import { GLOBAL_FLAGS, helpFlag } from "./arg-common";
 import type { GlobalValues } from "./arg-common";
 import { commandLine, usageLine } from "./help";
@@ -12,6 +11,7 @@ import type {
   Input,
   LeafSpec,
 } from "./spec";
+import { usageError } from "./ui";
 
 type RawFlags = ReadonlyMap<string, string | true>;
 interface Front {

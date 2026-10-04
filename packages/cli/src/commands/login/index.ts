@@ -1,5 +1,5 @@
-import { interactiveLogin } from "../../lib/session";
 import { handle } from "../../util/command";
+import { interactiveLogin } from "../../util/session";
 import { loginCommand } from "./command";
 
 export const login = handle(loginCommand, async ({ client, flags }) => {

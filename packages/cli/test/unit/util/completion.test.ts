@@ -10,15 +10,15 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { startFakeKeystone } from "./fake-keystone";
-import type { FakeKeystone } from "./fake-keystone";
 import {
   ENTRY,
   installNipaShim,
   runProcess,
   seedSession,
   testEnv,
-} from "./helpers";
+} from "../../helpers";
+import { startFakeKeystone } from "../../mocks/keystone";
+import type { FakeKeystone } from "../../mocks/keystone";
 
 const SHELLS = ["bash", "zsh", "fish", "pwsh"] as const;
 

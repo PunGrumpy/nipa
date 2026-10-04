@@ -1,11 +1,11 @@
+import { handle } from "../../util/command";
 import {
   isActive,
   loadConfig,
   loadSession,
   PROD_PROFILE,
-} from "../../lib/store";
-import { green, log, printTable } from "../../lib/ui";
-import { handle } from "../../util/command";
+} from "../../util/store";
+import { green, log, printTable } from "../../util/ui";
 import { lsSubcommand } from "./command";
 
 export const ls = handle(lsSubcommand, async ({ client, flags }) => {

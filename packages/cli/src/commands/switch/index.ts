@@ -1,9 +1,9 @@
-import { listProjects, rescope } from "../../lib/keystone";
-import type { Project } from "../../lib/keystone";
-import { pickProject, saveLogin, toSession } from "../../lib/session";
-import { bold, CliError, note, success, withSpinner } from "../../lib/ui";
-import type { Prompts } from "../../lib/ui";
 import { handle } from "../../util/command";
+import { listProjects, rescope } from "../../util/keystone";
+import type { Project } from "../../util/keystone";
+import { pickProject, saveLogin, toSession } from "../../util/session";
+import { bold, CliError, note, success, withSpinner } from "../../util/ui";
+import type { Prompts } from "../../util/ui";
 import { switchCommand } from "./command";
 
 const askProject =

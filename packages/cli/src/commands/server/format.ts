@@ -1,8 +1,8 @@
 // How nipa shows a server, for every server subcommand.
 
-import type { Server } from "../../lib/compute";
-import { gray, green, red, yellow } from "../../lib/ui";
-import type { Cell, Paint } from "../../lib/ui";
+import type { Server } from "../../util/compute";
+import { gray, green, red, yellow } from "../../util/ui";
+import type { Cell, Paint } from "../../util/ui";
 
 // Nova's statuses: ACTIVE runs, these fail or are on their way somewhere,
 // and the rest, such as SHUTOFF or SHELVED, are stopped.

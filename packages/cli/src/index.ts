@@ -4,14 +4,14 @@
 
 import pkg from "../package.json" with { type: "json" };
 import { program } from "./commands";
-import { ApiError } from "./lib/api";
-import { isDebug, NetworkError } from "./lib/http";
-import { KeystoneError } from "./lib/keystone";
-import { StoreError } from "./lib/store";
-import { CliError, printError } from "./lib/ui";
-import { checkForUpdate } from "./lib/update";
+import { ApiError } from "./util/api";
 import { createClient } from "./util/client";
 import { run } from "./util/dispatch";
+import { isDebug, NetworkError } from "./util/http";
+import { KeystoneError } from "./util/keystone";
+import { StoreError } from "./util/store";
+import { CliError, printError } from "./util/ui";
+import { checkForUpdate } from "./util/update";
 
 const DEBUG_HINT = "Run it again with --debug to see each request.";
 

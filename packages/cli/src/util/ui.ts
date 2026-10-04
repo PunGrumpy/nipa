@@ -3,7 +3,10 @@
 // the Vercel CLI's output manager. Results go through the client's stdout,
 // and questions through the client's prompts.
 
-import { confirm, input, password, select } from "@inquirer/prompts";
+import confirm from "@inquirer/confirm";
+import input from "@inquirer/input";
+import password from "@inquirer/password";
+import select from "@inquirer/select";
 import pc from "picocolors";
 
 export class CliError extends Error {

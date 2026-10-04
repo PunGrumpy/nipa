@@ -11,8 +11,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import pkg from "../package.json" with { type: "json" };
-import { FAKE_SERVERS, FAKE_USER, startFakeKeystone } from "./fake-keystone";
-import type { FakeKeystone } from "./fake-keystone";
 import {
   ENTRY,
   runProcess,
@@ -20,6 +18,8 @@ import {
   seedSession,
   testEnv,
 } from "./helpers";
+import { FAKE_SERVERS, FAKE_USER, startFakeKeystone } from "./mocks/keystone";
+import type { FakeKeystone } from "./mocks/keystone";
 
 let dir: string;
 let keystone: FakeKeystone;

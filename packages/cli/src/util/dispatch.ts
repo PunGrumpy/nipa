@@ -4,7 +4,6 @@
 // for every command, so no command folder writes a dispatch switch or a
 // help check.
 
-import { CliError, usageError } from "../lib/ui";
 import type { GlobalValues } from "./arg-common";
 import type { Client } from "./client";
 import { programSpec } from "./command";
@@ -13,6 +12,7 @@ import { commandHelp, mainHelp } from "./help";
 import { asksForHelp, takeGlobals } from "./parse";
 import { namesOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
+import { CliError, usageError } from "./ui";
 
 /** What a run ended with. src/index.ts prints, sets the exit code and shows the update notice. */
 export type Outcome =

@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
-import { childEnv, detectShell, formatEnv, sessionEnv } from "../src/lib/env";
-import { isActive } from "../src/lib/store";
-import type { Profile, Session } from "../src/lib/store";
-import { formatAge, formatDuration, formatElapsed } from "../src/lib/ui";
+import {
+  childEnv,
+  detectShell,
+  formatEnv,
+  sessionEnv,
+} from "../../../src/util/env";
+import { isActive } from "../../../src/util/store";
+import type { Profile, Session } from "../../../src/util/store";
+import { formatAge, formatDuration, formatElapsed } from "../../../src/util/ui";
 
 const profile: Profile = {
   authUrl: "https://id.example/v3",

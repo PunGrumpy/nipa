@@ -1,4 +1,5 @@
-import { revoke } from "../../lib/keystone";
+import { handle } from "../../util/command";
+import { revoke } from "../../util/keystone";
 import {
   clearSession,
   DEFAULT_PROFILE,
@@ -6,9 +7,8 @@ import {
   loadConfig,
   loadSession,
   saveConfig,
-} from "../../lib/store";
-import { bold, CliError, log, success, usageError } from "../../lib/ui";
-import { handle } from "../../util/command";
+} from "../../util/store";
+import { bold, CliError, log, success, usageError } from "../../util/ui";
 import { rmSubcommand } from "./command";
 
 // The parser already rejected a missing <name>: `args.name` is a string.

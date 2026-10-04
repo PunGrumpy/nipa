@@ -12,7 +12,7 @@ The CLI lives in `packages/cli`, and the paths on this page start there. Each co
 - **`index.ts`**: binds that data to code with `handle`, `route` or `forward`
 - **One file per subcommand**: the handler, such as `ls.ts`
 
-Copy `src/commands/server` for a command that lists OpenStack resources. Code that two commands share goes in `src/lib`. `test/commands.test.ts` fails when a command imports another command's folder.
+Copy `src/commands/server` for a command that lists OpenStack resources. Code that two commands share goes in `src/util`. `test/unit/commands/index.test.ts` fails when a command imports another command's folder.
 
 ## 1. Declare the command
 
@@ -46,7 +46,7 @@ export const volumeCommand = defineGroup({
 Write the handler in `ls.ts`. `handle` types its `flags` and `args` from the declaration, so `flags.json` is `true` or absent, and the handler never reads a raw word:
 
 ```ts
-import { listVolumes } from "../../lib/volume";
+import { listVolumes } from "../../util/volume";
 import { handle } from "../../util/command";
 import { lsSubcommand } from "./command";
 
@@ -68,9 +68,9 @@ The client holds what the handler needs for this run:
 - **`client.stdout`**: where results go, such as JSON, or one ID per line in a pipe
 - **`client.prompts`**: questions for the terminal, and `interactive` to check before you ask one
 
-`client.cloud()` logs in first when the session expired and nipa can prompt. Messages go to stderr through `log`, `success` and `printTable` in `src/lib/ui.ts`, not through `client.stdout`.
+`client.cloud()` logs in first when the session expired and nipa can prompt. Messages go to stderr through `log`, `success` and `printTable` in `src/util/ui.ts`, not through `client.stdout`.
 
-Pass `service()` the type your cloud's catalog lists for the API. `nipa os catalog list` shows them. Put the API calls in a module such as `src/lib/volume.ts`, written like `src/lib/compute.ts`, which parses each response with a zod schema. For the table that `nipa volume ls` prints without `--json`, follow `printServers` in `src/commands/server/ls.ts`.
+Pass `service()` the type your cloud's catalog lists for the API. `nipa os catalog list` shows them. Put the API calls in a module such as `src/util/volume.ts`, written like `src/util/compute.ts`, which parses each response with a zod schema. For the table that `nipa volume ls` prints without `--json`, follow `printServers` in `src/commands/server/ls.ts`.
 
 ## 3. Route the subcommands
 
@@ -94,11 +94,11 @@ Import the command in `src/commands/index.ts`, and add it to a section of the ma
 { commands: [server, volume], title: "Resources" },
 ```
 
-`test/commands.test.ts` fails when a folder in `src/commands` is missing from this table. It also fails when a name, alias or flag clashes with another one.
+`test/unit/commands/index.test.ts` fails when a folder in `src/commands` is missing from this table. It also fails when a name, alias or flag clashes with another one.
 
 ## 5. Test the command and add a changeset
 
-Add a test to `test/cli.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/fake-keystone.ts`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
+Add a test to `test/integration.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/mocks/keystone.ts`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
 
 ```sh
 bun run test

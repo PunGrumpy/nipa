@@ -22,7 +22,7 @@ Pick `patch` for a fix, `minor` for a new command or option, or `major` for a ch
 Add `nipa profile` to log in to more than one Keystone, such as staging.
 ```
 
-A pull request that only changes tests, CI or docs can add an empty changeset with `bun changeset --empty`.
+A pull request that users don't see, such as one that only changes tests, CI, docs or the code layout, needs no changeset. Add the `semver: none` label to it instead, and CI skips the check.
 
 ## Merge the version pull request
 

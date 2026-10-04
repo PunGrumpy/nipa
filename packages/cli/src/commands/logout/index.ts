@@ -1,7 +1,7 @@
-import { revoke } from "../../lib/keystone";
-import { clearSession, isActive, loadSession } from "../../lib/store";
-import { bold, note, success, withSpinner } from "../../lib/ui";
 import { handle } from "../../util/command";
+import { revoke } from "../../util/keystone";
+import { clearSession, isActive, loadSession } from "../../util/store";
+import { bold, note, success, withSpinner } from "../../util/ui";
 import { logoutCommand } from "./command";
 
 export const logout = handle(logoutCommand, async ({ client }) => {

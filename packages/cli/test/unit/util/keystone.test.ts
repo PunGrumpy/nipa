@@ -15,8 +15,8 @@ import {
   revoke,
   toEndpoints,
   totpBody,
-} from "../src/lib/keystone";
-import type { Account } from "../src/lib/keystone";
+} from "../../../src/util/keystone";
+import type { Account } from "../../../src/util/keystone";
 import {
   ALPHA_ID,
   FAKE_PASSCODE,
@@ -25,8 +25,8 @@ import {
   FAKE_USER,
   PLAIN_USER,
   startFakeKeystone,
-} from "./fake-keystone";
-import type { FakeKeystone } from "./fake-keystone";
+} from "../../mocks/keystone";
+import type { FakeKeystone } from "../../mocks/keystone";
 
 describe("identityUrl", () => {
   test.each([

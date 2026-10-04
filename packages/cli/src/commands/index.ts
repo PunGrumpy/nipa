@@ -1,6 +1,6 @@
 // Every command, once. Main help prints the sections in this order, and
-// completion lists the commands in it. test/commands.test.ts fails when a
-// folder under src/commands isn't in this table.
+// completion lists the commands in it. test/unit/commands/index.test.ts fails
+// when a folder under src/commands isn't in this table.
 
 import type { Program } from "../util/command";
 import { complete } from "./complete";

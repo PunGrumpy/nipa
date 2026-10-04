@@ -2,20 +2,20 @@
 // prompts, and the profile, session and cloud this run uses. One client per
 // run, made by the dispatcher after it has read every global option.
 
+import type { GlobalValues } from "./arg-common";
 import {
   announceProfile,
   connect,
   requireSession,
   resolveProfile,
-} from "../lib/session";
-import type { ActiveProfile, Cloud, SignedIn } from "../lib/session";
-import { createPrompts, createResultStream } from "../lib/ui";
-import type { Prompts, ResultStream } from "../lib/ui";
-import type { GlobalValues } from "./arg-common";
+} from "./session";
+import type { ActiveProfile, Cloud, SignedIn } from "./session";
 import type { ProgramSpec } from "./spec";
+import { createPrompts, createResultStream } from "./ui";
+import type { Prompts, ResultStream } from "./ui";
 
 export interface Client {
-  /** Results: JSON, IDs, scripts. Messages go through lib/ui.ts's log and friends. */
+  /** Results: JSON, IDs, scripts. Messages go through util/ui.ts's log and friends. */
   readonly stdout: ResultStream;
   readonly prompts: Prompts;
   /** Every command's spec, for commands that describe nipa itself, such as `completion`. */
@@ -42,7 +42,7 @@ export const createClient = (input: {
   program: ProgramSpec;
 }): Client => {
   const { globals, program } = input;
-  // lib/http.ts reads NIPA_DEBUG on each request.
+  // util/http.ts reads NIPA_DEBUG on each request.
   if (globals.debug) {
     process.env.NIPA_DEBUG = "1";
   }

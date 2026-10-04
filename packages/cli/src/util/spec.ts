@@ -37,7 +37,7 @@ export interface ArgSpec {
   /**
    * `one` must be given, `optional` may be left out, `rest` takes every word
    * left, zero or more. A command lists its ones first, then its optionals,
-   * then at most one rest. test/commands.test.ts checks the order.
+   * then at most one rest. test/unit/commands/index.test.ts checks the order.
    */
   readonly arity: "one" | "optional" | "rest";
   /** `name` for `<name>`. Also the argument's key in the handler's `args`. */

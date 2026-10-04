@@ -1,5 +1,5 @@
-import { detectShell, formatEnv, sessionEnv } from "../../lib/env";
 import { handle } from "../../util/command";
+import { detectShell, formatEnv, sessionEnv } from "../../util/env";
 import { envCommand } from "./command";
 
 export const env = handle(envCommand, async ({ client, flags }) => {

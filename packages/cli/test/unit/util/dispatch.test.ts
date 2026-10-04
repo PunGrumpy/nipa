@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
 
-import { program as realProgram } from "../src/commands";
-import { CliError } from "../src/lib/ui";
-import type { GlobalValues } from "../src/util/arg-common";
-import type { Client } from "../src/util/client";
+import { program as realProgram } from "../../../src/commands";
+import type { GlobalValues } from "../../../src/util/arg-common";
+import type { Client } from "../../../src/util/client";
 import {
   defineCommand,
   defineGroup,
@@ -12,9 +11,10 @@ import {
   forward,
   handle,
   route,
-} from "../src/util/command";
-import type { Program } from "../src/util/command";
-import { run } from "../src/util/dispatch";
+} from "../../../src/util/command";
+import type { Program } from "../../../src/util/command";
+import { run } from "../../../src/util/dispatch";
+import { CliError } from "../../../src/util/ui";
 
 // A spy program: every handler records what it got, without the client.
 const seen: unknown[] = [];

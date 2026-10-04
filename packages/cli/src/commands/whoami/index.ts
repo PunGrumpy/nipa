@@ -1,7 +1,7 @@
-import { loginLine } from "../../lib/session";
-import { isActive, loadSession, msUntilExpiry } from "../../lib/store";
-import { bold, CliError, dim, formatDuration, log } from "../../lib/ui";
 import { handle } from "../../util/command";
+import { loginLine } from "../../util/session";
+import { isActive, loadSession, msUntilExpiry } from "../../util/store";
+import { bold, CliError, dim, formatDuration, log } from "../../util/ui";
 import { whoamiCommand } from "./command";
 
 export const whoami = handle(whoamiCommand, async ({ client, flags }) => {

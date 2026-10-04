@@ -5,7 +5,6 @@
 // and completion all come from the specs, so a folder writes no parsing,
 // no dispatch switch and no help handling.
 
-import { usageError } from "../lib/ui";
 import type { GlobalValues } from "./arg-common";
 import type { Client } from "./client";
 import { usageLine } from "./help";
@@ -24,6 +23,7 @@ import type {
   ProgramSpec,
   Target,
 } from "./spec";
+import { usageError } from "./ui";
 
 // Handlers that name the client's type, such as a helper taking it, import
 // it from here: command folders don't import util/client.
