@@ -43,7 +43,8 @@
     "build:npm": "bun build src/index.ts --target=node --minify --outfile dist/nipa.js",
     "build:release": "bun scripts/build-release.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:package": "bun run build:npm && publint"
   },
   "devDependencies": {
     "@inquirer/prompts": "^8.7.2",

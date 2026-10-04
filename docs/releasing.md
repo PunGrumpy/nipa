@@ -45,3 +45,11 @@ bun run build:npm
 ```
 
 The first command writes the binaries and `SHA256SUMS` to `packages/cli/dist/`. The second writes the npm bundle, `packages/cli/dist/nipa.js`, which `node packages/cli/dist/nipa.js --version` runs. `bun run build` builds only the binary for your machine, as `packages/cli/dist/nipa`.
+
+To check the package that npm would publish, run this in `packages/cli`:
+
+```sh
+bun run check:package
+```
+
+It builds the npm bundle, then [publint](https://publint.dev) checks `package.json` against the files in the package. CI runs the same check on every pull request.
