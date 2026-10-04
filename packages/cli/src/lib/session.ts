@@ -77,9 +77,9 @@ export const announceProfile = (active: ActiveProfile): void => {
 
 export interface LoginPrompts {
   email: (previous?: string) => Promise<string>;
+  projectId: () => Promise<string>;
   password: () => Promise<string>;
   otp: (attempt: number) => Promise<string>;
-  project: (projects: readonly Project[]) => Promise<Project>;
 }
 
 const OTP_PATTERN = /^\d{6}$/u;
@@ -103,31 +103,37 @@ export const loginPrompts = (prompts: Prompts): LoginPrompts => ({
         "Enter the 6-digit code from your authenticator app",
     }),
   password: () => prompts.secret("Password"),
-  project: (projects) =>
-    prompts.choice({
-      choices: projects.map((p) => ({
-        description: p.id,
-        name: p.name,
-        value: p,
-      })),
-      message: "Which project?",
+  projectId: () =>
+    prompts.text({
+      message: "Project ID",
+      validate: (value) =>
+        PROJECT_ID_PATTERN.test(value) ||
+        "Enter the 32-character ID, as in OS_PROJECT_ID in your openrc file",
     }),
 });
+
+const findProject = (input: {
+  projects: readonly Project[];
+  wanted: string;
+}): Project => {
+  const { projects, wanted } = input;
+  const match = projects.find((p) => p.id === wanted || p.name === wanted);
+  if (!match) {
+    throw new CliError(`no project named or with ID "${wanted}"`, {
+      hint: `Your projects: ${projects.map((p) => p.name).join(", ")}`,
+    });
+  }
+  return match;
+};
 
 export const pickProject = (input: {
   projects: readonly Project[];
   wanted?: string;
-  ask: LoginPrompts["project"];
+  ask: (projects: readonly Project[]) => Promise<Project>;
 }): Promise<Project> => {
   const { projects, wanted } = input;
   if (wanted) {
-    const match = projects.find((p) => p.id === wanted || p.name === wanted);
-    if (!match) {
-      throw new CliError(`no project named or with ID "${wanted}"`, {
-        hint: `Your projects: ${projects.map((p) => p.name).join(", ")}`,
-      });
-    }
-    return Promise.resolve(match);
+    return Promise.resolve(findProject({ projects, wanted }));
   }
   const [first, ...rest] = projects;
   if (!first) {
@@ -179,13 +185,19 @@ export const authenticate = async (input: {
 }): Promise<Session> => {
   const { profile, prompts, wantedProject } = input;
   const username = input.username ?? (await prompts.email(profile.username));
-  const password = await prompts.password();
 
-  // With a known project ID, the login scopes the token in the same request.
-  const known = wantedProject ?? profile.project?.id;
+  // Nipa's gateway drops the connection for an unscoped token, which has no
+  // catalog, so the login names a project before nipa can list them.
+  const wantedId =
+    wantedProject !== undefined && PROJECT_ID_PATTERN.test(wantedProject)
+      ? wantedProject
+      : undefined;
+  const projectId =
+    wantedId ?? profile.project?.id ?? (await prompts.projectId());
+  const password = await prompts.password();
   const account: Account = {
     authUrl: profile.authUrl,
-    projectId: known && PROJECT_ID_PATTERN.test(known) ? known : undefined,
+    projectId,
     userDomain: profile.userDomain,
     username,
   };
@@ -202,18 +214,22 @@ export const authenticate = async (input: {
           attempt: 1,
           receipt: first.receipt,
         });
-  if (token.project) {
+  if (!token.project) {
+    throw new KeystoneError(
+      `Keystone returned a token without project ${projectId}`,
+      0
+    );
+  }
+  const wantedName = wantedId ? undefined : wantedProject;
+  if (wantedName === undefined || token.project.name === wantedName) {
     return toSession(token, token.project);
   }
 
+  // --project by name logs in to a project nipa knows, then switches.
   const projects = await withSpinner("Loading your projects…", () =>
     listProjects({ authUrl: profile.authUrl, token: token.value })
   );
-  const project = await pickProject({
-    ask: prompts.project,
-    projects,
-    wanted: known,
-  });
+  const project = findProject({ projects, wanted: wantedName });
   const scoped = await withSpinner(`Switching to ${project.name}…`, () =>
     rescope({
       authUrl: profile.authUrl,

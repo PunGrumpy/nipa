@@ -10,7 +10,7 @@ Keystone refused the password, or the email doesn't match an account in the prof
 
 ## "That code didn't work" or "wrong OTP code"
 
-Keystone refused the OTP code. Each code works once and only for about 30s, so wait for the next code from your authenticator app and type that one. nipa asks again up to 3 times without asking for the password again. If every code fails, check that your phone sets its clock automatically, because each code depends on the time.
+Keystone refused the OTP code. Each code works once and only for about 30s, so wait for the next code from your authenticator app and type that one. nipa asks again up to 3 times without asking for the password again. If every code fails, check that your phone sets its clock automatically, because each code depends on the time. On a first login, also check the project ID. Keystone refuses the login the same way when your account can't use that project.
 
 ## "this account's MFA rules don't allow this login method"
 

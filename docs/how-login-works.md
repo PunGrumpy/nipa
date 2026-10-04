@@ -18,7 +18,7 @@ An application credential logs in with the `application_credential` method alone
 
 ## A token works in one project
 
-OpenStack services accept a token only in the project it names, which Keystone calls the token's scope. When nipa knows your project, from `--project` or from your last login, it adds the scope to the login requests. Otherwise it gets an unscoped token, lists your projects and exchanges the token for a scoped one.
+OpenStack services accept a token only in the project it names, which Keystone calls the token's scope. Every nipa login names a project, from `--project`, from your last login, or from the project ID you type on a first login. A token without a project has no service catalog, and Nipa Cloud's gateway drops the connection for it. So nipa can't list your projects before it logs in. With `--project` and a project name, nipa logs in to the project it knows, lists your projects and exchanges the token for one in the named project.
 
 `nipa switch` makes the same exchange with the token method. Keystone accepts it because the original token already satisfied the MFA rule, so switching projects needs no password or OTP code.
 

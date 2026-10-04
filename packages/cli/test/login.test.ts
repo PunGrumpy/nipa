@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import type { Project } from "../src/lib/keystone";
 import { authenticate } from "../src/lib/session";
 import type { LoginPrompts } from "../src/lib/session";
 import type { Profile } from "../src/lib/store";
@@ -30,11 +29,7 @@ afterAll(() => {
   keystone.stop();
 });
 
-const answers = (input: {
-  email?: string;
-  codes?: string[];
-  project?: string;
-}) => {
+const answers = (input: { email?: string; codes?: string[] }) => {
   const asked: string[] = [];
   const codes = [...(input.codes ?? [])];
   const prompts: LoginPrompts = {
@@ -50,37 +45,30 @@ const answers = (input: {
       asked.push("password");
       return Promise.resolve(FAKE_PASSWORD);
     },
-    project: (projects: readonly Project[]) => {
-      asked.push(`project of ${projects.map((p) => p.name).join(",")}`);
-      const match =
-        projects.find((p) => p.name === input.project) ?? projects[0];
-      return match
-        ? Promise.resolve(match)
-        : Promise.reject(new Error("no projects"));
+    projectId: () => {
+      asked.push("project ID");
+      return Promise.resolve(ALPHA_ID);
     },
   };
   return { asked, prompts };
 };
 
 describe("authenticate", () => {
-  test("MFA account: email, password, OTP code, then a project from the list", async () => {
-    const { asked, prompts } = answers({ project: "Beta" });
+  test("first MFA login: email, project ID, password, then OTP code", async () => {
+    const { asked, prompts } = answers({});
     const session = await authenticate({ profile, prompts });
     expect(asked).toEqual([
       "email (default none)",
+      "project ID",
       "password",
       "otp 1",
-      "project of Alpha,Beta",
     ]);
-    expect(session.project.name).toBe("Beta");
+    expect(session.project.name).toBe("Alpha");
     expect(session.user).toEqual(FAKE_USER);
   });
 
   test("account without MFA: no OTP prompt", async () => {
-    const { asked, prompts } = answers({
-      email: PLAIN_USER.name,
-      project: "Alpha",
-    });
+    const { asked, prompts } = answers({ email: PLAIN_USER.name });
     const session = await authenticate({ profile, prompts });
     expect(asked).not.toContain("otp 1");
     expect(session.user).toEqual(PLAIN_USER);
@@ -102,10 +90,26 @@ describe("authenticate", () => {
     expect(session.project.name).toBe("Alpha");
   });
 
-  test("--project by name skips the project prompt", async () => {
+  test("--project by ID skips the project ID prompt", async () => {
     const { asked, prompts } = answers({});
     const session = await authenticate({
       profile,
+      prompts,
+      username: FAKE_USER.name,
+      wantedProject: ALPHA_ID,
+    });
+    expect(asked).toEqual(["password", "otp 1"]);
+    expect(session.project.name).toBe("Alpha");
+  });
+
+  test("--project by name logs in to the last project, then switches", async () => {
+    const { asked, prompts } = answers({});
+    const last: Profile = {
+      ...profile,
+      project: { id: ALPHA_ID, name: "Alpha" },
+    };
+    const session = await authenticate({
+      profile: last,
       prompts,
       username: FAKE_USER.name,
       wantedProject: "Beta",
@@ -114,11 +118,20 @@ describe("authenticate", () => {
     expect(session.project.name).toBe("Beta");
   });
 
-  test("a wrong OTP code asks for the next one", async () => {
-    const { asked, prompts } = answers({
-      codes: ["000000", FAKE_PASSCODE],
-      project: "Alpha",
+  test("--project by name on a first login still asks for a project ID", async () => {
+    const { asked, prompts } = answers({});
+    const session = await authenticate({
+      profile,
+      prompts,
+      username: FAKE_USER.name,
+      wantedProject: "Beta",
     });
+    expect(asked).toEqual(["project ID", "password", "otp 1"]);
+    expect(session.project.name).toBe("Beta");
+  });
+
+  test("a wrong OTP code asks for the next one", async () => {
+    const { asked, prompts } = answers({ codes: ["000000", FAKE_PASSCODE] });
     await authenticate({ profile, prompts });
     expect(asked.filter((a) => a.startsWith("otp"))).toEqual([
       "otp 1",
