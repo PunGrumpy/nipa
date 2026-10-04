@@ -99,3 +99,21 @@ jobs:
       - run: pipx run zizmor==1.30.1 --format=github .github/workflows/
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # One check for branch protection to require, whatever jobs this file adds.
+  # A skipped job, such as Changeset on a `semver: none` pull request, passes.
+  summary:
+    name: Summary
+    if: always()
+    needs: [check, test, changeset, zizmor]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "A job finished with: $result"
+              exit 1
+            fi
+          done
