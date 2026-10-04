@@ -27,6 +27,7 @@ import {
   note,
   success,
   withSpinner,
+  writeStderr,
 } from "../lib/ui";
 
 interface CommandInput {
@@ -76,11 +77,11 @@ const list = async ({ args }: CommandInput): Promise<number> => {
   ]);
   log(`${names.length} ${names.length === 1 ? "profile" : "profiles"}`);
   const heading = `  ${header?.join("  ") ?? ""}`;
-  console.error(dim(heading.trimEnd()));
+  writeStderr(dim(heading.trimEnd()));
   for (const [index, row] of body.entries()) {
     const current = names[index] === config.currentProfile;
     const line = `${current ? green("✔") : " "} ${row.join("  ")}`;
-    console.error(line.trimEnd());
+    writeStderr(line.trimEnd());
   }
   return 0;
 };

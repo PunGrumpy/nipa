@@ -27,24 +27,29 @@ export const formatDuration = (ms: number): string => {
   return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 };
 
+// Bun's console.error turns the whole line red on a terminal.
+export const writeStderr = (line: string): void => {
+  process.stderr.write(`${line}\n`);
+};
+
 export const log = (message: string): void => {
-  console.error(`${pc.dim(">")} ${message}`);
+  writeStderr(`${pc.dim(">")} ${message}`);
 };
 
 export const success = (message: string, elapsedMs?: number): void => {
   const time = elapsedMs === undefined ? "" : `[${formatElapsed(elapsedMs)}]`;
   const elapsed = time ? ` ${pc.dim(time)}` : "";
-  console.error(`${pc.cyan("> Success!")} ${message}${elapsed}`);
+  writeStderr(`${pc.cyan("> Success!")} ${message}${elapsed}`);
 };
 
 export const note = (message: string): void => {
-  console.error(`${pc.bold(pc.yellow("> NOTE:"))} ${message}`);
+  writeStderr(`${pc.bold(pc.yellow("> NOTE:"))} ${message}`);
 };
 
 export const printError = (error: CliError): void => {
-  console.error(`${pc.bold(pc.red("Error:"))} ${error.message}`);
+  writeStderr(`${pc.bold(pc.red("Error:"))} ${error.message}`);
   if (error.hint) {
-    console.error(`${pc.dim(">")} ${error.hint}`);
+    writeStderr(`${pc.dim(">")} ${error.hint}`);
   }
 };
 

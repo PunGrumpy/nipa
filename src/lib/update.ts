@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { debug, request } from "./http";
 import { readCache, writeCache } from "./store";
+import { writeStderr } from "./ui";
 
 const RELEASES = "https://github.com/PunGrumpy/nipa-cli/releases";
 const LATEST_API =
@@ -99,7 +100,7 @@ export const checkForUpdate = async (version: string): Promise<void> => {
   }
   const cache = await readCache(CACHE_FILE, CacheSchema);
   if (cache && isNewer(cache.latest, version)) {
-    console.error(updateNotice(cache.latest, version));
+    writeStderr(updateNotice(cache.latest, version));
   }
   if (cache && Date.now() - Date.parse(cache.checkedAt) < CHECK_EVERY_MS) {
     return;
