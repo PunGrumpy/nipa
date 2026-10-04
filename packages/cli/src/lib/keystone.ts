@@ -174,7 +174,9 @@ const postToken = (
   if (receipt !== undefined) {
     headers.set(RECEIPT_HEADER, receipt);
   }
-  return request(`${identityUrl(authUrl)}/auth/tokens?nocatalog`, {
+  // Without the catalog, Nipa's gateway drops the connection instead of
+  // returning the token, so there's no ?nocatalog here.
+  return request(`${identityUrl(authUrl)}/auth/tokens`, {
     body: JSON.stringify(body),
     headers,
     method: "POST",
