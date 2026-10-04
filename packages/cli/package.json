@@ -47,11 +47,14 @@
     "check:package": "bun run build:npm && publint"
   },
   "devDependencies": {
-    "@inquirer/prompts": "^8.7.2",
-    "@types/bun": "^1.4.2",
-    "picocolors": "^1.1.1",
-    "typescript": "^6",
-    "zod": "^4.6.5"
+    "@inquirer/confirm": "6.3.2",
+    "@inquirer/input": "5.1.6",
+    "@inquirer/password": "5.2.2",
+    "@inquirer/select": "5.2.5",
+    "@types/bun": "1.4.2",
+    "picocolors": "1.1.1",
+    "typescript": "6.0.3",
+    "zod": "4.6.5"
   },
   "engines": {
     "node": ">=22.13.0"

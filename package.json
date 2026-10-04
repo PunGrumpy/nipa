@@ -20,14 +20,14 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@changesets/cli": "^3.0.3",
+    "@changesets/cli": "3.0.3",
     "eslint-plugin-github": "6.1.2",
-    "eslint-plugin-sonarjs": "^4.2.2",
-    "husky": "^9.1.7",
-    "oxfmt": "^0.71.0",
-    "oxlint": "^1.86.0",
+    "eslint-plugin-sonarjs": "4.2.2",
+    "husky": "9.1.7",
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
     "publint": "0.3.25",
-    "turbo": "^2.11.7",
+    "turbo": "2.11.7",
     "ultracite": "7.12.2"
   },
   "devEngines": {
