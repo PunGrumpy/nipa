@@ -1,5 +1,11 @@
 # nipa-cli
 
+## 0.1.1
+
+### Patch Changes
+
+- 004f686: Install nipa from npm with `npm install -g nipa-cli`. The package runs on Node.js 22.13 or later, and the binaries on GitHub releases still need nothing else installed.
+
 ## 0.1.0
 
 ### Minor Changes
