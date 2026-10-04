@@ -12,8 +12,14 @@
     "totp"
   ],
   "homepage": "https://github.com/PunGrumpy/nipa#readme",
-  "bugs": "https://github.com/PunGrumpy/nipa/issues",
+  "bugs": {
+    "url": "https://github.com/PunGrumpy/nipa/issues"
+  },
   "license": "MIT",
+  "author": {
+    "name": "Noppakorn Kaewsalabnil",
+    "url": "https://www.pungrumpy.com"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PunGrumpy/nipa.git",
@@ -23,7 +29,9 @@
     "nipa": "dist/nipa.js"
   },
   "files": [
-    "dist/nipa.js"
+    "dist/nipa.js",
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
   "publishConfig": {
