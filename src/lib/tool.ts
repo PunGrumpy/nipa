@@ -1,26 +1,28 @@
 import { constants } from "node:os";
 
-import { childEnv, findCommand, sessionEnv } from "../lib/env";
-import { CliError } from "../lib/ui";
-import { announceProfile, requireSession } from "./login";
-import type { Globals } from "./login";
+import { childEnv, findCommand, sessionEnv } from "./env";
+import type { SignedIn } from "./session";
+import { CliError } from "./ui";
 
 const INSTALL_HINTS = new Map([
   ["openstack", "Install it with `pipx install python-openstackclient`."],
   ["terraform", "Install it with `brew install hashicorp/tap/terraform`."],
 ]);
 
-export const exec = async (input: {
-  args: string[];
-  globals: Globals;
+/**
+ * Runs a program with the session's OS_* variables and returns its exit
+ * code: `nipa os`, `nipa tf` and `nipa exec`. `signIn` runs only after nipa
+ * finds the program, so a missing one never asks for a password.
+ */
+export const runTool = async ({
+  args,
+  command,
+  signIn,
+}: {
+  args: readonly string[];
+  command: string;
+  signIn: () => Promise<SignedIn>;
 }): Promise<number> => {
-  const [command, ...rest] = input.args;
-  if (!command) {
-    throw new CliError("missing command", {
-      exitCode: 2,
-      hint: "Usage: nipa exec <command> [args...]",
-    });
-  }
   const bin = findCommand(command);
   if (!bin) {
     throw new CliError(`command not found: ${command}`, {
@@ -28,10 +30,8 @@ export const exec = async (input: {
       hint: INSTALL_HINTS.get(command),
     });
   }
-  const { active, session } = await requireSession(input.globals);
-  announceProfile(active);
-
-  const child = Bun.spawn([bin, ...rest], {
+  const { active, session } = await signIn();
+  const child = Bun.spawn([bin, ...args], {
     env: childEnv(
       process.env,
       sessionEnv({ profile: active.profile, session })

@@ -1,4 +1,7 @@
 // Everything except a command's result goes to stderr, so pipes get only data.
+// Messages go through log, success, note, withSpinner and printTable, like
+// the Vercel CLI's output manager. Results go through the client's stdout,
+// and questions through the client's prompts.
 
 import { confirm, input, password, select } from "@inquirer/prompts";
 import pc from "picocolors";
@@ -17,6 +20,10 @@ export class CliError extends Error {
     this.exitCode = options.exitCode ?? 1;
   }
 }
+
+/** Exit code 2: the command line was wrong. The hint says how to write it. */
+export const usageError = (message: string, hint: string): CliError =>
+  new CliError(message, { exitCode: 2, hint });
 
 export const formatElapsed = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${Math.round(ms / 1000)}s`;
@@ -106,11 +113,6 @@ export const withSpinner = async <T>(
   }
 };
 
-export const canPrompt = (): boolean =>
-  process.stdin.isTTY === true && process.stderr.isTTY === true;
-
-const promptContext = { output: process.stderr };
-
 // inquirer throws ExitPromptError on Ctrl-C.
 const prompt = async <T>(ask: () => Promise<T>): Promise<T> => {
   try {
@@ -129,28 +131,79 @@ interface TextPrompt {
   validate?: (value: string) => string | true;
 }
 
-export const askText = (options: TextPrompt): Promise<string> =>
-  prompt(() => input({ ...options, required: true }, promptContext));
-
-export const askSecret = (message: string): Promise<string> =>
-  prompt(() => password({ mask: "*", message }, promptContext));
-
 interface Choice<T> {
   name: string;
   value: T;
   description?: string;
 }
 
-export const askChoice = <T>(options: {
+interface ChoicePrompt<T> {
   message: string;
   choices: readonly Choice<T>[];
   default?: T;
-}): Promise<T> => prompt(() => select(options, promptContext));
+}
 
-export const askConfirm = (options: {
+interface ConfirmPrompt {
   message: string;
   default: boolean;
-}): Promise<boolean> => prompt(() => confirm(options, promptContext));
+}
+
+/** Questions for the person at the terminal. Each one throws exit 130 on Ctrl-C. */
+export interface Prompts {
+  /**
+   * True when stdin and stderr are terminals. Ask only then. Without one, a
+   * command fails with a hint naming the flag or argument to pass instead.
+   */
+  readonly interactive: boolean;
+  readonly text: (options: TextPrompt) => Promise<string>;
+  readonly secret: (message: string) => Promise<string>;
+  readonly choice: <T>(options: ChoicePrompt<T>) => Promise<T>;
+  readonly confirm: (options: ConfirmPrompt) => Promise<boolean>;
+}
+
+/** The prompts for one run, on these terminal streams. */
+export const createPrompts = (streams: {
+  stdin: { isTTY?: boolean };
+  stderr: NodeJS.WriteStream;
+}): Prompts => {
+  const context = { output: streams.stderr };
+  return {
+    choice: (options) => prompt(() => select(options, context)),
+    confirm: (options) => prompt(() => confirm(options, context)),
+    interactive: streams.stdin.isTTY === true && streams.stderr.isTTY === true,
+    secret: (message) =>
+      prompt(() => password({ mask: "*", message }, context)),
+    text: (options) =>
+      prompt(() => input({ ...options, required: true }, context)),
+  };
+};
+
+/** Where a command's result goes: JSON, IDs, scripts. A pipe gets only this. */
+export interface ResultStream {
+  /** False in a pipe, where commands print bare data, such as one ID per line. */
+  readonly isTTY: boolean;
+  /** Writes text as it is. */
+  readonly write: (text: string) => void;
+  /** Writes text and a newline. */
+  readonly line: (text: string) => void;
+  /** Writes an object or array as JSON, indented by 2, and a newline. */
+  readonly json: <T extends object>(value: T) => void;
+}
+
+export const createResultStream = (
+  stdout: NodeJS.WriteStream
+): ResultStream => ({
+  isTTY: stdout.isTTY === true,
+  json: (value) => {
+    stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  },
+  line: (text) => {
+    stdout.write(`${text}\n`);
+  },
+  write: (text) => {
+    stdout.write(text);
+  },
+});
 
 export const { bold, cyan, dim, gray, green, red, yellow } = pc;
 

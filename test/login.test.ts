@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { authenticate } from "../src/commands/login";
-import type { LoginPrompts } from "../src/commands/login";
 import type { Project } from "../src/lib/keystone";
+import { authenticate } from "../src/lib/session";
+import type { LoginPrompts } from "../src/lib/session";
 import type { Profile } from "../src/lib/store";
 import {
   ALPHA_ID,
