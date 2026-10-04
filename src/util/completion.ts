@@ -1,33 +1,56 @@
-import {
-  flagWords,
-  GLOBAL_FLAGS,
-  isPassthrough,
-  names,
-  PROFILE_FLAG,
-  visible,
+// The four completion scripts, generated from the specs. A command's kind
+// says what follows it: a group's subcommands, a leaf's flags and its first
+// argument with values to offer, or a passthrough program's own words.
+
+import { GLOBAL_FLAGS, profileFlag } from "./arg-common";
+import { flagWords, namesOf, visibleCommands } from "./spec";
+import type {
+  ArgSpec,
+  ArgValue,
+  CommandSpec,
+  FlagSpec,
+  FlagValue,
+  LeafSpec,
+  ProgramSpec,
+  Target,
 } from "./spec";
-import type { ArgSpec, CommandSpec, FlagSpec, FlagValue } from "./spec";
 
 export const COMPLETION_SHELLS = ["bash", "zsh", "fish", "pwsh"] as const;
 
-type CompletionShell = (typeof COMPLETION_SHELLS)[number];
+export type CompletionShell = (typeof COMPLETION_SHELLS)[number];
 
-export const isCompletionShell = (value: string): value is CompletionShell =>
-  COMPLETION_SHELLS.some((shell) => shell === value);
+/** The words `nipa __complete` takes. The scripts run it for values only nipa knows. */
+export const COMPLETE_KINDS = ["projects", "profiles", "openstack"] as const;
 
-type DynamicKind = "projects" | "profiles";
+export type CompleteKind = (typeof COMPLETE_KINDS)[number];
+
+type DynamicKind = Exclude<CompleteKind, "openstack">;
 
 const dynamic = (kind: DynamicKind): string => `nipa __complete ${kind}`;
 
-const PROFILE_WORDS = flagWords(PROFILE_FLAG);
+const PROFILE_WORDS = flagWords(profileFlag);
 
 const passthroughNames = (specs: readonly CommandSpec[]): string[] =>
-  specs.filter(isPassthrough).flatMap(names);
+  specs
+    .filter((spec) => spec.kind === "passthrough")
+    .flatMap((spec) => namesOf(spec));
 
-const allFlags = (spec: CommandSpec): FlagSpec[] => [
-  ...(spec.flags ?? []),
+const allFlags = (spec: LeafSpec): FlagSpec[] => [
+  ...spec.flags,
   ...GLOBAL_FLAGS,
 ];
+
+/** The leaf's first argument with values to offer, and its position for zsh. */
+interface Offered {
+  readonly arg: ArgSpec;
+  readonly position: number;
+}
+
+const offered = (spec: LeafSpec): Offered | undefined => {
+  const index = spec.args.findIndex((arg) => arg.value.kind !== "text");
+  const arg = spec.args[index];
+  return arg ? { arg, position: index + 1 } : undefined;
+};
 
 const bashValue = (value: FlagValue): string | undefined => {
   switch (value.kind) {
@@ -53,17 +76,31 @@ const bashValue = (value: FlagValue): string | undefined => {
   }
 };
 
-const bashArgs = (args: ArgSpec): string => {
-  switch (args.kind) {
-    case "projects":
-    case "profiles": {
-      return `_nipa_reply "$(${dynamic(args.kind)} 2>/dev/null)"`;
+const bashArg = (value: ArgValue): string | undefined => {
+  switch (value.kind) {
+    case "text": {
+      return undefined;
     }
-    case "shells": {
-      return `_nipa_reply ${COMPLETION_SHELLS.join(" ")}`;
+    case "project": {
+      return `_nipa_reply "$(${dynamic("projects")} 2>/dev/null)"`;
     }
+    case "profile": {
+      return `_nipa_reply "$(${dynamic("profiles")} 2>/dev/null)"`;
+    }
+    case "choice": {
+      return `_nipa_reply ${value.choices.join(" ")}`;
+    }
+    default: {
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
+const bashTarget = (target: Target): string => {
+  switch (target.kind) {
     case "program": {
-      return `COMP_WORDS[i]=${args.program}; _nipa_offset "$i"`;
+      return `COMP_WORDS[i]=${target.program}; _nipa_offset "$i"`;
     }
     case "command": {
       return '_nipa_offset "$((i + 1))"';
@@ -72,7 +109,7 @@ const bashArgs = (args: ArgSpec): string => {
       return `_nipa_reply "$(nipa __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)"`;
     }
     default: {
-      const _exhaustive: never = args;
+      const _exhaustive: never = target;
       return _exhaustive;
     }
   }
@@ -81,16 +118,16 @@ const bashArgs = (args: ArgSpec): string => {
 const bashArm = (spec: CommandSpec, depth: number): string => {
   const pad = "  ".repeat(depth * 2 + 2);
   const lines: string[] = [];
-  if (spec.subcommands?.length) {
-    const subs = visible(spec.subcommands);
+  if (spec.kind === "group") {
+    const subs = spec.subcommands;
     lines.push(
       `if [[ $COMP_CWORD -eq $((i + 1)) ]]; then _nipa_reply ${subs.map((s) => s.name).join(" ")}; return; fi`,
       `case \${COMP_WORDS[i + 1]} in`,
       ...subs.map((sub) => bashArm(sub, depth + 1)),
       "esac"
     );
-  } else if (isPassthrough(spec)) {
-    lines.push(spec.args ? bashArgs(spec.args) : ":");
+  } else if (spec.kind === "passthrough") {
+    lines.push(bashTarget(spec.target));
   } else {
     const flags = allFlags(spec);
     const valued = flags.flatMap((flag) => {
@@ -104,16 +141,18 @@ const bashArm = (spec: CommandSpec, depth: number): string => {
     }
     const words = flags.flatMap(flagWords).join(" ");
     lines.push(`if [[ $cur == -* ]]; then _nipa_reply ${words}; return; fi`);
-    if (spec.args) {
-      lines.push(bashArgs(spec.args));
+    const arg = offered(spec);
+    const reply = arg && bashArg(arg.arg.value);
+    if (reply) {
+      lines.push(reply);
     }
   }
   const body = lines.map((line) => `${pad}  ${line}`).join("\n");
-  return `${pad}${names(spec).join("|")})\n${body}\n${pad}  ;;`;
+  return `${pad}${namesOf(spec).join("|")})\n${body}\n${pad}  ;;`;
 };
 
-const bash = (specs: readonly CommandSpec[]): string => {
-  const shown = visible(specs);
+const bash = (program: ProgramSpec): string => {
+  const shown = visibleCommands(program);
   const commands = shown.map((c) => c.name).join(" ");
   const globals = GLOBAL_FLAGS.flatMap(flagWords).join(" ");
   return `# nipa completion for bash
@@ -195,24 +234,41 @@ const zshFlag = (flag: FlagSpec): string => {
   return `'${exclusive}'${spelled}'[${zshQuote(flag.description)}]${zshValue(flag)}'`;
 };
 
-const zshArg = (args: ArgSpec): string => {
-  switch (args.kind) {
-    case "projects": {
-      return "'1:project:{_nipa_dynamic projects project}'";
+const zshArg = ({ arg, position }: Offered): string => {
+  const { value } = arg;
+  switch (value.kind) {
+    case "project": {
+      return `'${position}:project:{_nipa_dynamic projects project}'`;
     }
-    case "profiles": {
-      return "'1:profile:{_nipa_dynamic profiles profile}'";
+    case "profile": {
+      return `'${position}:profile:{_nipa_dynamic profiles profile}'`;
     }
-    case "shells": {
-      return `'1:shell:(${COMPLETION_SHELLS.join(" ")})'`;
+    case "choice": {
+      return `'${position}:${arg.name}:(${value.choices.join(" ")})'`;
     }
-    case "program":
-    case "command":
-    case "openstack": {
+    case "text": {
       return "";
     }
     default: {
-      const _exhaustive: never = args;
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
+const zshTarget = (target: Target, pad: string): string => {
+  switch (target.kind) {
+    case "program": {
+      return `${pad}  words[1]=${target.program}; _normal`;
+    }
+    case "command": {
+      return `${pad}  shift words; (( CURRENT-- )); _normal`;
+    }
+    case "openstack": {
+      return `${pad}  _nipa_openstack`;
+    }
+    default: {
+      const _exhaustive: never = target;
       return _exhaustive;
     }
   }
@@ -220,15 +276,15 @@ const zshArg = (args: ArgSpec): string => {
 
 /** On entry, words[1] is this command's name. */
 const zshBody = (spec: CommandSpec, pad: string): string => {
-  if (spec.subcommands?.length) {
-    const subs = visible(spec.subcommands);
+  if (spec.kind === "group") {
+    const subs = spec.subcommands;
     const described = subs
       .map((s) => `'${s.name}:${zshQuote(s.summary)}'`)
       .join(" ");
     const arms = subs
       .map((sub) => {
         const body = zshBody(sub, `${pad}    `);
-        return `${pad}    ${names(sub).join("|")})\n${body}\n${pad}      ;;`;
+        return `${pad}    ${namesOf(sub).join("|")})\n${body}\n${pad}      ;;`;
       })
       .join("\n");
     return [
@@ -242,28 +298,16 @@ const zshBody = (spec: CommandSpec, pad: string): string => {
       `${pad}  esac`,
     ].join("\n");
   }
-  switch (spec.args?.kind) {
-    case "program": {
-      return `${pad}  words[1]=${spec.args.program}; _normal`;
-    }
-    case "command": {
-      return `${pad}  shift words; (( CURRENT-- )); _normal`;
-    }
-    case "openstack": {
-      return `${pad}  _nipa_openstack`;
-    }
-    default: {
-      const specs = [
-        ...allFlags(spec).map(zshFlag),
-        spec.args ? zshArg(spec.args) : "",
-      ];
-      return `${pad}  _arguments -s ${specs.filter(Boolean).join(" ")}`;
-    }
+  if (spec.kind === "passthrough") {
+    return zshTarget(spec.target, pad);
   }
+  const arg = offered(spec);
+  const specs = [...allFlags(spec).map(zshFlag), arg ? zshArg(arg) : ""];
+  return `${pad}  _arguments -s ${specs.filter(Boolean).join(" ")}`;
 };
 
-const zsh = (specs: readonly CommandSpec[]): string => {
-  const shown = visible(specs);
+const zsh = (program: ProgramSpec): string => {
+  const shown = visibleCommands(program);
   const commands = shown
     .map((c) => `    '${c.name}:${zshQuote(c.summary)}'`)
     .join("\n");
@@ -273,7 +317,7 @@ const zsh = (specs: readonly CommandSpec[]): string => {
   const arms = shown
     .map(
       (spec) =>
-        `    ${names(spec).join("|")})\n${zshBody(spec, "    ")}\n      ;;`
+        `    ${namesOf(spec).join("|")})\n${zshBody(spec, "    ")}\n      ;;`
     )
     .join("\n");
   return `#compdef nipa
@@ -363,17 +407,31 @@ const fishValue = (value: FlagValue): string => {
   }
 };
 
-const fishArgs = (args: ArgSpec): string => {
-  switch (args.kind) {
-    case "projects":
-    case "profiles": {
-      return fishDynamic(args.kind);
+const fishArg = (value: ArgValue): string | undefined => {
+  switch (value.kind) {
+    case "text": {
+      return undefined;
     }
-    case "shells": {
-      return fishQuote(COMPLETION_SHELLS.join(" "));
+    case "project": {
+      return fishDynamic("projects");
     }
+    case "profile": {
+      return fishDynamic("profiles");
+    }
+    case "choice": {
+      return fishQuote(value.choices.join(" "));
+    }
+    default: {
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
+const fishTarget = (target: Target): string => {
+  switch (target.kind) {
     case "program": {
-      return `'(__nipa_complete_as ${args.program})'`;
+      return `'(__nipa_complete_as ${target.program})'`;
     }
     case "command": {
       return "'(__nipa_complete_as)'";
@@ -382,10 +440,21 @@ const fishArgs = (args: ArgSpec): string => {
       return "'(__nipa_openstack)'";
     }
     default: {
-      const _exhaustive: never = args;
+      const _exhaustive: never = target;
       return _exhaustive;
     }
   }
+};
+
+/** Positional values for a leaf, or the hand-over for a passthrough. */
+const fishValues = (
+  spec: LeafSpec | Extract<CommandSpec, { kind: "passthrough" }>
+): string | undefined => {
+  if (spec.kind === "passthrough") {
+    return fishTarget(spec.target);
+  }
+  const arg = offered(spec);
+  return arg && fishArg(arg.arg.value);
 };
 
 const fishFlag = (flag: FlagSpec, condition: string): string => {
@@ -394,13 +463,13 @@ const fishFlag = (flag: FlagSpec, condition: string): string => {
 };
 
 const fishLines = (spec: CommandSpec, parent?: CommandSpec): string[] => {
-  const using = `__nipa_using ${(parent ? names(parent) : names(spec)).join(" ")}`;
+  const using = `__nipa_using ${namesOf(parent ?? spec).join(" ")}`;
   const condition = parent
-    ? `${using}; and __fish_seen_subcommand_from ${names(spec).join(" ")}`
+    ? `${using}; and __fish_seen_subcommand_from ${namesOf(spec).join(" ")}`
     : using;
-  if (spec.subcommands?.length) {
-    const subs = visible(spec.subcommands);
-    const none = `${condition}; and not __fish_seen_subcommand_from ${subs.flatMap(names).join(" ")}`;
+  if (spec.kind === "group") {
+    const subs = spec.subcommands;
+    const none = `${condition}; and not __fish_seen_subcommand_from ${subs.flatMap((sub) => namesOf(sub)).join(" ")}`;
     return [
       ...subs.map(
         (sub) =>
@@ -409,16 +478,19 @@ const fishLines = (spec: CommandSpec, parent?: CommandSpec): string[] => {
       ...subs.flatMap((sub) => fishLines(sub, spec)),
     ];
   }
-  const flags = (spec.flags ?? []).map((flag) => fishFlag(flag, condition));
-  const args = spec.args
-    ? [`complete -c nipa -n ${fishQuote(condition)} -a ${fishArgs(spec.args)}`]
+  const own = spec.kind === "leaf" ? spec.flags : [];
+  const flags = own.map((flag) => fishFlag(flag, condition));
+  const values = fishValues(spec);
+  const args = values
+    ? [`complete -c nipa -n ${fishQuote(condition)} -a ${values}`]
     : [];
   return [...flags, ...args];
 };
 
-const fish = (specs: readonly CommandSpec[]): string => {
-  const shown = visible(specs);
-  const notPassthrough = `not __nipa_using ${passthroughNames(specs).join(" ")}`;
+const fish = (program: ProgramSpec): string => {
+  const shown = visibleCommands(program);
+  const all = [...shown, ...program.hidden];
+  const notPassthrough = `not __nipa_using ${passthroughNames(all).join(" ")}`;
   const top = shown.map(
     (c) =>
       `complete -c nipa -n __nipa_needs_command -a ${c.name} -d ${fishQuote(c.summary)}`
@@ -505,16 +577,30 @@ const pwshValue = (value: FlagValue): string | undefined => {
   }
 };
 
+const pwshArg = (value: ArgValue): string | undefined => {
+  switch (value.kind) {
+    case "text": {
+      return undefined;
+    }
+    case "project": {
+      return "(Dynamic projects)";
+    }
+    case "profile": {
+      return "(Dynamic profiles)";
+    }
+    case "choice": {
+      return pwshList(value.choices);
+    }
+    default: {
+      const _exhaustive: never = value;
+      return _exhaustive;
+    }
+  }
+};
+
 /** PowerShell can't hand over to another program's completer. */
-const pwshArgs = (args: ArgSpec): string | undefined => {
-  switch (args.kind) {
-    case "projects":
-    case "profiles": {
-      return `(Dynamic ${args.kind})`;
-    }
-    case "shells": {
-      return pwshList(COMPLETION_SHELLS);
-    }
+const pwshTarget = (target: Target): string | undefined => {
+  switch (target.kind) {
     case "openstack": {
       return "(Openstack ($c + 1))";
     }
@@ -523,7 +609,7 @@ const pwshArgs = (args: ArgSpec): string | undefined => {
       return undefined;
     }
     default: {
-      const _exhaustive: never = args;
+      const _exhaustive: never = target;
       return _exhaustive;
     }
   }
@@ -531,15 +617,15 @@ const pwshArgs = (args: ArgSpec): string | undefined => {
 
 /** `$c` is the position of this spec's word. */
 const pwshBody = (spec: CommandSpec, pad: string): string => {
-  if (spec.subcommands?.length) {
-    const subs = visible(spec.subcommands);
+  if (spec.kind === "group") {
+    const subs = spec.subcommands;
     const tips = subs
       .map((s) => `${pwshQuote(s.name)} = ${pwshQuote(s.summary)}`)
       .join("; ");
     const arms = subs
       .map((sub) => {
         const body = pwshBody(sub, `${pad}    `);
-        return `${pad}    { $_ -in ${pwshList(names(sub))} } {\n${pad}      $c += 1\n${body}\n${pad}    }`;
+        return `${pad}    { $_ -in ${pwshList(namesOf(sub))} } {\n${pad}      $c += 1\n${body}\n${pad}    }`;
       })
       .join("\n");
     return [
@@ -549,8 +635,8 @@ const pwshBody = (spec: CommandSpec, pad: string): string => {
       `${pad}  }`,
     ].join("\n");
   }
-  if (isPassthrough(spec)) {
-    const values = spec.args && pwshArgs(spec.args);
+  if (spec.kind === "passthrough") {
+    const values = pwshTarget(spec.target);
     return values ? `${pad}  return Complete ${values}` : `${pad}  return`;
   }
   const flags = allFlags(spec);
@@ -565,22 +651,23 @@ const pwshBody = (spec: CommandSpec, pad: string): string => {
   lines.push(
     `if ($wordToComplete -like '-*') { return Complete ${pwshList(flags.flatMap(flagWords))} }`
   );
-  const positional = spec.args && pwshArgs(spec.args);
+  const arg = offered(spec);
+  const positional = arg && pwshArg(arg.arg.value);
   if (positional) {
     lines.push(`Complete ${positional}`);
   }
   return lines.map((line) => `${pad}  ${line}`).join("\n");
 };
 
-const pwsh = (specs: readonly CommandSpec[]): string => {
-  const shown = visible(specs);
+const pwsh = (program: ProgramSpec): string => {
+  const shown = visibleCommands(program);
   const commands = shown
     .map((c) => `    ${pwshQuote(c.name)} = ${pwshQuote(c.summary)}`)
     .join("\n");
   const arms = shown
     .map(
       (spec) =>
-        `    { $_ -in ${pwshList(names(spec))} } {\n${pwshBody(spec, "    ")}\n    }`
+        `    { $_ -in ${pwshList(namesOf(spec))} } {\n${pwshBody(spec, "    ")}\n    }`
     )
     .join("\n");
   return `# nipa completion for PowerShell
@@ -624,22 +711,23 @@ ${arms}
 `;
 };
 
-export const completionScript = (
-  shell: CompletionShell,
-  specs: readonly CommandSpec[]
-): string => {
+export const completionScript = (input: {
+  program: ProgramSpec;
+  shell: CompletionShell;
+}): string => {
+  const { program, shell } = input;
   switch (shell) {
     case "bash": {
-      return bash(specs);
+      return bash(program);
     }
     case "zsh": {
-      return zsh(specs);
+      return zsh(program);
     }
     case "fish": {
-      return fish(specs);
+      return fish(program);
     }
     case "pwsh": {
-      return pwsh(specs);
+      return pwsh(program);
     }
     default: {
       const _exhaustive: never = shell;

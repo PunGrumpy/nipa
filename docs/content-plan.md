@@ -6,10 +6,11 @@ This page is the plan for every doc page in this repo. It says what each page is
 
 ## Readers and their goals
 
-These docs serve 2 groups of readers:
+These docs serve 3 groups of readers:
 
 - Nipa Cloud users whose account uses multi-factor authentication (MFA), and who want to run `openstack` or `terraform` without an openrc file.
 - Nipa staff who also work against a staging Keystone, and who need to switch between it and production without logging in again.
+- Contributors, people or coding agents, who add a command to nipa.
 
 After reading the docs, readers should be able to:
 
@@ -17,7 +18,8 @@ After reading the docs, readers should be able to:
 2. Add a profile for another Keystone and run commands against it.
 3. Explain why nipa asks for an OTP code only on some accounts.
 4. Find the cause of a login or session error.
-5. Release a new version.
+5. Add a command by copying the closest command folder.
+6. Release a new version.
 
 ## Each doc page
 
@@ -31,6 +33,7 @@ Each page does one job, based on its content type:
 | [CLI reference](cli-reference.md) | Reference | Look up commands, options, variables, files and exit codes |
 | [How nipa logs in with MFA](how-login-works.md) | Conceptual | Explain receipts, scopes and where the token goes |
 | [Fix login and session errors](troubleshooting.md) | Troubleshooting | Find the cause of an error message |
+| [Add a command to nipa](add-a-command.md) | How-to | Add a command or subcommand, with its tests |
 | [Release nipa](releasing.md) | How-to | Release a new version and its binaries |
 
 ## Open questions

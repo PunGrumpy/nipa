@@ -22,7 +22,7 @@ nipa has 11 commands. Without a command, it prints help.
 | `nipa profile [ls\|add\|use\|rm]` | Lists, adds, picks or removes profiles |
 | `nipa completion <shell>` | Prints the tab completion script for `bash`, `zsh`, `fish` or `pwsh` |
 
-`nipa help <command>` and `nipa <command> --help` print the help for one command. A mistyped command name gets a suggestion, such as "Did you mean `nipa login`?".
+`nipa help <command>` and `nipa <command> --help` print the help for one command. `nipa help profile rm` and `nipa profile rm --help` print the help for one subcommand. A command with subcommands runs its default subcommand when you name none, so `nipa server --json` runs `nipa server ls --json`. A mistyped command name gets a suggestion, such as "Did you mean `nipa login`?".
 
 ## Command options
 
@@ -84,13 +84,13 @@ nipa 0.1 kept one profile's fields and one session at the top level of these fil
 
 nipa exits with these codes:
 
-| Code  | Meaning                                                         |
-| ----- | --------------------------------------------------------------- |
-| `0`   | The command worked                                              |
-| `1`   | An error, such as a wrong password or an expired session        |
-| `2`   | A usage error: an unknown command or option, or a missing value |
-| `127` | `nipa exec` couldn't find the command                           |
-| `130` | You pressed Ctrl+C at a prompt                                  |
+| Code | Meaning |
+| --- | --- |
+| `0` | The command worked |
+| `1` | An error, such as a wrong password or an expired session |
+| `2` | A usage error: an unknown command or option, a missing value or argument, or an extra argument |
+| `127` | `nipa exec` couldn't find the command |
+| `130` | You pressed Ctrl+C at a prompt |
 
 `nipa os`, `nipa tf` and `nipa exec` exit with the code of the program they ran. When a signal stops that program, the code is 128 plus the signal number.
 

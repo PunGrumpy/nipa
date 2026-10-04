@@ -1,13 +1,20 @@
-import { parseArgs } from "node:util";
+// How nipa gets and keeps a session: which profile a run uses, logging in
+// with a password and an OTP code, scoping to a project, and reaching
+// OpenStack services with the token. Handlers reach it through the client
+// (`client.profile()`, `client.session()`, `client.cloud()`). The login and
+// switch commands also call interactiveLogin, pickProject and saveLogin.
 
+import { ApiError, createService } from "./api";
+import type { Service } from "./api";
 import {
   continueWithTotp,
   KeystoneError,
+  listEndpoints,
   listProjects,
   loginWithPassword,
   rescope,
-} from "../lib/keystone";
-import type { Account, Project, Token } from "../lib/keystone";
+} from "./keystone";
+import type { Account, Endpoints, Project, Token } from "./keystone";
 import {
   DEFAULT_PROFILE,
   isActive,
@@ -15,37 +22,37 @@ import {
   loadSession,
   saveConfig,
   saveSession,
-} from "../lib/store";
-import type { Config, Profile, Session } from "../lib/store";
-import {
-  askChoice,
-  askSecret,
-  askText,
-  bold,
-  canPrompt,
-  CliError,
-  dim,
-  log,
-  success,
-  withSpinner,
-} from "../lib/ui";
-
-export interface Globals {
-  profile?: string;
-}
+} from "./store";
+import type { Config, Profile, Session } from "./store";
+import { bold, CliError, dim, log, success, withSpinner } from "./ui";
+import type { Prompts } from "./ui";
 
 export interface ActiveProfile {
-  config: Config;
-  name: string;
-  profile: Profile;
+  readonly config: Config;
+  readonly name: string;
+  readonly profile: Profile;
 }
 
-export const activeProfile = async (
-  globals: Globals
-): Promise<ActiveProfile> => {
+export interface SignedIn {
+  readonly active: ActiveProfile;
+  readonly session: Session;
+}
+
+export interface Cloud extends SignedIn {
+  /** An OpenStack service from the catalog. Throws when the region has none of this type. */
+  readonly service: (type: string) => Promise<Service>;
+}
+
+/**
+ * The profile a run uses: `--profile`, then NIPA_PROFILE, then the config's
+ * current profile. Throws, naming the known profiles, when it doesn't exist.
+ */
+export const resolveProfile = async (input: {
+  override: string | undefined;
+}): Promise<ActiveProfile> => {
   const config = await loadConfig();
   const name =
-    globals.profile ?? process.env.NIPA_PROFILE ?? config.currentProfile;
+    input.override ?? process.env.NIPA_PROFILE ?? config.currentProfile;
   const profile = config.profiles[name];
   if (!profile) {
     const known = Object.keys(config.profiles).join(", ");
@@ -56,7 +63,8 @@ export const activeProfile = async (
   return { config, name, profile };
 };
 
-export const loginCommand = (profile: string): string =>
+/** `nipa login`, or `nipa login -P staging`, for hints. */
+export const loginLine = (profile: string): string =>
   profile === DEFAULT_PROFILE ? "nipa login" : `nipa login -P ${profile}`;
 
 /** Says which Keystone a command uses, unless it's the default one. */
@@ -78,24 +86,25 @@ const OTP_PATTERN = /^\d{6}$/u;
 const PROJECT_ID_PATTERN = /^[\da-f]{32}$/u;
 const OTP_ATTEMPTS = 3;
 
-const terminalPrompts: LoginPrompts = {
+/** The login questions, asked on the terminal. */
+export const loginPrompts = (prompts: Prompts): LoginPrompts => ({
   email: (previous) =>
-    askText({
+    prompts.text({
       default: previous,
       message: "Email",
       validate: (value) =>
         value.includes("@") || "Enter the email you log in to the portal with",
     }),
   otp: (attempt) =>
-    askText({
+    prompts.text({
       message: attempt === 1 ? "OTP code" : "Next OTP code",
       validate: (value) =>
         OTP_PATTERN.test(value) ||
         "Enter the 6-digit code from your authenticator app",
     }),
-  password: () => askSecret("Password"),
+  password: () => prompts.secret("Password"),
   project: (projects) =>
-    askChoice({
+    prompts.choice({
       choices: projects.map((p) => ({
         description: p.id,
         name: p.name,
@@ -103,7 +112,7 @@ const terminalPrompts: LoginPrompts = {
       })),
       message: "Which project?",
     }),
-};
+});
 
 export const pickProject = (input: {
   projects: readonly Project[];
@@ -134,34 +143,32 @@ export const toSession = (token: Token, project: Project): Session => ({
   user: token.user,
 });
 
+/** Asks for an OTP code, then for the next one after a wrong code, up to OTP_ATTEMPTS times. */
 const verifyOtp = async (input: {
   account: Account;
   receipt: string;
   ask: LoginPrompts["otp"];
+  attempt: number;
 }): Promise<Token> => {
-  // Each attempt waits for the person's next code.
-  /* oxlint-disable no-await-in-loop */
-  for (let attempt = 1; ; attempt += 1) {
-    const passcode = await input.ask(attempt);
-    try {
-      return await withSpinner("Checking the code…", () =>
-        continueWithTotp({
-          account: input.account,
-          passcode,
-          receipt: input.receipt,
-        })
-      );
-    } catch (error) {
-      const wrongCode = error instanceof KeystoneError && error.status === 401;
-      if (!wrongCode || attempt === OTP_ATTEMPTS) {
-        throw error;
-      }
-      log(
-        "That code didn't work. Each code works once, so wait for the next one."
-      );
+  const passcode = await input.ask(input.attempt);
+  try {
+    return await withSpinner("Checking the code…", () =>
+      continueWithTotp({
+        account: input.account,
+        passcode,
+        receipt: input.receipt,
+      })
+    );
+  } catch (error) {
+    const wrongCode = error instanceof KeystoneError && error.status === 401;
+    if (!wrongCode || input.attempt === OTP_ATTEMPTS) {
+      throw error;
     }
+    log(
+      "That code didn't work. Each code works once, so wait for the next one."
+    );
+    return verifyOtp({ ...input, attempt: input.attempt + 1 });
   }
-  /* oxlint-enable no-await-in-loop */
 };
 
 export const authenticate = async (input: {
@@ -189,7 +196,12 @@ export const authenticate = async (input: {
   const token =
     first.kind === "token"
       ? first.token
-      : await verifyOtp({ account, ask: prompts.otp, receipt: first.receipt });
+      : await verifyOtp({
+          account,
+          ask: prompts.otp,
+          attempt: 1,
+          receipt: first.receipt,
+        });
   if (token.project) {
     return toSession(token, token.project);
   }
@@ -229,13 +241,18 @@ export const saveLogin = async (input: {
   await saveSession({ profile: active.name, session });
 };
 
-const interactiveLogin = async (input: {
+/**
+ * Asks for the password and OTP code, saves the session and says who logged
+ * in. Throws when there is no terminal.
+ */
+export const interactiveLogin = async (input: {
   active: ActiveProfile;
+  prompts: Prompts;
   username?: string;
   wantedProject?: string;
 }): Promise<Session> => {
-  const { active } = input;
-  if (!canPrompt()) {
+  const { active, prompts } = input;
+  if (!prompts.interactive) {
     throw new CliError(
       "`nipa login` needs a terminal to ask for your password",
       {
@@ -246,9 +263,10 @@ const interactiveLogin = async (input: {
   const host = dim(`(${new URL(active.profile.authUrl).host})`);
   log(`Logging in to ${bold(active.name)} ${host}`);
   const session = await authenticate({
-    ...input,
     profile: active.profile,
-    prompts: terminalPrompts,
+    prompts: loginPrompts(prompts),
+    username: input.username,
+    wantedProject: input.wantedProject,
   });
   await saveLogin({ active, session });
   const who = bold(session.user.name);
@@ -256,40 +274,90 @@ const interactiveLogin = async (input: {
   return session;
 };
 
-/** Logs in first when the session expired and nipa can prompt. */
-export const requireSession = async (
-  globals: Globals
-): Promise<{ active: ActiveProfile; session: Session }> => {
-  const active = await activeProfile(globals);
+/**
+ * The profile's live session. Logs in first when it expired and nipa can
+ * prompt, and throws "run nipa login" when it can't.
+ */
+export const requireSession = async (input: {
+  active: ActiveProfile;
+  prompts: Prompts;
+}): Promise<SignedIn> => {
+  const { active, prompts } = input;
   const session = await loadSession(active.name);
   if (isActive(session)) {
     return { active, session };
   }
-  const hint = `Run \`${loginCommand(active.name)}\`.`;
-  if (!canPrompt()) {
+  const hint = `Run \`${loginLine(active.name)}\`.`;
+  if (!prompts.interactive) {
     throw session
       ? new CliError(`your ${active.name} session expired`, { hint })
       : new CliError(`you aren't logged in to ${active.name}`, { hint });
   }
   log(session ? "Your session expired." : "You aren't logged in yet.");
-  return { active, session: await interactiveLogin({ active }) };
+  return { active, session: await interactiveLogin({ active, prompts }) };
 };
 
-export const login = async (input: {
-  args: string[];
-  globals: Globals;
-}): Promise<number> => {
-  const { values } = parseArgs({
-    args: input.args,
-    options: {
-      project: { short: "p", type: "string" },
-      username: { short: "u", type: "string" },
+/** A 401 means Keystone revoked the token before it expired. */
+const guardSession =
+  (profile: string) =>
+  async <T>(task: () => Promise<T>): Promise<T> => {
+    try {
+      return await task();
+    } catch (error) {
+      const status =
+        error instanceof ApiError || error instanceof KeystoneError
+          ? error.status
+          : undefined;
+      if (status === 401) {
+        throw new CliError(`your ${profile} session expired or was revoked`, {
+          hint: `Run \`${loginLine(profile)}\`.`,
+        });
+      }
+      throw error;
+    }
+  };
+
+/**
+ * OpenStack services for a session. Each service's URL comes from the
+ * catalog, read on first use.
+ */
+export const connect = (signedIn: SignedIn): Cloud => {
+  const { active, session } = signedIn;
+  const { authUrl, region } = active.profile;
+  const guard = guardSession(active.name);
+  let { endpoints } = session;
+
+  // nipa reads the catalog on first use, so login and switch don't wait for
+  // it, and saves it with the session, which a switch replaces.
+  const loadEndpoints = async (): Promise<Endpoints> => {
+    if (!endpoints) {
+      endpoints = await guard(() =>
+        listEndpoints({ authUrl, region, token: session.token })
+      );
+      await saveSession({
+        profile: active.name,
+        session: { ...session, endpoints },
+      });
+    }
+    return endpoints;
+  };
+
+  return {
+    active,
+    service: async (type) => {
+      const loaded = await loadEndpoints();
+      const url = loaded[type];
+      if (!url) {
+        throw new CliError(`there's no ${type} endpoint in ${region}`, {
+          hint: "Check the profile's region with `nipa profile ls`.",
+        });
+      }
+      const service = createService({ token: session.token, type, url });
+      return {
+        get: (path, schema, headers) =>
+          guard(() => service.get(path, schema, headers)),
+      };
     },
-  });
-  await interactiveLogin({
-    active: await activeProfile(input.globals),
-    username: values.username,
-    wantedProject: values.project,
-  });
-  return 0;
+    session,
+  };
 };
