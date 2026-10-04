@@ -1,5 +1,11 @@
 # nipa-cli
 
+## 0.1.3
+
+### Patch Changes
+
+- 6d2d00f: `nipa login` and `nipa switch` get a token on Nipa Cloud again. Nipa's gateway drops the connection for a token without a service catalog, so nipa now asks for your project ID on a first login, takes it from `--project`, or uses the project from your last login.
+
 ## 0.1.2
 
 ### Patch Changes
