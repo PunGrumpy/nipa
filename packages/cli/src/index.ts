@@ -1,4 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+// npm runs the Node bundle of this file. With a bun shebang here,
+// `bun build --target=node` bundles some modules twice.
 
 import pkg from "../package.json" with { type: "json" };
 import { program } from "./commands";

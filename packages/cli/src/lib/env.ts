@@ -1,17 +1,42 @@
-import { existsSync } from "node:fs";
+import { accessSync, constants } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
 import type { Profile, Session } from "./store";
 
+const isExecutable = (file: string): boolean => {
+  try {
+    accessSync(file, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// On Windows, `terraform` runs `terraform.exe`: try each extension in PATHEXT.
+const spellings = (file: string): string[] =>
+  process.platform === "win32"
+    ? [
+        ...(process.env.PATHEXT ?? ".EXE;.CMD;.BAT")
+          .split(";")
+          .map((extension) => `${file}${extension}`),
+        file,
+      ]
+    : [file];
+
 // pipx installs openstack in ~/.local/bin, which isn't always on PATH.
 export const findCommand = (command: string): string | undefined => {
-  const found = Bun.which(command);
-  if (found) {
-    return found;
+  if (command.includes("/") || command.includes(path.sep)) {
+    const file = path.resolve(command);
+    return isExecutable(file) ? file : undefined;
   }
-  const local = path.join(homedir(), ".local", "bin", command);
-  return existsSync(local) ? local : undefined;
+  const dirs = [
+    ...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean),
+    path.join(homedir(), ".local", "bin"),
+  ];
+  return dirs
+    .flatMap((dir) => spellings(path.join(dir, command)))
+    .find(isExecutable);
 };
 
 export const sessionEnv = (input: { profile: Profile; session: Session }) => ({

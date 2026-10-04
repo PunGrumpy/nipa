@@ -1,7 +1,6 @@
 {
   "name": "nipa-cli",
   "version": "0.1.0",
-  "private": true,
   "description": "Nipa Cloud from your terminal: log in with MFA once, then run openstack and terraform with the session.",
   "keywords": [
     "cli",
@@ -21,23 +20,31 @@
     "directory": "packages/cli"
   },
   "bin": {
-    "nipa": "./src/index.ts"
+    "nipa": "./dist/nipa.js"
   },
+  "files": [
+    "dist/nipa.js"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "bun src/index.ts",
     "build": "bun build src/index.ts --compile --minify --outfile dist/nipa",
+    "build:npm": "bun build src/index.ts --target=node --minify --outfile dist/nipa.js",
     "build:release": "bun scripts/build-release.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
+  "devDependencies": {
     "@inquirer/prompts": "^8.7.2",
+    "@types/bun": "^1.4.2",
     "picocolors": "^1.1.1",
+    "typescript": "^6",
     "zod": "^4.6.5"
   },
-  "devDependencies": {
-    "@types/bun": "^1.4.2",
-    "typescript": "^6"
+  "engines": {
+    "node": ">=22"
   }
 }

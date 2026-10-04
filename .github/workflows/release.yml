@@ -9,6 +9,8 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 permissions:
   contents: write
   pull-requests: write
+  # npm trusts this workflow through Trusted Publishing, so publishing needs no token.
+  id-token: write
 
 jobs:
   release:
@@ -18,6 +20,11 @@ jobs:
         with:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
+      # Trusted Publishing needs npm 11.5.1 or later, which comes with Node.js 24.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
       - run: bun install --frozen-lockfile
 
       # While .changeset/ holds changesets, keep the version pull request up to date.
@@ -50,6 +57,21 @@ jobs:
       - name: Build the binaries
         if: steps.version.outputs.release == 'true'
         run: bun run build:release
+
+      # Skips a version npm already has, so a rerun after a failed GitHub release
+      # doesn't publish twice.
+      - name: Publish to npm
+        if: steps.version.outputs.release == 'true'
+        working-directory: packages/cli
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "nipa-cli@$VERSION" version > /dev/null 2>&1; then
+            echo "nipa-cli@$VERSION is already on npm."
+          else
+            bun run build:npm
+            npm publish
+          fi
 
       - name: Publish the GitHub release
         if: steps.version.outputs.release == 'true'

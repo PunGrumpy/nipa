@@ -17,18 +17,16 @@
     },
     "packages/cli": {
       "name": "nipa-cli",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "bin": {
-        "nipa": "./src/index.ts",
-      },
-      "dependencies": {
-        "@inquirer/prompts": "^8.7.2",
-        "picocolors": "^1.1.1",
-        "zod": "^4.6.5",
+        "nipa": "./dist/nipa.js",
       },
       "devDependencies": {
+        "@inquirer/prompts": "^8.7.2",
         "@types/bun": "^1.4.2",
+        "picocolors": "^1.1.1",
         "typescript": "^6",
+        "zod": "^4.6.5",
       },
     },
   },

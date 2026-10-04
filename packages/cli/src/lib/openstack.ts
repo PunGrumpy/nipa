@@ -1,4 +1,7 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { stat } from "node:fs/promises";
+import { text as readText } from "node:stream/consumers";
 
 import { z } from "zod";
 
@@ -66,20 +69,18 @@ const loadTable = async (bin: string): Promise<Table | undefined> => {
   if (cached?.bin === bin && cached.mtimeMs === mtimeMs) {
     return cached.table;
   }
-  const proc = Bun.spawn([bin, "complete", "--shell", "none"], {
-    stderr: "ignore",
-    stdin: "ignore",
-    stdout: "pipe",
+  const proc = spawn(bin, ["complete", "--shell", "none"], {
+    stdio: ["ignore", "pipe", "ignore"],
     timeout: GENERATE_TIMEOUT_MS,
   });
-  const [text, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    proc.exited,
+  const [output] = await Promise.all([
+    readText(proc.stdout),
+    once(proc, "close"),
   ]);
-  if (code !== 0) {
+  if (proc.exitCode !== 0) {
     return undefined;
   }
-  const table = parseTable(text);
+  const table = parseTable(output);
   await writeCache(CACHE_FILE, { bin, mtimeMs, table });
   return table;
 };

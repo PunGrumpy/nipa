@@ -5,6 +5,9 @@
     "build": {
       "outputs": ["dist/nipa"]
     },
+    "build:npm": {
+      "outputs": ["dist/nipa.js"]
+    },
     "build:release": {
       "outputs": ["dist/nipa-*", "dist/SHA256SUMS"]
     }
