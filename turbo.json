@@ -8,6 +8,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    "build:npm": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
     "build:release": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]

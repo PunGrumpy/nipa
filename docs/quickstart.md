@@ -13,7 +13,14 @@ You need these 2 things:
 
 ## 1. Install nipa
 
-Download the binary for your platform from the [latest release](https://github.com/PunGrumpy/nipa/releases/latest). This example is for macOS on Apple silicon:
+Install nipa from npm, which needs Node.js 22 or later, then check the version:
+
+```sh
+npm install -g nipa-cli
+nipa --version
+```
+
+Without Node.js, download the binary for your platform from the [latest release](https://github.com/PunGrumpy/nipa/releases/latest) instead. This example is for macOS on Apple silicon:
 
 ```sh
 base=https://github.com/PunGrumpy/nipa/releases/latest/download
@@ -22,7 +29,7 @@ chmod +x ~/.local/bin/nipa
 nipa --version
 ```
 
-The last command prints the version. If your shell says `command not found`, add `~/.local/bin` to your `PATH`.
+If your shell says `command not found` after the download, add `~/.local/bin` to your `PATH`.
 
 ## 2. Log in
 

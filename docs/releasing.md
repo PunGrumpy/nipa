@@ -26,20 +26,22 @@ A pull request that only changes tests, CI or docs can add an empty changeset wi
 
 ## Merge the version pull request
 
-When changesets reach `main`, the Release workflow opens a pull request titled "chore: version packages", and updates it with each new changeset. Merging it does 3 things:
+When changesets reach `main`, the Release workflow opens a pull request titled "chore: version packages", and updates it with each new changeset. Merging it does 4 things:
 
 1. Bumps the version in `packages/cli/package.json` and adds the changesets to `packages/cli/CHANGELOG.md`
-2. Tags the commit `v<version>`
-3. Builds the binaries for macOS, Linux and Windows, and attaches them and a `SHA256SUMS` file to a GitHub release, with that version's `CHANGELOG.md` section as the notes
+2. Publishes `nipa-cli` to npm as `packages/cli/dist/nipa.js`, a bundle for Node.js 22 or later. npm trusts the Release workflow through Trusted Publishing, so the repository stores no npm token
+3. Tags the commit `v<version>`
+4. Builds the binaries for macOS, Linux and Windows, and attaches them and a `SHA256SUMS` file to a GitHub release, with that version's `CHANGELOG.md` section as the notes
 
 Workflows don't run on the version pull request, because GitHub doesn't start workflows for pull requests that a workflow opens. The changes it releases already passed CI on `main`, and its own commit only edits `package.json` and `CHANGELOG.md`.
 
-## Build the binaries locally
+## Build the binaries and the npm package locally
 
 To check a build before a release, run:
 
 ```sh
 bun run build:release
+bun run build:npm
 ```
 
-It writes the binaries and `SHA256SUMS` to `packages/cli/dist/`. `bun run build` builds only the binary for your machine, as `packages/cli/dist/nipa`.
+The first command writes the binaries and `SHA256SUMS` to `packages/cli/dist/`. The second writes the npm bundle, `packages/cli/dist/nipa.js`, which `node packages/cli/dist/nipa.js --version` runs. `bun run build` builds only the binary for your machine, as `packages/cli/dist/nipa`.
