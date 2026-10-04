@@ -1,15 +1,15 @@
-import { probe } from "../../lib/keystone";
+import { handle } from "../../util/command";
+import { probe } from "../../util/keystone";
 import {
   loadConfig,
   PROD_PROFILE,
   PROFILE_NAME,
   ProfileSchema,
   saveConfig,
-} from "../../lib/store";
-import type { Config, Profile } from "../../lib/store";
-import { bold, log, success, usageError, withSpinner } from "../../lib/ui";
-import type { Prompts } from "../../lib/ui";
-import { handle } from "../../util/command";
+} from "../../util/store";
+import type { Config, Profile } from "../../util/store";
+import { bold, log, success, usageError, withSpinner } from "../../util/ui";
+import type { Prompts } from "../../util/ui";
 import { addSubcommand } from "./command";
 
 const validateName =

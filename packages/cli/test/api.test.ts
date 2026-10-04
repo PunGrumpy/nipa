@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { z } from "zod";
 
-import { ApiError, createService } from "../src/lib/api";
-import { listServers } from "../src/lib/compute";
-import { loginWithPassword } from "../src/lib/keystone";
+import { ApiError, createService } from "../src/util/api";
+import { listServers } from "../src/util/compute";
+import { loginWithPassword } from "../src/util/keystone";
 import {
   ALPHA_ID,
   FAKE_PASSWORD,

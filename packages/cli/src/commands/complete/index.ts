@@ -1,9 +1,9 @@
-import { listProjects } from "../../lib/keystone";
-import { openstackCompletions } from "../../lib/openstack";
-import { isActive, loadConfig, loadSession } from "../../lib/store";
 import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
 import type { CompleteKind } from "../../util/completion";
+import { listProjects } from "../../util/keystone";
+import { openstackCompletions } from "../../util/openstack";
+import { isActive, loadConfig, loadSession } from "../../util/store";
 import { completeCommand } from "./command";
 
 const projectNames = async (client: Client): Promise<string[]> => {

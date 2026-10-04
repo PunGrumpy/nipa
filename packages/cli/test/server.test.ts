@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { mainAddress, statusLabel } from "../src/commands/server/format";
-import type { Address, Server } from "../src/lib/compute";
+import type { Address, Server } from "../src/util/compute";
 
 const address = (value: string, version: number, type = "fixed"): Address => ({
   address: value,

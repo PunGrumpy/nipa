@@ -1,5 +1,5 @@
-import { SHELLS } from "../../lib/env";
 import { defineCommand } from "../../util/command";
+import { SHELLS } from "../../util/env";
 
 export const envCommand = defineCommand({
   args: [],

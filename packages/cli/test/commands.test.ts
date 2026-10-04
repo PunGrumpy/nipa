@@ -55,7 +55,7 @@ const IMPORT = /from "(?<from>[^"]+)"/gu;
 // that imported these modules could start parsing or dispatching on its own.
 const DISPATCH_INTERNALS = /\/util\/(?:client|dispatch|help|parse)$/u;
 
-// Such as `../server/format`. Code that two commands share goes in src/lib.
+// Such as `../server/format`. Code that two commands share goes in src/util.
 const OTHER_FOLDER = /^\.\.\/[^.]/u;
 
 describe("the command table", () => {

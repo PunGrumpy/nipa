@@ -1,5 +1,5 @@
-import { runTool } from "../../lib/tool";
 import { forward } from "../../util/command";
+import { runTool } from "../../util/tool";
 import { execCommand } from "./command";
 
 export const exec = forward(execCommand, ({ args, client, command }) =>

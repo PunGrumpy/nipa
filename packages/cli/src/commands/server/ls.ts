@@ -1,5 +1,6 @@
-import { listServers } from "../../lib/compute";
-import type { Server } from "../../lib/compute";
+import { handle } from "../../util/command";
+import { listServers } from "../../util/compute";
+import type { Server } from "../../util/compute";
 import {
   bold,
   dim,
@@ -9,8 +10,7 @@ import {
   log,
   printTable,
   withSpinner,
-} from "../../lib/ui";
-import { handle } from "../../util/command";
+} from "../../util/ui";
 import { lsSubcommand } from "./command";
 import { mainAddress, statusCell } from "./format";
 

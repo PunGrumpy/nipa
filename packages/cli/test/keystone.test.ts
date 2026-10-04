@@ -15,8 +15,8 @@ import {
   revoke,
   toEndpoints,
   totpBody,
-} from "../src/lib/keystone";
-import type { Account } from "../src/lib/keystone";
+} from "../src/util/keystone";
+import type { Account } from "../src/util/keystone";
 import {
   ALPHA_ID,
   FAKE_PASSCODE,

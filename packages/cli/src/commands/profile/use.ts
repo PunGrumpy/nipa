@@ -1,6 +1,6 @@
-import { loadConfig, saveConfig } from "../../lib/store";
-import { bold, CliError, note, success, usageError } from "../../lib/ui";
 import { handle } from "../../util/command";
+import { loadConfig, saveConfig } from "../../util/store";
+import { bold, CliError, note, success, usageError } from "../../util/ui";
 import { useSubcommand } from "./command";
 
 export const use = handle(useSubcommand, async ({ args, client }) => {
