@@ -20,7 +20,7 @@
     "directory": "packages/cli"
   },
   "bin": {
-    "nipa": "./dist/nipa.js"
+    "nipa": "dist/nipa.js"
   },
   "files": [
     "dist/nipa.js"
