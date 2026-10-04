@@ -4,81 +4,138 @@ on:
   push:
     branches: [main]
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# Each job asks for only the permissions it needs.
+permissions: {}
 
-permissions:
-  contents: write
-  pull-requests: write
-  # npm trusts this workflow through Trusted Publishing, so publishing needs no token.
-  id-token: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  release:
+  # "version" while .changeset/ holds changesets, "publish" once packages/cli/package.json
+  # holds a version npm doesn't have, and "none" otherwise.
+  select-mode:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
+      publish-plan-artifact-id: ${{ steps.select-mode.outputs.publish-plan-artifact-id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
-      # Trusted Publishing needs npm 11.5.1 or later, which comes with Node.js 24.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
-      - run: bun install --frozen-lockfile
+          package-manager-cache: false
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - id: select-mode
+        uses: changesets/action/select-mode@v2
 
-      # While .changeset/ holds changesets, keep the version pull request up to date.
-      # Merging it bumps packages/cli/package.json and writes its CHANGELOG.md.
-      - uses: changesets/action@v1
-        id: changesets
+  # Opens or updates the version pull request. Merging it bumps
+  # packages/cli/package.json and writes its CHANGELOG.md.
+  version:
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
         with:
-          version: bun run version
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: bun install --frozen-lockfile
+      - uses: changesets/action/version@v2
+        with:
+          script: bun run version
           # Keep the title valid for lint-pr-title.yml.
-          title: "chore: version packages"
-          commit: "chore: version packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          pr-title: "chore: version packages"
+          commit-message: "chore: version packages"
 
-      # After that pull request is merged, no changesets are left and packages/cli/package.json
-      # holds a version without a tag: tag it, build the binaries and publish a release
-      # with that version's CHANGELOG.md section as the notes.
-      - name: Check for an untagged version
-        id: version
-        if: steps.changesets.outputs.hasChangesets == 'false'
+  # Builds the npm bundle and packs it, without the publish job's id-token.
+  pack:
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      pack-dir-artifact-id: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run build:npm
+      - id: pack
+        uses: changesets/action/pack@v2
+        with:
+          publish-plan-artifact-id: ${{ needs.select-mode.outputs.publish-plan-artifact-id }}
+
+  # Publishes the packed tarball. npm trusts this job through Trusted Publishing,
+  # which needs npm 11.5.1 or later, so it runs on Node.js 24 and stores no token.
+  # The release job tags the version as v<version>, so this job pushes no
+  # nipa-cli@<version> tags and creates no GitHub release.
+  publish:
+    needs: pack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
+      published-packages: ${{ steps.publish.outputs.published-packages }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - id: publish
+        uses: changesets/action/publish@v2
+        with:
+          pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
+          create-github-releases: false
+          push-git-tags: false
+
+  # Builds the binaries and publishes the GitHub release v<version>, with that
+  # version's CHANGELOG.md section as the notes. The update check and the
+  # README's download links read this release.
+  release:
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run build:release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED: ${{ needs.publish.outputs.published-packages }}
         run: |
-          version="$(jq -r .version packages/cli/package.json)"
-          if [ "$version" = "0.0.0" ] || git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
-            echo "release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            echo "version=$version" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build the binaries
-        if: steps.version.outputs.release == 'true'
-        run: bun run build:release
-
-      # Skips a version npm already has, so a rerun after a failed GitHub release
-      # doesn't publish twice.
-      - name: Publish to npm
-        if: steps.version.outputs.release == 'true'
-        working-directory: packages/cli
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if npm view "nipa-cli@$VERSION" version > /dev/null 2>&1; then
-            echo "nipa-cli@$VERSION is already on npm."
-          else
-            bun run build:npm
-            npm publish
-          fi
-
-      - name: Publish the GitHub release
-        if: steps.version.outputs.release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          awk -v v="$VERSION" '$0 == "## " v {f=1; next} /^## /{f=0} f' packages/cli/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          gh release create "v$VERSION" packages/cli/dist/nipa-* packages/cli/dist/SHA256SUMS \
-            --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md" --target "$GITHUB_SHA"
+          version="$(jq -r '.[] | select(.name == "nipa-cli") | .version' <<< "$PUBLISHED")"
+          test -n "$version"
+          awk -v v="$version" '$0 == "## " v {f=1; next} /^## /{f=0} f' packages/cli/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          gh release create "v$version" packages/cli/dist/nipa-* packages/cli/dist/SHA256SUMS \
+            --title "v$version" --notes-file "$RUNNER_TEMP/notes.md" --target "$GITHUB_SHA"

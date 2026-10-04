@@ -33,6 +33,8 @@ When changesets reach `main`, the Release workflow opens a pull request titled "
 3. Tags the commit `v<version>`
 4. Builds the binaries for macOS, Linux and Windows, and attaches them and a `SHA256SUMS` file to a GitHub release, with that version's `CHANGELOG.md` section as the notes
 
+The Release workflow runs these steps as separate jobs with [Changesets' GitHub Action](https://github.com/changesets/action), and only the job that publishes to npm can request the token that Trusted Publishing checks. If the GitHub release fails after npm has the version, re-run the failed jobs of that workflow run, not the whole run: a new run sees the version on npm and skips the release.
+
 Workflows don't run on the version pull request, because GitHub doesn't start workflows for pull requests that a workflow opens. The changes it releases already passed CI on `main`, and its own commit only edits `package.json` and `CHANGELOG.md`.
 
 ## Build the binaries and the npm package locally
