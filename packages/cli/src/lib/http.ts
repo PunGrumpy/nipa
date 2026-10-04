@@ -20,6 +20,12 @@ export class NetworkError extends Error {
   }
 }
 
+// Node's fetch throws "fetch failed" and puts the socket error in cause.
+const describe = (error: Error): string =>
+  error.cause instanceof Error
+    ? `${error.message} (${describe(error.cause)})`
+    : error.message;
+
 // Never log headers or bodies. They hold tokens and passwords.
 export const request = async (
   url: string,
@@ -34,7 +40,7 @@ export const request = async (
   } catch (error) {
     throw new NetworkError(
       url,
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? describe(error) : String(error)
     );
   }
   debug(
