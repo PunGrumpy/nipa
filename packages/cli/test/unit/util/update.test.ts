@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { isNewer, shouldCheck, updateNotice } from "../src/util/update";
+import { isNewer, shouldCheck, updateNotice } from "../../../src/util/update";
 
 describe("isNewer", () => {
   test.each([

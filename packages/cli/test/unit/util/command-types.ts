@@ -1,18 +1,29 @@
 // Type-level checks for the command model. `bun run typecheck` checks this
 // file. `bun test` skips it: its name doesn't end in .test.ts.
 
-import type { completeCommand } from "../src/commands/complete/command";
-import { envCommand } from "../src/commands/env/command";
-import { add } from "../src/commands/profile/add";
-import type { addSubcommand } from "../src/commands/profile/command";
-import { profileCommand, rmSubcommand } from "../src/commands/profile/command";
-import { ls as profileLs } from "../src/commands/profile/ls";
-import { rm } from "../src/commands/profile/rm";
-import { lsSubcommand, serverCommand } from "../src/commands/server/command";
-import { ls } from "../src/commands/server/ls";
-import type { GlobalValues } from "../src/util/arg-common";
-import { defineCommand, defineGroup, handle, route } from "../src/util/command";
-import type { Input } from "../src/util/spec";
+import type { completeCommand } from "../../../src/commands/complete/command";
+import { envCommand } from "../../../src/commands/env/command";
+import { add } from "../../../src/commands/profile/add";
+import type { addSubcommand } from "../../../src/commands/profile/command";
+import {
+  profileCommand,
+  rmSubcommand,
+} from "../../../src/commands/profile/command";
+import { ls as profileLs } from "../../../src/commands/profile/ls";
+import { rm } from "../../../src/commands/profile/rm";
+import {
+  lsSubcommand,
+  serverCommand,
+} from "../../../src/commands/server/command";
+import { ls } from "../../../src/commands/server/ls";
+import type { GlobalValues } from "../../../src/util/arg-common";
+import {
+  defineCommand,
+  defineGroup,
+  handle,
+  route,
+} from "../../../src/util/command";
+import type { Input } from "../../../src/util/spec";
 
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2

@@ -6,7 +6,7 @@ import {
   FAKE_PASSCODE,
   FAKE_PASSWORD,
   FAKE_USER,
-} from "./fake-keystone";
+} from "./mocks/keystone";
 
 export const ENTRY = path.join(import.meta.dir, "..", "src", "index.ts");
 

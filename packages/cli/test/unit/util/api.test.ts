@@ -2,17 +2,17 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { z } from "zod";
 
-import { ApiError, createService } from "../src/util/api";
-import { listServers } from "../src/util/compute";
-import { loginWithPassword } from "../src/util/keystone";
+import { ApiError, createService } from "../../../src/util/api";
+import { listServers } from "../../../src/util/compute";
+import { loginWithPassword } from "../../../src/util/keystone";
 import {
   ALPHA_ID,
   FAKE_PASSWORD,
   FAKE_SERVERS,
   PLAIN_USER,
   startFakeKeystone,
-} from "./fake-keystone";
-import type { FakeKeystone } from "./fake-keystone";
+} from "../../mocks/keystone";
+import type { FakeKeystone } from "../../mocks/keystone";
 
 const FAULTS = new Map<string, () => Response>([
   [

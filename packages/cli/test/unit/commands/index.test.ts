@@ -4,11 +4,11 @@
 import { describe, expect, test } from "bun:test";
 import path from "node:path";
 
-import { program } from "../src/commands";
-import { GLOBAL_FLAGS } from "../src/util/arg-common";
-import { programSpec } from "../src/util/command";
-import { flagWords, namesOf } from "../src/util/spec";
-import type { CommandSpec, LeafSpec } from "../src/util/spec";
+import { program } from "../../../src/commands";
+import { GLOBAL_FLAGS } from "../../../src/util/arg-common";
+import { programSpec } from "../../../src/util/command";
+import { flagWords, namesOf } from "../../../src/util/spec";
+import type { CommandSpec, LeafSpec } from "../../../src/util/spec";
 
 const spec = programSpec(program);
 const topLevel: readonly CommandSpec[] = [
@@ -36,7 +36,7 @@ const leaves: readonly LeafSpec[] = topLevel.flatMap((command) => {
 const duplicates = (words: readonly string[]): string[] =>
   words.filter((word, index) => words.indexOf(word) !== index);
 
-const COMMANDS = path.join(import.meta.dir, "..", "src", "commands");
+const COMMANDS = path.join(import.meta.dir, "../../../src/commands");
 
 /** Each file in a command's folder, and its text. */
 const folderFiles = async () => {

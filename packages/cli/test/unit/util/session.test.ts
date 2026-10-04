@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { authenticate } from "../src/util/session";
-import type { LoginPrompts } from "../src/util/session";
-import type { Profile } from "../src/util/store";
+import { authenticate } from "../../../src/util/session";
+import type { LoginPrompts } from "../../../src/util/session";
+import type { Profile } from "../../../src/util/store";
 import {
   ALPHA_ID,
   FAKE_PASSCODE,
@@ -10,8 +10,8 @@ import {
   FAKE_USER,
   PLAIN_USER,
   startFakeKeystone,
-} from "./fake-keystone";
-import type { FakeKeystone } from "./fake-keystone";
+} from "../../mocks/keystone";
+import type { FakeKeystone } from "../../mocks/keystone";
 
 let keystone: FakeKeystone;
 let profile: Profile;

@@ -12,7 +12,7 @@ The CLI lives in `packages/cli`, and the paths on this page start there. Each co
 - **`index.ts`**: binds that data to code with `handle`, `route` or `forward`
 - **One file per subcommand**: the handler, such as `ls.ts`
 
-Copy `src/commands/server` for a command that lists OpenStack resources. Code that two commands share goes in `src/util`. `test/commands.test.ts` fails when a command imports another command's folder.
+Copy `src/commands/server` for a command that lists OpenStack resources. Code that two commands share goes in `src/util`. `test/unit/commands/index.test.ts` fails when a command imports another command's folder.
 
 ## 1. Declare the command
 
@@ -94,11 +94,11 @@ Import the command in `src/commands/index.ts`, and add it to a section of the ma
 { commands: [server, volume], title: "Resources" },
 ```
 
-`test/commands.test.ts` fails when a folder in `src/commands` is missing from this table. It also fails when a name, alias or flag clashes with another one.
+`test/unit/commands/index.test.ts` fails when a folder in `src/commands` is missing from this table. It also fails when a name, alias or flag clashes with another one.
 
 ## 5. Test the command and add a changeset
 
-Add a test to `test/cli.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/fake-keystone.ts`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
+Add a test to `test/integration.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/mocks/keystone.ts`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
 
 ```sh
 bun run test
