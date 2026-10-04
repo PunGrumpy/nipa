@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled and unlabeled rerun the Changeset job when `semver: none` changes.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -60,7 +62,9 @@ jobs:
 
   changeset:
     name: Changeset
-    if: "github.event_name == 'pull_request' && github.event.pull_request.title != 'chore: version packages'"
+    # Skipped for the version pull request, and for pull requests labeled
+    # `semver: none` because users don't see their changes.
+    if: "github.event_name == 'pull_request' && github.event.pull_request.title != 'chore: version packages' && !contains(github.event.pull_request.labels.*.name, 'semver: none')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +72,5 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # Fails when the pull request has no changeset. Add one with `bun changeset`,
-      # or `bun changeset --empty` for changes users don't see.
+      # Fails when the pull request has no changeset. Add one with `bun changeset`.
       - run: bunx changeset status --since=origin/${{ github.base_ref }}
