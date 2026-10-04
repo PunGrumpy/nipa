@@ -1,7 +1,7 @@
 // me@example.com has the MFA rule password + totp. plain@example.com has no MFA.
 // The catalog puts Nova on the same server, where Alpha has 3 servers on 2
-// pages and the other projects have none. With stripErrorBodies, every 401
-// has an empty body, like the ones Nipa's gateway sends.
+// pages and the other projects have none. With gateway, it answers like Nipa's
+// gateway: every 401 has an empty body, and a token without a catalog fails.
 
 import { randomUUID } from "node:crypto";
 
@@ -192,14 +192,31 @@ const listServers = (req: Request, projectId: string | undefined) => {
   });
 };
 
-const stripBody = (res: Response): Response =>
-  res.status === 401
-    ? new Response(null, { headers: res.headers, status: 401 })
-    : res;
+const IssuedSchema = z.object({
+  token: z.object({ project: z.object({ id: z.string() }).optional() }),
+});
 
-export const startFakeKeystone = ({
-  stripErrorBodies = false,
-} = {}): FakeKeystone => {
+// Nipa's gateway drops the connection for a token without a catalog: one
+// asked for with ?nocatalog, or an unscoped one. A dropped connection makes
+// Bun print a stack trace, so the fake answers 502 instead.
+const throughGateway = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  if (res.status === 401) {
+    return new Response(null, { headers: res.headers, status: 401 });
+  }
+  if (res.status !== 201) {
+    return res;
+  }
+  const { token } = IssuedSchema.parse(await res.clone().json());
+  const noCatalog = new URL(req.url).searchParams.has("nocatalog");
+  return noCatalog || !token.project
+    ? new Response(null, { status: 502 })
+    : res;
+};
+
+export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
   const tokens = new Map<string, typeof FAKE_USER>();
   const scopes = new Map<string, string | undefined>();
   const receipts = new Map<string, typeof FAKE_USER>();
@@ -330,7 +347,7 @@ export const startFakeKeystone = ({
 
   const server = Bun.serve({
     fetch: async (req) =>
-      stripErrorBodies ? stripBody(await handle(req)) : handle(req),
+      gateway ? throughGateway(req, await handle(req)) : handle(req),
     port: 0,
   });
 

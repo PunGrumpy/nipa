@@ -17,7 +17,7 @@ let keystone: FakeKeystone;
 let profile: Profile;
 
 beforeAll(() => {
-  keystone = startFakeKeystone();
+  keystone = startFakeKeystone({ gateway: true });
   profile = {
     authUrl: keystone.url,
     region: "NCP-TH",
