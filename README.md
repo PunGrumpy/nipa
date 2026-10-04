@@ -57,11 +57,11 @@ Pick the page for what you want to do:
 
 ## Contribute to nipa
 
-nipa is a TypeScript program that runs on [Bun](https://bun.sh). Install the dependencies, then run the checks that CI runs:
+nipa is a TypeScript program that runs on [Bun](https://bun.sh). This repository is a monorepo, laid out like the Vercel CLI's: the CLI is the `nipa-cli` package in `packages/cli`, and [Turborepo](https://turborepo.dev) runs each package's tasks and caches their results. Install the dependencies at the root, then run the checks that CI runs:
 
 ```sh
 bun install
-bun test
+bun run test
 bun run check
 bun run typecheck
 ```

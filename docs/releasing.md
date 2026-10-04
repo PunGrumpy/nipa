@@ -28,7 +28,7 @@ A pull request that only changes tests, CI or docs can add an empty changeset wi
 
 When changesets reach `main`, the Release workflow opens a pull request titled "chore: version packages", and updates it with each new changeset. Merging it does 3 things:
 
-1. Bumps the version in `package.json` and adds the changesets to `CHANGELOG.md`
+1. Bumps the version in `packages/cli/package.json` and adds the changesets to `packages/cli/CHANGELOG.md`
 2. Tags the commit `v<version>`
 3. Builds the binaries for macOS, Linux and Windows, and attaches them and a `SHA256SUMS` file to a GitHub release, with that version's `CHANGELOG.md` section as the notes
 
@@ -42,4 +42,4 @@ To check a build before a release, run:
 bun run build:release
 ```
 
-It writes the binaries and `SHA256SUMS` to `dist/`. `bun run build` builds only the binary for your machine, as `dist/nipa`.
+It writes the binaries and `SHA256SUMS` to `packages/cli/dist/`. `bun run build` builds only the binary for your machine, as `packages/cli/dist/nipa`.

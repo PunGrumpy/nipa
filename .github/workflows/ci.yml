@@ -41,12 +41,12 @@ jobs:
       - name: Install fish
         if: runner.os == 'macOS'
         run: brew install fish
-      - run: bun test
+      - run: bun run test
       - name: Smoke-test the compiled binary
         run: |
           bun run build
-          ./dist/nipa --version
-          ./dist/nipa completion bash > /dev/null
+          ./packages/cli/dist/nipa --version
+          ./packages/cli/dist/nipa completion bash > /dev/null
 
   changeset:
     name: Changeset

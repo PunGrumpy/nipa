@@ -1,0 +1,43 @@
+{
+  "name": "nipa-cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Nipa Cloud from your terminal: log in with MFA once, then run openstack and terraform with the session.",
+  "keywords": [
+    "cli",
+    "keystone",
+    "mfa",
+    "nipa-cloud",
+    "openstack",
+    "terraform",
+    "totp"
+  ],
+  "homepage": "https://github.com/PunGrumpy/nipa-cli#readme",
+  "bugs": "https://github.com/PunGrumpy/nipa-cli/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PunGrumpy/nipa-cli.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "nipa": "./src/index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "build": "bun build src/index.ts --compile --minify --outfile dist/nipa",
+    "build:release": "bun scripts/build-release.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.7.2",
+    "picocolors": "^1.1.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^6"
+  }
+}

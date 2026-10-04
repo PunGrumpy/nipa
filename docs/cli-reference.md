@@ -2,7 +2,7 @@
 
 # CLI reference
 
-This page lists the commands, options, environment variables, files, exit codes and JSON output of `nipa`. It matches the code in `src/` and the output of `nipa <command> --help`.
+This page lists the commands, options, environment variables, files, exit codes and JSON output of `nipa`. It matches the code in `packages/cli/src/` and the output of `nipa <command> --help`.
 
 ## Commands
 
