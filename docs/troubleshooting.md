@@ -22,6 +22,14 @@ The profile has no session, or its token expired after the 24 hours a Nipa Cloud
 
 In a script, nothing can type a password, so nipa stops with this error instead. Run `nipa login` in a terminal, then run the script again.
 
+## "your prod session expired or was revoked"
+
+Keystone or an OpenStack service refused the token before it expired, for example after you changed your password. Run `nipa login` to get a new token.
+
+## "there's no compute endpoint in …"
+
+Keystone's catalog has no public compute endpoint in the profile's region. Check the region with `nipa profile ls`. Nipa Cloud production uses `NCP-TH`.
+
 ## "`nipa login` needs a terminal to ask for your password"
 
 You ran `nipa login` where nothing can type the answers, such as in continuous integration (CI) or with stdin redirected. nipa never reads a password from a pipe. Log in from a terminal first.
@@ -36,7 +44,7 @@ The request never got an answer. The host name didn't resolve, the server refuse
 
 ## "… doesn't answer like Keystone v3"
 
-`nipa profile add` sent a request to the URL and the answer wasn't Keystone's version document. Check that the URL is the identity endpoint, usually ending in `/v3`, and not the portal.
+`nipa profile add` sent a request to the URL and the answer wasn't Keystone's version document. Check that the URL is the identity endpoint, such as `https://identity-api.nipa.cloud/v3`, and not the portal.
 
 ## "command not found: openstack"
 

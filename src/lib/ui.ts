@@ -21,6 +21,24 @@ export class CliError extends Error {
 export const formatElapsed = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${Math.round(ms / 1000)}s`;
 
+const AGE_UNITS = [
+  ["d", 86_400_000],
+  ["h", 3_600_000],
+  ["m", 60_000],
+  ["s", 1000],
+] as const;
+
+/** Rounds to the largest unit, such as 3d or 45m, like the Vercel CLI. */
+export const formatAge = (ms: number): string => {
+  const age = Math.max(0, ms);
+  for (const [unit, size] of AGE_UNITS) {
+    if (age >= size) {
+      return `${Math.round(age / size)}${unit}`;
+    }
+  }
+  return `${Math.round(age)}ms`;
+};
+
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
   const hours = Math.floor(minutes / 60);
@@ -134,7 +152,7 @@ export const askConfirm = (options: {
   default: boolean;
 }): Promise<boolean> => prompt(() => confirm(options, promptContext));
 
-export const { bold, cyan, dim, green } = pc;
+export const { bold, cyan, dim, gray, green, red, yellow } = pc;
 
 export type Paint = (text: string) => string;
 

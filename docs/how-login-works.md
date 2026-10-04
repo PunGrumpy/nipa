@@ -35,4 +35,10 @@ When you run `nipa os`, `nipa tf` or `nipa exec`, nipa starts the command with t
 
 nipa first removes every other `OS_*` variable from the environment. A stale `OS_PASSWORD` or `OS_CLOUD` from an old openrc would otherwise override the token.
 
+## How nipa finds each service
+
+`nipa server ls` calls the compute API without the OpenStack client. To find that API, nipa reads the service catalog, Keystone's list of each service's URLs, with `GET /v3/auth/catalog`. It does this once per session and saves each service's public URL in the profile's region with the session in `auth.json`.
+
+`nipa login` and `nipa switch` start a new session, so nipa reads the catalog again for the new project.
+
 `nipa logout` sends `DELETE /v3/auth/tokens` to revoke the token, then deletes it from `auth.json`. Keystone also expires it on its own after 24 hours on Nipa Cloud.

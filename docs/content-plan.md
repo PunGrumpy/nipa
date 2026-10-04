@@ -13,7 +13,7 @@ These docs serve 2 groups of readers:
 
 After reading the docs, readers should be able to:
 
-1. Install nipa, log in and run an OpenStack command.
+1. Install nipa, log in and list the servers in their project.
 2. Add a profile for another Keystone and run commands against it.
 3. Explain why nipa asks for an OTP code only on some accounts.
 4. Find the cause of a login or session error.

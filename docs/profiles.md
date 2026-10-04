@@ -34,7 +34,7 @@ Log in once per profile. The `staging` session doesn't replace the `prod` one:
 
 ```sh
 nipa -P staging login
-nipa -P staging os server list
+nipa -P staging server ls
 nipa -P staging tf plan
 ```
 

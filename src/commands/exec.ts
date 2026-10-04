@@ -1,9 +1,8 @@
 import { constants } from "node:os";
 
 import { childEnv, findCommand, sessionEnv } from "../lib/env";
-import { DEFAULT_PROFILE } from "../lib/store";
-import { bold, CliError, dim, log } from "../lib/ui";
-import { requireSession } from "./login";
+import { CliError } from "../lib/ui";
+import { announceProfile, requireSession } from "./login";
 import type { Globals } from "./login";
 
 const INSTALL_HINTS = new Map([
@@ -30,10 +29,7 @@ export const exec = async (input: {
     });
   }
   const { active, session } = await requireSession(input.globals);
-  if (active.name !== DEFAULT_PROFILE) {
-    const host = dim(`(${new URL(active.profile.authUrl).host})`);
-    log(`Using profile ${bold(active.name)} ${host}`);
-  }
+  announceProfile(active);
 
   const child = Bun.spawn([bin, ...rest], {
     env: childEnv(

@@ -3,6 +3,7 @@
 import pkg from "../package.json" with { type: "json" };
 import { createCommands, MAIN_EXAMPLES } from "./commands/registry";
 import type { Command } from "./commands/registry";
+import { ApiError } from "./lib/api";
 import { commandHelp, mainHelp } from "./lib/help";
 import { isDebug, NetworkError } from "./lib/http";
 import { KeystoneError } from "./lib/keystone";
@@ -174,7 +175,7 @@ const toCliError = (error: Error): CliError | undefined => {
   if (error instanceof CliError) {
     return error;
   }
-  if (error instanceof KeystoneError) {
+  if (error instanceof KeystoneError || error instanceof ApiError) {
     const serverSide = error.status === 0 || error.status >= 500;
     return new CliError(error.message, {
       hint: serverSide && !isDebug() ? DEBUG_HINT : undefined,

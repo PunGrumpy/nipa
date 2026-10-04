@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import pkg from "../package.json" with { type: "json" };
-import { FAKE_USER, startFakeKeystone } from "./fake-keystone";
+import { FAKE_SERVERS, FAKE_USER, startFakeKeystone } from "./fake-keystone";
 import type { FakeKeystone } from "./fake-keystone";
 import {
   ENTRY,
@@ -35,6 +35,9 @@ const exitCode = async (args: string[]): Promise<number> => {
 const readJsonFile = async (name: string) =>
   JSON.parse(await readFile(path.join(dir, name), "utf-8"));
 
+const catalogReads = () =>
+  keystone.requests.filter((r) => r === "GET /v3/auth/catalog").length;
+
 const freshDir = async () => {
   await rm(dir, { force: true, recursive: true });
   dir = await mkdtemp(path.join(tmpdir(), "nipa-test-"));
@@ -56,6 +59,7 @@ describe("help and usage", () => {
     expect(code).toBe(0);
     for (const text of [
       "Session:",
+      "Resources:",
       "Run tools:",
       "Setup:",
       "Global options:",
@@ -320,6 +324,94 @@ describe("with a session", () => {
     expect(stderr).toContain("Logged out of prod");
     const after = await run(["whoami"]);
     expect(after.code).toBe(1);
+  });
+});
+
+describe("server ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's servers from every page", async () => {
+    const before = catalogReads();
+    const { code, stdout } = await run(["server", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { profile, project, servers } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(servers.map((s: { id: string }) => s.id)).toEqual(
+      FAKE_SERVERS.map((s) => s.id)
+    );
+    expect(servers[1]).toMatchObject({
+      flavor: "csa.large.v2",
+      name: "web-1",
+      status: "ACTIVE",
+    });
+    expect(catalogReads()).toBe(before + 1);
+  });
+
+  test("keeps the endpoints with the session, so the next run skips the catalog", async () => {
+    const auth = await readJsonFile("auth.json");
+    expect(auth.sessions.prod.endpoints).toEqual({
+      compute: `${keystone.url}/compute/v2.1/`,
+      identity: `${keystone.url}/v3`,
+    });
+    const before = catalogReads();
+    expect(await exitCode(["server", "ls", "--json"])).toBe(0);
+    expect(catalogReads()).toBe(before);
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["servers", "list"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Servers in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Status\s+Address\s+Flavor\s+Age/u);
+    expect(stderr).toMatch(
+      /web-1\s+● Active\s+203\.0\.113\.10\s+csa\.large\.v2\s+3d/u
+    );
+    expect(stdout.trim().split("\n")).toEqual(FAKE_SERVERS.map((s) => s.id));
+  });
+
+  test("a project without servers reads the catalog again after a switch", async () => {
+    const before = catalogReads();
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["server", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No servers in Beta");
+    expect(stdout).toBe("");
+    expect(catalogReads()).toBe(before + 1);
+  });
+
+  test("a revoked token asks for a new login", async () => {
+    const auth = await readJsonFile("auth.json");
+    const { token } = auth.sessions.prod;
+    await fetch(`${keystone.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const { code, stderr } = await run(["server", "ls"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("your prod session expired or was revoked");
+    expect(stderr).toContain("Run `nipa login`.");
+  });
+
+  test("a region without compute says so", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const config = await readJsonFile("config.json");
+    config.profiles.prod.region = "XX";
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    const { code, stderr } = await run(["server", "ls"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("there's no compute endpoint in XX");
+    expect(stderr).toContain("nipa profile ls");
+  });
+
+  test("an unknown subcommand exits 2", async () => {
+    const { code, stderr } = await run(["server", "nope"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain('unknown subcommand "server nope"');
   });
 });
 

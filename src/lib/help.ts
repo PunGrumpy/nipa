@@ -79,7 +79,7 @@ export const mainHelp = (input: {
     `  ${pc.bold("nipa")} ${version}`,
     "",
     wrap(
-      "Log in to Nipa Cloud once, then run openstack and terraform with the session.",
+      "Log in to Nipa Cloud once, then list your servers, or run openstack and terraform with the session.",
       "  "
     ),
     "",
