@@ -19,12 +19,18 @@ jobs:
     name: Lint and typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun run typecheck
       - run: bun run --cwd packages/cli check:package
+      # Fails when install, the formatter or a build changed a tracked file,
+      # such as a bun.lock that wasn't committed.
+      - name: Check that the working tree is clean
+        run: git diff --exit-code
 
   test:
     name: Test / ${{ matrix.os }}
@@ -34,12 +40,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       # The npm package supports Node.js 22.13 and later, so test the oldest.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.13.0
+          package-manager-cache: false
       - run: bun install --frozen-lockfile
       # bash, zsh and pwsh come with the runners; fish does not.
       - name: Install fish and zsh
@@ -67,10 +76,44 @@ jobs:
     if: "github.event_name == 'pull_request' && github.event.pull_request.title != 'chore: version packages' && !contains(github.event.pull_request.labels.*.name, 'semver: none')"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - run: bun install --frozen-lockfile
       # Fails when the pull request has no changeset. Add one with `bun changeset`.
-      - run: bunx changeset status --since=origin/${{ github.base_ref }}
+      - run: bunx changeset status --since="origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+  # Audits the workflows for security problems, such as an action that isn't
+  # pinned to a commit or a template that expands into a shell command.
+  zizmor:
+    name: Audit workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: pipx run zizmor==1.30.1 --format=github .github/workflows/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # One check for branch protection to require, whatever jobs this file adds.
+  # A skipped job, such as Changeset on a `semver: none` pull request, passes.
+  summary:
+    name: Summary
+    if: always()
+    needs: [check, test, changeset, zizmor]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "A job finished with: $result"
+              exit 1
+            fi
+          done
