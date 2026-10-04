@@ -161,6 +161,43 @@ describe("toEndpoints", () => {
   });
 });
 
+describe("behind a gateway that strips 401 bodies", () => {
+  let keystone: FakeKeystone;
+  let mfa: Account;
+
+  beforeAll(() => {
+    keystone = startFakeKeystone({ stripErrorBodies: true });
+    mfa = {
+      authUrl: keystone.url,
+      userDomain: "nipacloud",
+      username: FAKE_USER.name,
+    };
+  });
+
+  afterAll(() => {
+    keystone.stop();
+  });
+
+  test("an auth receipt without rules still asks for the OTP code", async () => {
+    const first = await loginWithPassword(mfa, FAKE_PASSWORD);
+    if (first.kind !== "mfa") {
+      throw new Error("expected an auth receipt");
+    }
+    const token = await continueWithTotp({
+      account: mfa,
+      passcode: FAKE_PASSCODE,
+      receipt: first.receipt,
+    });
+    expect(token.user).toEqual(FAKE_USER);
+  });
+
+  test("a wrong password says so", async () => {
+    await expect(loginWithPassword(mfa, "nope")).rejects.toThrow(
+      "wrong email or password"
+    );
+  });
+});
+
 describe("against a fake Keystone", () => {
   let keystone: FakeKeystone;
   let mfa: Account;
