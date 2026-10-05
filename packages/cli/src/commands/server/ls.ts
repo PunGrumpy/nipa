@@ -1,6 +1,7 @@
 import { handle } from "../../util/command";
 import { listServers } from "../../util/compute";
 import type { Server } from "../../util/compute";
+import { statusCell } from "../../util/status";
 import {
   bold,
   dim,
@@ -12,7 +13,7 @@ import {
   withSpinner,
 } from "../../util/ui";
 import { lsSubcommand } from "./command";
-import { mainAddress, statusCell } from "./format";
+import { mainAddress } from "./format";
 
 const printServers = (servers: readonly Server[], now: number): void => {
   printTable({
