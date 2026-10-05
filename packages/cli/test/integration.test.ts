@@ -18,8 +18,14 @@ import {
   seedSession,
   testEnv,
 } from "./helpers";
-import { FAKE_SERVERS, FAKE_USER, startFakeKeystone } from "./mocks/keystone";
+import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
+import {
+  FAKE_DATABASES,
+  FAKE_IPS,
+  FAKE_LOAD_BALANCERS,
+  FAKE_SERVERS,
+} from "./mocks/space";
 
 let dir: string;
 let keystone: FakeKeystone;
@@ -457,6 +463,139 @@ describe("server ls", () => {
     const { code, stderr } = await run(["server", "nope"]);
     expect(code).toBe(2);
     expect(stderr).toContain('unknown subcommand "server nope"');
+  });
+});
+
+describe("db ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's databases, newest first", async () => {
+    const { code, stdout } = await run(["db", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { databases, profile, project } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(databases.map((d: { name: string }) => d.name)).toEqual([
+      "cache",
+      "analytics",
+      "orders",
+    ]);
+    expect(databases[2]).toMatchObject({
+      id: FAKE_DATABASES[0]?.id,
+      primary: { engine: "mysql", externalAddress: "203.0.113.20" },
+    });
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["databases"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Databases in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Engine\s+Status\s+Address\s+Flavor\s+Age/u);
+    expect(stderr).toMatch(
+      /orders\s+mysql 8\.0\.34\s+● Active\s+203\.0\.113\.20\s+dsa\.large\.v1\s+30d/u
+    );
+    expect(stderr).toMatch(
+      /analytics\s+postgresql 17\.10\s+● Build\s+192\.0\.2\.21/u
+    );
+    expect(stderr).toMatch(/cache\s+-\s+-\s+-\s+-\s+1m/u);
+    expect(stdout.trim().split("\n")).toHaveLength(FAKE_DATABASES.length);
+  });
+
+  test("a project without databases says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["db", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No databases in Beta");
+    expect(stdout).toBe("");
+  });
+});
+
+describe("lb ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's load balancers, newest first", async () => {
+    const { code, stdout } = await run(["lb", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { loadBalancers, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(loadBalancers.map((lb: { id: string }) => lb.id)).toEqual(
+      FAKE_LOAD_BALANCERS.map((lb) => lb.id).toReversed()
+    );
+    expect(loadBalancers[0]).toMatchObject({
+      health: "OFFLINE",
+      listeners: 0,
+      status: "PENDING_CREATE",
+    });
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["loadbalancers"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Load balancers in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(
+      /Name\s+Status\s+Health\s+Address\s+Listeners\s+Age/u
+    );
+    expect(stderr).toMatch(
+      /web-lb\s+● Active\s+● Online\s+192\.0\.2\.30\s+2\s+7d/u
+    );
+    expect(stderr).toMatch(/api-lb\s+● Pending create\s+● Offline/u);
+    expect(stdout.trim().split("\n")).toHaveLength(FAKE_LOAD_BALANCERS.length);
+  });
+
+  test("a project without load balancers says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["lb", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No load balancers in Beta");
+    expect(stdout).toBe("");
+  });
+});
+
+describe("ip ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's external IPs", async () => {
+    const { code, stdout } = await run(["ip", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { ips, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(ips).toHaveLength(FAKE_IPS.length);
+    expect(ips[0]).toMatchObject({
+      address: "203.0.113.10",
+      internalAddress: "192.0.2.5",
+      status: "ACTIVE",
+    });
+  });
+
+  test("prints a table on stderr and one address per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["ips"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> External IPs in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Address\s+Status\s+Internal IP\s+Zone\s+Name/u);
+    expect(stderr).toMatch(
+      /203\.0\.113\.20\s+● Active\s+192\.0\.2\.20\s+NCP-BKK\s+orders's Public IP/u
+    );
+    expect(stderr).toMatch(/203\.0\.113\.99\s+● Down\s+-\s+NCP-NON\s+spare/u);
+    expect(stdout.trim().split("\n")).toEqual(
+      FAKE_IPS.map((ip) => ip.external_ip_address)
+    );
+  });
+
+  test("a project without external IPs says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["ip", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No external IPs in Beta");
+    expect(stdout).toBe("");
   });
 });
 

@@ -15,6 +15,9 @@ nipa has 11 commands. Without a command, it prints help.
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code |
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
+| `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
+| `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
+| `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
@@ -32,7 +35,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
-| `--json` | `whoami`, `profile ls`, `server ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
@@ -135,6 +138,71 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "status": "ACTIVE"
     }
   ]
+}
+```
+
+`nipa db ls --json` prints the profile, the project and its database clusters, newest first. `primary` is the instance that takes writes, or `null` while the cluster is being created. Its `status` is the instance's status, such as `ACTIVE` or `BUILD`, `health` is `HEALTHY` when the database answers, and `externalAddress` is `null` without an external IP:
+
+```json
+{
+  "databases": [
+    {
+      "createdAt": "2030-01-01T00:00:00.000Z",
+      "id": "9abc…",
+      "name": "orders",
+      "primary": {
+        "address": "192.0.2.20",
+        "engine": "mysql",
+        "externalAddress": "203.0.113.20",
+        "flavor": "dsa.large.v1",
+        "health": "HEALTHY",
+        "status": "ACTIVE",
+        "storageGb": 10,
+        "version": "8.0.34"
+      }
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
+
+`nipa lb ls --json` prints the profile, the project and its load balancers, newest first. `status` is Octavia's provisioning status, such as `ACTIVE` or `PENDING_CREATE`, `health` its operating status, such as `ONLINE` or `OFFLINE`, and `address` the virtual IP:
+
+```json
+{
+  "loadBalancers": [
+    {
+      "address": "192.0.2.30",
+      "createdAt": "2030-01-01T10:00:00+07:00",
+      "health": "ONLINE",
+      "id": "9abc…",
+      "listeners": 2,
+      "name": "web-lb",
+      "status": "ACTIVE"
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
+
+`nipa ip ls --json` prints the profile, the project and its external IPs. `status` is `ACTIVE` when the IP forwards traffic and `DOWN` when it doesn't, and `internalAddress` is `null` when the IP isn't attached:
+
+```json
+{
+  "ips": [
+    {
+      "address": "203.0.113.10",
+      "id": "9abc…",
+      "internalAddress": "192.0.2.5",
+      "name": "203.0.113.10",
+      "status": "ACTIVE",
+      "zone": "NCP-BKK"
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
 }
 ```
 

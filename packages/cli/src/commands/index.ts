@@ -5,8 +5,11 @@
 import type { Program } from "../util/command";
 import { complete } from "./complete";
 import { completion } from "./completion";
+import { db } from "./db";
 import { env } from "./env";
 import { exec } from "./exec";
+import { ip } from "./ip";
+import { lb } from "./lb";
 import { login } from "./login";
 import { logout } from "./logout";
 import { os } from "./os";
@@ -32,10 +35,10 @@ export const program: Program = {
   hidden: [complete],
   sections: [
     { commands: [login, logout, whoami, switchProject], title: "Session" },
-    { commands: [server], title: "Resources" },
+    { commands: [server, db, lb, ip], title: "Resources" },
     { commands: [os, tf, exec, env], title: "Run tools" },
     { commands: [profile, completion], title: "Setup" },
   ],
   summary:
-    "Log in to Nipa Cloud once, then list your servers, or run openstack and terraform with the session.",
+    "Log in to Nipa Cloud once, then list your servers, databases, load balancers and external IPs, or run openstack and terraform with the session.",
 };

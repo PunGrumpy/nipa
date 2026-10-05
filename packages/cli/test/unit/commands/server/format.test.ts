@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  mainAddress,
-  statusLabel,
-} from "../../../../src/commands/server/format";
+import { mainAddress } from "../../../../src/commands/server/format";
 import type { Address, Server } from "../../../../src/util/compute";
 
 const address = (
@@ -23,16 +20,6 @@ const withAddresses = (addresses: Address[]): Server => ({
   id: "s1",
   name: "web-1",
   status: "ACTIVE",
-});
-
-describe("statusLabel", () => {
-  test.each([
-    ["ACTIVE", "Active"],
-    ["HARD_REBOOT", "Hard reboot"],
-    ["SHELVED_OFFLOADED", "Shelved offloaded"],
-  ])("%s -> %s", (status, label) => {
-    expect(statusLabel(status)).toBe(label);
-  });
 });
 
 describe("mainAddress", () => {

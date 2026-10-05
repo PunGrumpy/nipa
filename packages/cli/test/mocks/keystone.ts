@@ -1,11 +1,13 @@
 // me@example.com has the MFA rule password + totp. plain@example.com has no MFA.
-// The Space API is on the same server under /api, where Alpha has 3 servers
-// and the other projects have none. With gateway, Keystone answers like Nipa's
-// gateway: every 401 has an empty body, and a token without a catalog fails.
+// The fake Space API in ./space is on the same server under /api, where Alpha
+// owns every resource. With gateway, Keystone answers like Nipa's gateway:
+// every 401 has an empty body, and a token without a catalog fails.
 
 import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
+
+import { handleSpace, spaceFault } from "./space";
 
 export const FAKE_USER = { id: "u1", name: "me@example.com" };
 export const PLAIN_USER = { id: "u2", name: "plain@example.com" };
@@ -27,49 +29,6 @@ const PROJECTS = [
     name: "Gone",
   },
   { domain_id: "d1", enabled: true, id: ALPHA_ID, name: "Alpha" },
-];
-
-const DAY_MS = 86_400_000;
-
-const flavor = (name: string) => ({
-  disk: 0,
-  id: `flavor-${name}`,
-  name,
-  ram: 4096,
-  vcpus: 2,
-});
-
-const ip = (address: string) => ({ address });
-
-/** Alpha's servers, newest first, the way the Space API lists them. */
-export const FAKE_SERVERS = [
-  {
-    ageMs: 2 * 60_000,
-    external_ips: [],
-    flavor: flavor("csa.large.v2"),
-    id: "33333333-3333-4333-8333-333333333333",
-    internal_ips: [ip("192.0.2.7")],
-    name: "web-2",
-    status: "BUILD",
-  },
-  {
-    ageMs: 3 * DAY_MS,
-    external_ips: [ip("203.0.113.10")],
-    flavor: flavor("csa.large.v2"),
-    id: "22222222-2222-4222-8222-222222222222",
-    internal_ips: [ip("192.0.2.5"), ip("2001:db8::5")],
-    name: "web-1",
-    status: "ACTIVE",
-  },
-  {
-    ageMs: 40 * DAY_MS,
-    external_ips: [],
-    flavor: flavor("csa.xlarge.v2"),
-    id: "11111111-1111-4111-8111-111111111111",
-    internal_ips: [ip("198.51.100.4")],
-    name: "db-1",
-    status: "SHUTOFF",
-  },
 ];
 
 const USERS = new Map([
@@ -113,29 +72,6 @@ const unauthorized = () =>
     },
     { status: 401 }
   );
-
-const spaceFault = (status: number, message: string) =>
-  Response.json({ message, status }, { status });
-
-// The Space API takes a Keystone token and names the project in a header.
-const listServers = (req: Request) => {
-  const projectId = req.headers.get("Project-Id");
-  if (!projectId) {
-    return spaceFault(
-      400,
-      "The 'project-id' header is required to access this API."
-    );
-  }
-  const servers = projectId === ALPHA_ID ? FAKE_SERVERS : [];
-  return Response.json({
-    instances: servers.map(({ ageMs, ...server }) => ({
-      ...server,
-      created: new Date(Date.now() - ageMs).toISOString(),
-      tenant_id: projectId,
-    })),
-    page_control: { current_filter: {}, max_item: servers.length },
-  });
-};
 
 const IssuedSchema = z.object({
   token: z.object({ project: z.object({ id: z.string() }).optional() }),
@@ -263,13 +199,11 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     );
   };
 
-  const space = (req: Request, pathname: string): Response => {
+  const space = (req: Request): Response => {
     if (!tokens.has(req.headers.get("X-Auth-Token") ?? "")) {
       return spaceFault(401, "The requested resource requires authorization.");
     }
-    return pathname === "/api/v3/instances"
-      ? listServers(req)
-      : new Response("Not Found", { status: 404 });
+    return handleSpace({ owner: ALPHA_ID, req });
   };
 
   const handle = (req: Request): Response | Promise<Response> => {
@@ -295,7 +229,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
       const { pathname } = new URL(req.url);
       if (pathname.startsWith("/api/")) {
         requests.push(`${req.method} ${pathname}`);
-        return space(req, pathname);
+        return space(req);
       }
       return gateway ? throughGateway(req, await handle(req)) : handle(req);
     },
