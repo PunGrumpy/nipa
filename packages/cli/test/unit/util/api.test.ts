@@ -98,6 +98,11 @@ describe("listServers", () => {
       flavor: "csa.large.v2",
       status: "ACTIVE",
     });
+    expect(servers[1]?.kubernetes).toBeNull();
+    expect(servers[3]?.kubernetes).toEqual({
+      clusterId: "dddd1111-0000-4000-8000-000000000001",
+      role: "master",
+    });
     expect(servers[1]?.addresses).toEqual([
       { address: "192.0.2.5", type: "fixed", version: 4 },
       { address: "2001:db8::5", type: "fixed", version: 6 },

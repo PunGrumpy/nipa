@@ -390,8 +390,13 @@ describe("server ls", () => {
         { address: "203.0.113.10", type: "floating", version: 4 },
       ],
       flavor: "csa.large.v2",
+      kubernetes: null,
       name: "web-1",
       status: "ACTIVE",
+    });
+    expect(servers[3].kubernetes).toEqual({
+      clusterId: "dddd1111-0000-4000-8000-000000000001",
+      role: "master",
     });
     expect(serverLists()).toBe(before + 1);
   });
@@ -417,6 +422,9 @@ describe("server ls", () => {
     expect(stderr).toMatch(/Name\s+Status\s+Address\s+Flavor\s+Age/u);
     expect(stderr).toMatch(
       /web-1\s+● Active\s+203\.0\.113\.10\s+csa\.large\.v2\s+3d/u
+    );
+    expect(stderr).toMatch(
+      /k8s-control-plane-1 \(Kubernetes master\)\s+● Active\s+198\.51\.100\.9/u
     );
     expect(stdout.trim().split("\n")).toEqual(FAKE_SERVERS.map((s) => s.id));
   });

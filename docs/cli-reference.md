@@ -14,7 +14,7 @@ nipa has 11 commands. Without a command, it prints help.
 | `nipa logout` | Revokes the current profile's token and deletes its session |
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code |
-| `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
+| `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. A server that a Kubernetes cluster made shows its role after its name, such as `(Kubernetes master)`. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
@@ -116,7 +116,7 @@ nipa exits with these codes:
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
 
-`nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the server's OpenStack status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` for an internal IP or `floating` for an external one:
+`nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the server's OpenStack status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` for an internal IP or `floating` for an external one. `kubernetes` is `null` for a server you made. For a Kubernetes node, it has the Magnum cluster's `clusterId` and the node's `role`, such as `master`. `role` is `null` when Magnum sets none:
 
 ```json
 {
@@ -134,6 +134,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "createdAt": "2030-01-01T00:00:00Z",
       "flavor": "csa.large.v2",
       "id": "9abc…",
+      "kubernetes": null,
       "name": "web-1",
       "status": "ACTIVE"
     }

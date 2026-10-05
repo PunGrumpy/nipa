@@ -49,6 +49,20 @@ export const FAKE_SERVERS = [
     name: "db-1",
     status: "SHUTOFF",
   },
+  {
+    ageMs: 60 * DAY_MS,
+    external_ips: [],
+    flavor: flavor("csa.xlarge.v2"),
+    id: "44444444-4444-4444-8444-444444444444",
+    internal_ips: [ip("198.51.100.9")],
+    metadata: {
+      kube_version: "1.34.9",
+      magnum_cluster_id: "dddd1111-0000-4000-8000-000000000001",
+      magnum_role: "master",
+    },
+    name: "k8s-control-plane-1",
+    status: "ACTIVE",
+  },
 ];
 
 const primary = (input: {
