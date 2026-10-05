@@ -48,6 +48,17 @@ If the host is `space.nipa.cloud`, logging in worked and the Space API didn't an
 
 nipa looked for `openstack` on your `PATH` and in `~/.local/bin` and didn't find it. Install the OpenStack client with `pipx install python-openstackclient`. For `terraform`, install Terraform.
 
+## "public endpoint for … service in … region not found"
+
+`openstack` didn't find the service in the token's service catalog, Keystone's list of each service's URLs. On Nipa Cloud production, the catalog lists only these services:
+
+- `compute`, `network` and `image`
+- `volumev2` and `volumev3`
+- `load-balancer` and `key-manager`
+- `identity`
+
+So `nipa os coe`, `nipa os database`, `nipa os stack` and `nipa os object` fail on production. nipa can't add a service that the catalog leaves out. Use the [Nipa Cloud Space](https://space.nipa.cloud) portal for those services, or a profile whose Keystone lists them, such as staging. To find the servers of a Kubernetes cluster, run `nipa server ls`, which marks them with `(Kubernetes master)` or another role.
+
 ## "…/auth.json: …" or "…/config.json: …"
 
 The file doesn't match the format nipa expects, for example after you edit it by hand. Fix the field the message names, or delete the file. Deleting `auth.json` logs you out of every profile. Deleting `config.json` removes your profiles except `prod`.

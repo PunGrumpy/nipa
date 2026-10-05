@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { mainAddress } from "../../../../src/commands/server/format";
+import { mainAddress, nameCell } from "../../../../src/commands/server/format";
 import type { Address, Server } from "../../../../src/util/compute";
 
 const address = (
@@ -18,6 +18,7 @@ const withAddresses = (addresses: Address[]): Server => ({
   createdAt: "2030-01-01T00:00:00Z",
   flavor: "csa.large.v2",
   id: "s1",
+  kubernetes: null,
   name: "web-1",
   status: "ACTIVE",
 });
@@ -40,5 +41,23 @@ describe("mainAddress", () => {
     const v6 = withAddresses([address("2001:db8::5", 6)]);
     expect(mainAddress(v6)).toBe("2001:db8::5");
     expect(mainAddress(withAddresses([]))).toBeUndefined();
+  });
+});
+
+describe("nameCell", () => {
+  const server = withAddresses([]);
+
+  test("a server people made shows its name", () => {
+    expect(nameCell(server)).toEqual({ text: "web-1" });
+  });
+
+  test("a Kubernetes node names its role, or node without one", () => {
+    const master = {
+      ...server,
+      kubernetes: { clusterId: "c1", role: "master" },
+    };
+    expect(nameCell(master).text).toBe("web-1 (Kubernetes master)");
+    const node = { ...server, kubernetes: { clusterId: "c1", role: null } };
+    expect(nameCell(node).text).toBe("web-1 (Kubernetes node)");
   });
 });

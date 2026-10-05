@@ -13,13 +13,13 @@ import {
   withSpinner,
 } from "../../util/ui";
 import { lsSubcommand } from "./command";
-import { mainAddress } from "./format";
+import { mainAddress, nameCell } from "./format";
 
 const printServers = (servers: readonly Server[], now: number): void => {
   printTable({
     headings: ["Name", "Status", "Address", "Flavor", "Age"],
     rows: servers.map((server) => [
-      { text: server.name },
+      nameCell(server),
       statusCell(server.status),
       { text: mainAddress(server) ?? "-" },
       { text: server.flavor },
