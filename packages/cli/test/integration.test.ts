@@ -509,7 +509,7 @@ describe("server ls", () => {
     expect(stderr).not.toContain("aren't logged in");
   });
 
-  test("nipa 0.1.4's production Space API on another Keystone is dropped", async () => {
+  test("nipa 0.1.4's production Space API on another Keystone is dropped, and a portal URL gets /api", async () => {
     await freshDir();
     await writeFile(
       path.join(dir, "config.json"),
@@ -519,6 +519,12 @@ describe("server ls", () => {
           old: {
             authUrl: "https://identity-api.nipa.cloud/v3",
             region: "NCP-TH",
+            userDomain: "nipacloud",
+          },
+          portal: {
+            authUrl: "https://keystone.example.com/v3",
+            region: "NCP-TH",
+            spaceUrl: "https://portal.example.com",
             userDomain: "nipacloud",
           },
           staging: {
@@ -535,6 +541,7 @@ describe("server ls", () => {
     const byName = (name: string) =>
       profiles.find((p: { name: string }) => p.name === name);
     expect(byName("staging").spaceUrl).toBeUndefined();
+    expect(byName("portal").spaceUrl).toBe("https://portal.example.com/api");
     expect(byName("old").spaceUrl).toBe("https://space.nipa.cloud/api");
   });
 

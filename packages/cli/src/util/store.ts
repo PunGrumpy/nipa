@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { spaceApiUrl } from "./api";
 import { ProjectSchema } from "./keystone";
 
 export const DEFAULT_PROFILE = "prod";
@@ -37,13 +38,20 @@ type Profiles = z.infer<typeof ProfilesSchema>;
 
 // Profiles from before nipa called the Space API have no spaceUrl, and nipa
 // 0.1.4 gave every new profile production's. Production's Space API takes
-// only production's tokens, so only a profile on production's Keystone gets it.
+// only production's tokens, so only a profile on production's Keystone gets
+// it. 0.1.4 also saved a portal URL as it was, so nipa adds its /api.
 const withSpaceUrl = (profile: Profile): Profile => {
   const { spaceUrl, ...rest } = profile;
   if (profile.authUrl === PROD_PROFILE.authUrl) {
-    return { ...rest, spaceUrl: spaceUrl ?? PROD_PROFILE.spaceUrl };
+    return {
+      ...rest,
+      spaceUrl: spaceApiUrl(spaceUrl ?? PROD_PROFILE.spaceUrl),
+    };
   }
-  return spaceUrl === PROD_PROFILE.spaceUrl ? rest : profile;
+  if (spaceUrl === undefined || spaceUrl === PROD_PROFILE.spaceUrl) {
+    return rest;
+  }
+  return { ...rest, spaceUrl: spaceApiUrl(spaceUrl) };
 };
 
 const withProd = (profiles: Profiles): Profiles => ({

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { request } from "./http";
+import { CliError } from "./ui";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -97,6 +98,12 @@ export const createSpace = (input: {
         const message =
           (await readFault(res)) ?? `the Space API returned HTTP ${res.status}`;
         throw new ApiError(message, res.status);
+      }
+      // A portal answers a path it doesn't know with its web page.
+      if (!res.headers.get("Content-Type")?.includes("json")) {
+        throw new CliError(`${base} doesn't answer like the Space API`, {
+          hint: "Check the profile's `spaceUrl` with `nipa profile ls --json`. It's the portal URL with /api, such as https://space.nipa.cloud/api.",
+        });
       }
       const parsed = await parseBody(res, schema);
       if (!parsed.success) {
