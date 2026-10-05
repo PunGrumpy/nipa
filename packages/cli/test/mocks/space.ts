@@ -17,6 +17,9 @@ const flavor = (name: string) => ({
 
 const ip = (address: string) => ({ address });
 
+// web-1's floating IP, which FAKE_IPS lists too.
+const WEB_1_IP = "203.0.113.10";
+
 /** The servers, newest first, the way the Space API lists them. */
 export const FAKE_SERVERS = [
   {
@@ -30,7 +33,7 @@ export const FAKE_SERVERS = [
   },
   {
     ageMs: 3 * DAY_MS,
-    external_ips: [ip("203.0.113.10")],
+    external_ips: [ip(WEB_1_IP)],
     flavor: flavor("csa.large.v2"),
     id: "22222222-2222-4222-8222-222222222222",
     internal_ips: [ip("192.0.2.5"), ip("2001:db8::5")],
@@ -129,6 +132,34 @@ export const FAKE_LOAD_BALANCERS = [
   },
 ];
 
+/** The external IPs. An IP without an internal address isn't attached. */
+export const FAKE_IPS = [
+  {
+    availability_zone: "NCP-BKK",
+    external_ip_address: WEB_1_IP,
+    id: "cccc1111-0000-4000-8000-000000000001",
+    internal_ip_address: "192.0.2.5",
+    name: WEB_1_IP,
+    status: "ACTIVE",
+  },
+  {
+    availability_zone: "NCP-BKK",
+    external_ip_address: "203.0.113.20",
+    id: "cccc2222-0000-4000-8000-000000000002",
+    internal_ip_address: "192.0.2.20",
+    name: "orders's Public IP",
+    status: "ACTIVE",
+  },
+  {
+    availability_zone: "NCP-NON",
+    external_ip_address: "203.0.113.99",
+    id: "cccc3333-0000-4000-8000-000000000003",
+    internal_ip_address: null,
+    name: "spare",
+    status: "DOWN",
+  },
+];
+
 const createdAt = <T extends { ageMs: number }>({ ageMs, ...rest }: T) => ({
   ...rest,
   created_at: ago(ageMs),
@@ -172,6 +203,10 @@ const routes = new Map<string, (ask: Ask) => object>([
     ({ mine }) => ({
       loadbalancers: mine ? FAKE_LOAD_BALANCERS.map(createdAt) : [],
     }),
+  ],
+  [
+    "/api/v4/external_ips",
+    ({ mine }) => ({ external_ips: mine ? FAKE_IPS : [], price: 0.18 }),
   ],
 ]);
 

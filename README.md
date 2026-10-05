@@ -42,7 +42,7 @@ That's the binary for macOS on Apple silicon. The other files are `nipa-darwin-x
 nipa has commands for 4 jobs:
 
 - **Session**: `login`, `logout`, `whoami` and `switch` to another project without a new OTP code
-- **Resources**: `server ls`, `db ls` and `lb ls` list the servers, managed databases and load balancers in your project, without the OpenStack client
+- **Resources**: `server ls`, `db ls`, `lb ls` and `ip ls` list the servers, managed databases, load balancers and external IPs in your project, without the OpenStack client
 - **Run tools**: `os` runs `openstack`, `tf` runs `terraform`, `exec` runs any command, and `env` prints the `OS_*` variables for your shell
 - **Setup**: `profile` adds another Keystone, such as staging, and `completion` prints tab completion for bash, zsh, fish or PowerShell
 

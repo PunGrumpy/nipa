@@ -22,6 +22,7 @@ import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import {
   FAKE_DATABASES,
+  FAKE_IPS,
   FAKE_LOAD_BALANCERS,
   FAKE_SERVERS,
 } from "./mocks/space";
@@ -552,6 +553,48 @@ describe("lb ls", () => {
     const { code, stderr, stdout } = await run(["lb", "ls"]);
     expect(code).toBe(0);
     expect(stderr).toContain("No load balancers in Beta");
+    expect(stdout).toBe("");
+  });
+});
+
+describe("ip ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's external IPs", async () => {
+    const { code, stdout } = await run(["ip", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { ips, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(ips).toHaveLength(FAKE_IPS.length);
+    expect(ips[0]).toMatchObject({
+      address: "203.0.113.10",
+      internalAddress: "192.0.2.5",
+      status: "ACTIVE",
+    });
+  });
+
+  test("prints a table on stderr and one address per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["ips"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> External IPs in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Address\s+Status\s+Internal IP\s+Zone\s+Name/u);
+    expect(stderr).toMatch(
+      /203\.0\.113\.20\s+● Active\s+192\.0\.2\.20\s+NCP-BKK\s+orders's Public IP/u
+    );
+    expect(stderr).toMatch(/203\.0\.113\.99\s+● Down\s+-\s+NCP-NON\s+spare/u);
+    expect(stdout.trim().split("\n")).toEqual(
+      FAKE_IPS.map((ip) => ip.external_ip_address)
+    );
+  });
+
+  test("a project without external IPs says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["ip", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No external IPs in Beta");
     expect(stdout).toBe("");
   });
 });
