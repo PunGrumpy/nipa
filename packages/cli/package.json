@@ -1,6 +1,6 @@
 {
   "name": "nipa-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The command-line interface for Nipa Cloud",
   "keywords": [
     "cli",
