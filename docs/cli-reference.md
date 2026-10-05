@@ -23,7 +23,7 @@ nipa has 11 commands. Without a command, it prints help.
 | `nipa exec <command> [args...]` | Runs any command with the session |
 | `nipa env [--shell bash\|zsh\|fish]` | Prints the session's `OS_*` variables as shell commands |
 | `nipa profile [ls\|add\|use\|rm]` | Lists, adds, picks or removes profiles |
-| `nipa completion <shell>` | Prints the tab completion script for `bash`, `zsh`, `fish` or `pwsh` |
+| `nipa completion [shell] [--install]` | Prints the tab completion script for `bash`, `zsh`, `fish` or `pwsh`. Without a shell, nipa uses the one in `$SHELL`. With `--install`, nipa saves the script where the shell loads it instead of printing it: `~/.zfunc/_nipa` for zsh, `~/.local/share/bash-completion/completions/nipa` for bash and `~/.config/fish/completions/nipa.fish` for fish. PowerShell has no such folder |
 
 `nipa help <command>` and `nipa <command> --help` print the help for one command. `nipa help profile rm` and `nipa profile rm --help` print the help for one subcommand. A command with subcommands runs its default subcommand when you name none, so `nipa server --json` runs `nipa server ls --json`. A mistyped command name gets a suggestion, such as "Did you mean `nipa login`?".
 
@@ -42,6 +42,7 @@ These options belong to one command:
 | `--region <region>` | `profile add` | The region. The default is `NCP-TH` |
 | `--space-url <url>` | `profile add` | The Space API URL. The default is `https://space.nipa.cloud/api` |
 | `--use` | `profile add` | Makes the new profile the current one |
+| `--install` | `completion` | Saves the script where the shell loads it, instead of printing it |
 | `-y, --yes` | `profile rm` | Removes the profile without asking |
 
 ## Global options
@@ -79,6 +80,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | `auth.json` | `sessions` with each profile's token, expiry time, user and project |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
+| `~/.cache/nipa/completion.json` | Where `nipa completion --install` saved each script, and the nipa version that wrote it. When the version changes, the next command rewrites the script |
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
 

@@ -73,7 +73,13 @@ nipa completes its commands, options and your project names when you press Tab. 
 echo 'eval "$(nipa completion zsh)"' >> ~/.zshrc
 ```
 
-For bash, fish and PowerShell, run `nipa completion --help`.
+The line runs nipa each time zsh starts. To skip that, save the script where your shell loads it instead. nipa rewrites the saved script when nipa updates:
+
+```sh
+nipa completion --install
+```
+
+For zsh, `--install` also prints the `fpath` line to add to `~/.zshrc` when it isn't there. For bash, fish and PowerShell, run `nipa completion --help`.
 
 ## What to read next
 

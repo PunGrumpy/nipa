@@ -56,6 +56,8 @@ The file doesn't match the format nipa expects, for example after you edit it by
 
 The completion script isn't loaded in your current shell. Open a new terminal after you add it to your startup file, or load it now with `eval "$(nipa completion bash)"`. In bash, completion after `nipa tf` and `nipa exec` also needs the `bash-completion` package.
 
+After `nipa completion --install`, zsh loads the script only when `~/.zfunc` is on `$fpath` before `compinit` runs. Check with `print -l $fpath | grep zfunc`. bash loads the saved script only with the `bash-completion` package. If both an `eval` line and a saved script are set up, the last one to load wins, so keep one.
+
 ## The first Tab after `nipa os` is slow
 
 nipa gets openstack's commands from `openstack complete`, which starts Python and loads every client plugin. nipa saves the list in `~/.cache/nipa/openstack.json` and runs `openstack complete` again only after the `openstack` executable changes.

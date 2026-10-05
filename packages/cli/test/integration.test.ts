@@ -38,6 +38,8 @@ const exitCode = async (args: string[]): Promise<number> => {
   return code;
 };
 
+const inDir = (...parts: string[]) => path.join(dir, ...parts);
+
 const readJsonFile = async (name: string) =>
   JSON.parse(await readFile(path.join(dir, name), "utf-8"));
 
@@ -254,6 +256,83 @@ describe("profiles", () => {
     expect(stderr).toContain("Now using prod");
     const config = await readJsonFile("config.json");
     expect(config.currentProfile).toBe("prod");
+  });
+});
+
+describe("completion", () => {
+  beforeAll(freshDir);
+
+  test("prints the script for the shell in $SHELL", async () => {
+    const { code, stdout } = await run(["completion"], { SHELL: "/bin/zsh" });
+    expect(code).toBe(0);
+    expect(stdout).toStartWith("#compdef nipa");
+  });
+
+  test("without a shell or $SHELL, it asks for one", async () => {
+    const { code, stderr } = await run(["completion"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain("missing <shell>");
+    expect(stderr).toContain("`nipa completion zsh`");
+  });
+
+  test("--install writes the zsh script to ~/.zfunc and says how to load it", async () => {
+    const { code, stderr, stdout } = await run([
+      "completion",
+      "zsh",
+      "--install",
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toContain("Installed the zsh completion in ~/.zfunc/_nipa");
+    expect(stderr).toContain("Add `fpath=(~/.zfunc $fpath)` to ~/.zshrc");
+    const script = await readFile(inDir(".zfunc", "_nipa"), "utf-8");
+    expect(script).toStartWith("#compdef nipa");
+    expect(script).toContain("'db:List the databases in your project'");
+  });
+
+  test("skips the fpath line when ~/.zshrc already has it", async () => {
+    await writeFile(inDir(".zshrc"), "fpath=(~/.zfunc $fpath)\n");
+    const { stderr } = await run(["completion", "zsh", "--install"]);
+    expect(stderr).toContain("Open a new terminal to use it.");
+    expect(stderr).not.toContain("fpath=");
+  });
+
+  test("--install finds fish in $SHELL", async () => {
+    const { code, stderr } = await run(["completion", "--install"], {
+      SHELL: "/usr/local/bin/fish",
+    });
+    expect(code).toBe(0);
+    expect(stderr).toContain(
+      "Installed the fish completion in ~/.config/fish/completions/nipa.fish"
+    );
+  });
+
+  test("PowerShell has no folder to install to", async () => {
+    const { code, stderr } = await run(["completion", "pwsh", "--install"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain("can't install the completion for pwsh");
+    expect(stderr).toContain("$PROFILE");
+  });
+
+  test("a script from another version is rewritten on the next command", async () => {
+    const file = inDir(".zfunc", "_nipa");
+    await writeFile(file, "# old\n");
+    const cache = inDir(".cache", "nipa", "completion.json");
+    const installs = JSON.parse(await readFile(cache, "utf-8"));
+    installs.zsh.version = "0.0.1";
+    await writeFile(cache, JSON.stringify(installs));
+    expect(await exitCode(["profile", "ls"])).toBe(0);
+    expect(await readFile(file, "utf-8")).toStartWith("#compdef nipa");
+    const after = JSON.parse(await readFile(cache, "utf-8"));
+    expect(after.zsh.version).toBe(pkg.version);
+    expect(after.fish.version).toBe(pkg.version);
+  });
+
+  test("a script from this version stays as it is", async () => {
+    const file = inDir(".zfunc", "_nipa");
+    await writeFile(file, "# edited\n");
+    expect(await exitCode(["profile", "ls"])).toBe(0);
+    expect(await readFile(file, "utf-8")).toBe("# edited\n");
   });
 });
 
