@@ -4,13 +4,8 @@ import { z } from "zod";
 
 import { ApiError, createSpace } from "../../../src/util/api";
 import { listServers } from "../../../src/util/compute";
-import { loginWithPassword } from "../../../src/util/keystone";
-import {
-  ALPHA_ID,
-  FAKE_PASSWORD,
-  PLAIN_USER,
-  startFakeKeystone,
-} from "../../mocks/keystone";
+import { alphaSpace } from "../../helpers";
+import { startFakeKeystone } from "../../mocks/keystone";
 import type { FakeKeystone } from "../../mocks/keystone";
 import { FAKE_SERVERS } from "../../mocks/space";
 
@@ -96,24 +91,7 @@ describe("listServers", () => {
   });
 
   test("reads the project's servers with flavor names and addresses", async () => {
-    const login = await loginWithPassword(
-      {
-        authUrl: keystone.url,
-        projectId: ALPHA_ID,
-        userDomain: "nipacloud",
-        username: PLAIN_USER.name,
-      },
-      FAKE_PASSWORD
-    );
-    if (login.kind !== "token") {
-      throw new Error("expected a token");
-    }
-    const space = createSpace({
-      projectId: ALPHA_ID,
-      region: "NCP-TH",
-      token: login.token.value,
-      url: `${keystone.url}/api`,
-    });
+    const space = await alphaSpace(keystone.url);
     const servers = await listServers(space);
     expect(servers.map((s) => s.name)).toEqual(FAKE_SERVERS.map((s) => s.name));
     expect(servers[1]).toMatchObject({

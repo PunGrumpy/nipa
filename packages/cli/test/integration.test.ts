@@ -20,7 +20,7 @@ import {
 } from "./helpers";
 import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
-import { FAKE_SERVERS } from "./mocks/space";
+import { FAKE_DATABASES, FAKE_SERVERS } from "./mocks/space";
 
 let dir: string;
 let keystone: FakeKeystone;
@@ -458,6 +458,53 @@ describe("server ls", () => {
     const { code, stderr } = await run(["server", "nope"]);
     expect(code).toBe(2);
     expect(stderr).toContain('unknown subcommand "server nope"');
+  });
+});
+
+describe("db ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's databases, newest first", async () => {
+    const { code, stdout } = await run(["db", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { databases, profile, project } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(databases.map((d: { name: string }) => d.name)).toEqual([
+      "cache",
+      "analytics",
+      "orders",
+    ]);
+    expect(databases[2]).toMatchObject({
+      id: FAKE_DATABASES[0]?.id,
+      primary: { engine: "mysql", externalAddress: "203.0.113.20" },
+    });
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["databases"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Databases in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Engine\s+Status\s+Address\s+Flavor\s+Age/u);
+    expect(stderr).toMatch(
+      /orders\s+mysql 8\.0\.34\s+● Active\s+203\.0\.113\.20\s+dsa\.large\.v1\s+30d/u
+    );
+    expect(stderr).toMatch(
+      /analytics\s+postgresql 17\.10\s+● Build\s+192\.0\.2\.21/u
+    );
+    expect(stderr).toMatch(/cache\s+-\s+-\s+-\s+-\s+1m/u);
+    expect(stdout.trim().split("\n")).toHaveLength(FAKE_DATABASES.length);
+  });
+
+  test("a project without databases says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["db", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No databases in Beta");
+    expect(stdout).toBe("");
   });
 });
 

@@ -199,11 +199,11 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     );
   };
 
-  const space = (req: Request, pathname: string): Response => {
+  const space = (req: Request): Response => {
     if (!tokens.has(req.headers.get("X-Auth-Token") ?? "")) {
       return spaceFault(401, "The requested resource requires authorization.");
     }
-    return handleSpace({ owner: ALPHA_ID, pathname, req });
+    return handleSpace({ owner: ALPHA_ID, req });
   };
 
   const handle = (req: Request): Response | Promise<Response> => {
@@ -229,7 +229,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
       const { pathname } = new URL(req.url);
       if (pathname.startsWith("/api/")) {
         requests.push(`${req.method} ${pathname}`);
-        return space(req, pathname);
+        return space(req);
       }
       return gateway ? throughGateway(req, await handle(req)) : handle(req);
     },

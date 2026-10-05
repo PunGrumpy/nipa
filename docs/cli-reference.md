@@ -15,6 +15,7 @@ nipa has 11 commands. Without a command, it prints help.
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code |
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
+| `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
@@ -32,7 +33,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
-| `--json` | `whoami`, `profile ls`, `server ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `db ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
@@ -135,6 +136,32 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "status": "ACTIVE"
     }
   ]
+}
+```
+
+`nipa db ls --json` prints the profile, the project and its database clusters, newest first. `primary` is the instance that takes writes, or `null` while the cluster is being created. Its `status` is the instance's status, such as `ACTIVE` or `BUILD`, `health` is `HEALTHY` when the database answers, and `externalAddress` is `null` without an external IP:
+
+```json
+{
+  "databases": [
+    {
+      "createdAt": "2030-01-01T00:00:00.000Z",
+      "id": "9abc…",
+      "name": "orders",
+      "primary": {
+        "address": "192.0.2.20",
+        "engine": "mysql",
+        "externalAddress": "203.0.113.20",
+        "flavor": "dsa.large.v1",
+        "health": "HEALTHY",
+        "status": "ACTIVE",
+        "storageGb": 10,
+        "version": "8.0.34"
+      }
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
 }
 ```
 

@@ -5,6 +5,7 @@
 import type { Program } from "../util/command";
 import { complete } from "./complete";
 import { completion } from "./completion";
+import { db } from "./db";
 import { env } from "./env";
 import { exec } from "./exec";
 import { login } from "./login";
@@ -32,7 +33,7 @@ export const program: Program = {
   hidden: [complete],
   sections: [
     { commands: [login, logout, whoami, switchProject], title: "Session" },
-    { commands: [server], title: "Resources" },
+    { commands: [server, db], title: "Resources" },
     { commands: [os, tf, exec, env], title: "Run tools" },
     { commands: [profile, completion], title: "Setup" },
   ],

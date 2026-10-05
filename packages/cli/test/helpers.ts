@@ -1,6 +1,8 @@
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { createSpace } from "../src/util/api";
+import type { Space } from "../src/util/api";
 import {
   ALPHA_ID,
   FAKE_PASSCODE,
@@ -66,6 +68,15 @@ const issueToken = async (keystoneUrl: string): Promise<string> => {
   });
   return res.headers.get("X-Subject-Token") ?? "";
 };
+
+/** The Space API on the fake Keystone, as Alpha. */
+export const alphaSpace = async (keystoneUrl: string): Promise<Space> =>
+  createSpace({
+    projectId: ALPHA_ID,
+    region: "NCP-TH",
+    token: await issueToken(keystoneUrl),
+    url: `${keystoneUrl}/api`,
+  });
 
 const alpha = { domainId: "d1", id: ALPHA_ID, name: "Alpha" };
 

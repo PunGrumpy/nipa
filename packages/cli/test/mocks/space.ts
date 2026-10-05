@@ -48,10 +48,78 @@ export const FAKE_SERVERS = [
   },
 ];
 
-const routes = new Map<string, (mine: boolean) => object>([
+const primary = (input: {
+  engine: string;
+  version: string;
+  status: string;
+  health: string;
+  address: string;
+  externalAddress: string | null;
+}) => ({
+  datastore_type: input.engine,
+  datastore_version: input.version,
+  external_ip_address: input.externalAddress,
+  instance_status: input.status,
+  ip_address: input.address,
+  machine_type: { id: "mt1", name: "dsa.large.v1", ram: 4096, vcpus: 2 },
+  operating_status: input.health,
+  volume_size: 10,
+});
+
+/** The database clusters, oldest first, the way the Space API lists them. */
+export const FAKE_DATABASES = [
+  {
+    ageMs: 30 * DAY_MS,
+    host_name: "orders-aaaa1111",
+    id: "aaaa1111-0000-4000-8000-000000000001",
+    name: "orders",
+    primary: primary({
+      address: "192.0.2.20",
+      engine: "mysql",
+      externalAddress: "203.0.113.20",
+      health: "HEALTHY",
+      status: "ACTIVE",
+      version: "8.0.34",
+    }),
+  },
+  {
+    ageMs: 5 * MINUTE_MS,
+    host_name: "analytics-aaaa2222",
+    id: "aaaa2222-0000-4000-8000-000000000002",
+    name: "analytics",
+    primary: primary({
+      address: "192.0.2.21",
+      engine: "postgresql",
+      externalAddress: null,
+      health: "UNKNOWN",
+      status: "BUILD",
+      version: "17.10",
+    }),
+  },
+  {
+    ageMs: MINUTE_MS,
+    host_name: "cache-aaaa3333",
+    id: "aaaa3333-0000-4000-8000-000000000003",
+    name: "cache",
+    primary: null,
+  },
+];
+
+const createdAt = <T extends { ageMs: number }>({ ageMs, ...rest }: T) => ({
+  ...rest,
+  created_at: ago(ageMs),
+});
+
+interface Ask {
+  /** Whether the project in the request owns the fake resources. */
+  mine: boolean;
+  query: URLSearchParams;
+}
+
+const routes = new Map<string, (ask: Ask) => object>([
   [
     "/api/v3/instances",
-    (mine) => {
+    ({ mine }) => {
       const servers = mine ? FAKE_SERVERS : [];
       return {
         instances: servers.map(({ ageMs, ...server }) => ({
@@ -59,6 +127,19 @@ const routes = new Map<string, (mine: boolean) => object>([
           created: ago(ageMs),
         })),
         page_control: { current_filter: {}, max_item: servers.length },
+      };
+    },
+  ],
+  [
+    "/api/v4/database/clusters",
+    ({ mine, query }) => {
+      const clusters = mine ? FAKE_DATABASES.map(createdAt) : [];
+      // Like the Space API, a cluster has its primary only when asked.
+      return {
+        database_clusters:
+          query.get("include_primary") === "true"
+            ? clusters
+            : clusters.map(({ primary: _primary, ...cluster }) => cluster),
       };
     },
   ],
@@ -70,10 +151,10 @@ export const spaceFault = (status: number, message: string): Response =>
 /** Answers a Space API request whose token is valid, as `owner`'s resources. */
 export const handleSpace = (input: {
   req: Request;
-  pathname: string;
   owner: string;
 }): Response => {
-  const route = routes.get(input.pathname);
+  const url = new URL(input.req.url);
+  const route = routes.get(url.pathname);
   if (!route) {
     return new Response("Not Found", { status: 404 });
   }
@@ -84,5 +165,7 @@ export const handleSpace = (input: {
       "The 'project-id' header is required to access this API."
     );
   }
-  return Response.json(route(projectId === input.owner));
+  return Response.json(
+    route({ mine: projectId === input.owner, query: url.searchParams })
+  );
 };
