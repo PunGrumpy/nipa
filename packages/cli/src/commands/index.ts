@@ -40,5 +40,5 @@ export const program: Program = {
     { commands: [profile, completion], title: "Setup" },
   ],
   summary:
-    "Log in to Nipa Cloud once, then list your servers, or run openstack and terraform with the session.",
+    "Log in to Nipa Cloud once, then list your servers, databases, load balancers and external IPs, or run openstack and terraform with the session.",
 };

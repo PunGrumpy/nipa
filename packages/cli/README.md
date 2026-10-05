@@ -1,6 +1,6 @@
 # nipa
 
-nipa logs in to Nipa Cloud with your password and a one-time password (OTP) code, then lists your servers or runs `openstack` and `terraform` with that session. You type an OTP code once a day, not once per command.
+nipa logs in to Nipa Cloud with your password and a one-time password (OTP) code, then lists your servers, databases, load balancers and external IPs, or runs `openstack` and `terraform` with that session. You type an OTP code once a day, not once per command.
 
 ## Install nipa
 
