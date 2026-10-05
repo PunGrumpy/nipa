@@ -8,8 +8,9 @@ import path from "node:path";
 
 import pkg from "../package.json" with { type: "json" };
 import { ENTRY, runProcess, seedSession, testEnv } from "./helpers";
-import { FAKE_SERVERS, startFakeKeystone } from "./mocks/keystone";
+import { startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
+import { FAKE_SERVERS } from "./mocks/space";
 
 let dir: string;
 let bundle: string;

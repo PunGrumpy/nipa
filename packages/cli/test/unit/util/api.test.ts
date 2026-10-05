@@ -8,11 +8,11 @@ import { loginWithPassword } from "../../../src/util/keystone";
 import {
   ALPHA_ID,
   FAKE_PASSWORD,
-  FAKE_SERVERS,
   PLAIN_USER,
   startFakeKeystone,
 } from "../../mocks/keystone";
 import type { FakeKeystone } from "../../mocks/keystone";
+import { FAKE_SERVERS } from "../../mocks/space";
 
 const FAULTS = new Map<string, () => Response>([
   [

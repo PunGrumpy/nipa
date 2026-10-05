@@ -18,8 +18,9 @@ import {
   seedSession,
   testEnv,
 } from "./helpers";
-import { FAKE_SERVERS, FAKE_USER, startFakeKeystone } from "./mocks/keystone";
+import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
+import { FAKE_SERVERS } from "./mocks/space";
 
 let dir: string;
 let keystone: FakeKeystone;
