@@ -20,7 +20,11 @@ import {
 } from "./helpers";
 import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
-import { FAKE_DATABASES, FAKE_SERVERS } from "./mocks/space";
+import {
+  FAKE_DATABASES,
+  FAKE_LOAD_BALANCERS,
+  FAKE_SERVERS,
+} from "./mocks/space";
 
 let dir: string;
 let keystone: FakeKeystone;
@@ -504,6 +508,50 @@ describe("db ls", () => {
     const { code, stderr, stdout } = await run(["db", "ls"]);
     expect(code).toBe(0);
     expect(stderr).toContain("No databases in Beta");
+    expect(stdout).toBe("");
+  });
+});
+
+describe("lb ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's load balancers, newest first", async () => {
+    const { code, stdout } = await run(["lb", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { loadBalancers, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(loadBalancers.map((lb: { id: string }) => lb.id)).toEqual(
+      FAKE_LOAD_BALANCERS.map((lb) => lb.id).toReversed()
+    );
+    expect(loadBalancers[0]).toMatchObject({
+      health: "OFFLINE",
+      listeners: 0,
+      status: "PENDING_CREATE",
+    });
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["loadbalancers"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Load balancers in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(
+      /Name\s+Status\s+Health\s+Address\s+Listeners\s+Age/u
+    );
+    expect(stderr).toMatch(
+      /web-lb\s+● Active\s+● Online\s+192\.0\.2\.30\s+2\s+7d/u
+    );
+    expect(stderr).toMatch(/api-lb\s+● Pending create\s+● Offline/u);
+    expect(stdout.trim().split("\n")).toHaveLength(FAKE_LOAD_BALANCERS.length);
+  });
+
+  test("a project without load balancers says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["lb", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No load balancers in Beta");
     expect(stdout).toBe("");
   });
 });

@@ -105,6 +105,30 @@ export const FAKE_DATABASES = [
   },
 ];
 
+/** The load balancers, oldest first. */
+export const FAKE_LOAD_BALANCERS = [
+  {
+    ageMs: 7 * DAY_MS,
+    id: "bbbb1111-0000-4000-8000-000000000001",
+    listeners: [{ id: "listener-1" }, { id: "listener-2" }],
+    name: "web-lb",
+    operating_status: "ONLINE",
+    provider: "amphora",
+    provisioning_status: "ACTIVE",
+    vip_address: "192.0.2.30",
+  },
+  {
+    ageMs: MINUTE_MS,
+    id: "bbbb2222-0000-4000-8000-000000000002",
+    listeners: [],
+    name: "api-lb",
+    operating_status: "OFFLINE",
+    provider: "amphora",
+    provisioning_status: "PENDING_CREATE",
+    vip_address: "192.0.2.31",
+  },
+];
+
 const createdAt = <T extends { ageMs: number }>({ ageMs, ...rest }: T) => ({
   ...rest,
   created_at: ago(ageMs),
@@ -142,6 +166,12 @@ const routes = new Map<string, (ask: Ask) => object>([
             : clusters.map(({ primary: _primary, ...cluster }) => cluster),
       };
     },
+  ],
+  [
+    "/api/v4/loadbalancers",
+    ({ mine }) => ({
+      loadbalancers: mine ? FAKE_LOAD_BALANCERS.map(createdAt) : [],
+    }),
   ],
 ]);
 

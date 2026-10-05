@@ -8,6 +8,7 @@ import { completion } from "./completion";
 import { db } from "./db";
 import { env } from "./env";
 import { exec } from "./exec";
+import { lb } from "./lb";
 import { login } from "./login";
 import { logout } from "./logout";
 import { os } from "./os";
@@ -33,7 +34,7 @@ export const program: Program = {
   hidden: [complete],
   sections: [
     { commands: [login, logout, whoami, switchProject], title: "Session" },
-    { commands: [server, db], title: "Resources" },
+    { commands: [server, db, lb], title: "Resources" },
     { commands: [os, tf, exec, env], title: "Run tools" },
     { commands: [profile, completion], title: "Setup" },
   ],
