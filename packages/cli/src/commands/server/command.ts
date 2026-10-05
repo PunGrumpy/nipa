@@ -15,7 +15,7 @@ export const serverCommand = defineGroup({
   aliases: ["servers"],
   default: "ls",
   description:
-    "Lists the servers in your project with their status, address, flavor and age. nipa calls the compute API itself, so you don't need the OpenStack client.",
+    "Lists the servers in your project with their status, address, flavor and age. nipa calls the Space API, the one the Nipa Cloud Space portal uses, so you don't need the OpenStack client.",
   examples: [
     {
       command: "nipa server ls",
