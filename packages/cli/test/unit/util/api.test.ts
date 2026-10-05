@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { z } from "zod";
 
-import { ApiError, createSpace } from "../../../src/util/api";
+import { ApiError, createSpace, spaceApiUrl } from "../../../src/util/api";
 import { listServers } from "../../../src/util/compute";
 import { alphaSpace } from "../../helpers";
 import { startFakeKeystone } from "../../mocks/keystone";
@@ -26,6 +26,20 @@ const HeadersSchema = z.object({
   projectId: z.string(),
   region: z.string(),
   token: z.string(),
+});
+
+describe("spaceApiUrl", () => {
+  test.each([
+    ["https://space.nipa.cloud", "https://space.nipa.cloud/api"],
+    [
+      "https://portal-stg-epc.nipa.cloud/",
+      "https://portal-stg-epc.nipa.cloud/api",
+    ],
+    ["https://space.nipa.cloud/api", "https://space.nipa.cloud/api"],
+    ["https://space.nipa.cloud/api/", "https://space.nipa.cloud/api"],
+  ])("%s -> %s", (url, api) => {
+    expect(spaceApiUrl(url)).toBe(api);
+  });
 });
 
 describe("createSpace", () => {

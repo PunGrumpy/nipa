@@ -35,6 +35,39 @@ const parseBody = async <T>(
   }
 };
 
+const trimSlashes = (text: string): string => {
+  let trimmed = text;
+  while (trimmed.endsWith("/")) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return trimmed;
+};
+
+/**
+ * The Space API under a portal: https://space.nipa.cloud becomes
+ * https://space.nipa.cloud/api, and an API URL stays as it is.
+ */
+export const spaceApiUrl = (url: string): string => {
+  const { origin, pathname } = new URL(url);
+  const path = trimSlashes(pathname);
+  return path === "" ? `${origin}/api` : `${origin}${path}`;
+};
+
+/** Throws unless `url` answers a request without a token like the Space API. */
+export const probeSpace = async (url: string): Promise<void> => {
+  const res = await request(`${url}/v3/instances`, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(10_000),
+  });
+  const fault = await readFault(res);
+  if (res.status !== 401 || fault === undefined) {
+    throw new ApiError(
+      `${url} doesn't answer like the Space API (HTTP ${res.status})`,
+      res.status
+    );
+  }
+};
+
 export interface Space {
   get: <T>(path: string, schema: z.ZodType<T>) => Promise<T>;
 }
@@ -49,10 +82,7 @@ export const createSpace = (input: {
   projectId: string;
   region: string;
 }): Space => {
-  let base = input.url;
-  while (base.endsWith("/")) {
-    base = base.slice(0, -1);
-  }
+  const base = trimSlashes(input.url);
   return {
     get: async (path, schema) => {
       const res = await request(`${base}${path}`, {

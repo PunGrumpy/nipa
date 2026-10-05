@@ -7,6 +7,7 @@ import {
   announceProfile,
   connect,
   requireSession,
+  requireSpaceUrl,
   resolveProfile,
 } from "./session";
 import type { ActiveProfile, Cloud, SignedIn } from "./session";
@@ -24,7 +25,7 @@ export interface Client {
   readonly profile: () => Promise<ActiveProfile>;
   /** profile() with a live session. Logs in first when it expired and nipa can prompt. */
   readonly session: () => Promise<SignedIn>;
-  /** session() with OpenStack services. Says which profile it uses when that isn't prod. */
+  /** session() with the Space API. Says which profile it uses when that isn't prod. */
   readonly cloud: () => Promise<Cloud>;
 }
 
@@ -55,9 +56,10 @@ export const createClient = (input: {
     requireSession({ active: await profile(), prompts })
   );
   const cloud = once(async () => {
+    const spaceUrl = requireSpaceUrl(await profile());
     const signedIn = await session();
     announceProfile(signedIn.active);
-    return connect(signedIn);
+    return connect({ signedIn, spaceUrl });
   });
   return {
     cloud,

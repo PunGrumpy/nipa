@@ -26,6 +26,12 @@ In a script, nothing can type a password, so nipa stops with this error instead.
 
 Keystone or the Space API refused the token before it expired, for example after you changed your password. Run `nipa login` to get a new token.
 
+If it happens again right after a login, the profile's Space API may belong to another Keystone. Check its `authUrl` and `spaceUrl` with `nipa profile ls --json`.
+
+## "the … profile has no Space API URL"
+
+The profile's Keystone isn't production's, and nobody gave it a Space portal URL. Remove the profile with `nipa profile rm`, then add it again with `--space-url` and the URL of the portal that goes with its Keystone, such as `https://portal-stg-epc.nipa.cloud` for staging. Until then, `nipa -P <profile> os server list` runs the OpenStack client with the session.
+
 ## "`nipa login` needs a terminal to ask for your password"
 
 You ran `nipa login` where nothing can type the answers, such as in continuous integration (CI) or with stdin redirected. nipa never reads a password from a pipe. Log in from a terminal first.
@@ -38,7 +44,7 @@ The name after `-P`, or in `NIPA_PROFILE`, isn't a profile. The error lists the 
 
 The request never got an answer. The host name didn't resolve, the server refused the connection, or the Transport Layer Security (TLS) handshake failed. Check the profile's Keystone URL with `nipa profile ls`, then your network connection.
 
-If the host is `space.nipa.cloud`, logging in worked and the Space API didn't answer. Check your network connection. For a profile other than `prod`, check its `spaceUrl` with `nipa profile ls --json`.
+If the host is `space.nipa.cloud`, logging in worked and the Space API didn't answer. Check your network connection. For another profile, check its `spaceUrl` with `nipa profile ls --json`.
 
 ## "… doesn't answer like Keystone v3"
 

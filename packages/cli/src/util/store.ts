@@ -21,8 +21,8 @@ export const ProfileSchema = z.object({
   authUrl: HttpUrlSchema,
   project: ProjectSchema.optional(),
   region: z.string().min(1),
-  // Profiles from before nipa called the Space API use production's.
-  spaceUrl: HttpUrlSchema.default(PROD_PROFILE.spaceUrl),
+  /** The Space API that takes this Keystone's tokens. A profile can have none. */
+  spaceUrl: HttpUrlSchema.optional(),
   userDomain: z.string().min(1),
   username: z.string().optional(),
 });
@@ -35,9 +35,25 @@ const ProfilesSchema = z.record(z.string().regex(PROFILE_NAME), ProfileSchema);
 
 type Profiles = z.infer<typeof ProfilesSchema>;
 
+// Profiles from before nipa called the Space API have no spaceUrl, and nipa
+// 0.1.4 gave every new profile production's. Production's Space API takes
+// only production's tokens, so only a profile on production's Keystone gets it.
+const withSpaceUrl = (profile: Profile): Profile => {
+  const { spaceUrl, ...rest } = profile;
+  if (profile.authUrl === PROD_PROFILE.authUrl) {
+    return { ...rest, spaceUrl: spaceUrl ?? PROD_PROFILE.spaceUrl };
+  }
+  return spaceUrl === PROD_PROFILE.spaceUrl ? rest : profile;
+};
+
 const withProd = (profiles: Profiles): Profiles => ({
   [DEFAULT_PROFILE]: PROD_PROFILE,
-  ...profiles,
+  ...Object.fromEntries(
+    Object.entries(profiles).map(([name, profile]) => [
+      name,
+      withSpaceUrl(profile),
+    ])
+  ),
 });
 
 const ConfigSchema = z

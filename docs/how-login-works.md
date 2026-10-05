@@ -41,6 +41,6 @@ nipa first removes every other `OS_*` variable from the environment. A stale `OS
 
 nipa doesn't call the OpenStack APIs in Keystone's catalog, such as compute on `cloud-api.nipa.cloud:8774`. Nipa Cloud serves each of them on its own port and may answer only some networks there, while the Space API answers on 443. `nipa os` and `nipa tf` still call the OpenStack APIs, because the programs they run do.
 
-A profile keeps its Space API URL in `spaceUrl`. `nipa profile add` sets it with `--space-url`, and production's is the default.
+Each Space portal has its own Space API under `/api`, and it takes only the tokens of its own Keystone. A staging Keystone pairs with a staging portal, such as `https://portal-stg-epc.nipa.cloud`. So a profile keeps its Space API URL in `spaceUrl`, which `nipa profile add --space-url` sets from the portal URL. A profile on production's Keystone gets production's Space API without it.
 
 `nipa logout` sends `DELETE /v3/auth/tokens` to revoke the token, then deletes it from `auth.json`. Keystone also expires it on its own after 24 hours on Nipa Cloud.
