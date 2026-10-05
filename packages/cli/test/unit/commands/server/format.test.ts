@@ -6,9 +6,12 @@ import {
 } from "../../../../src/commands/server/format";
 import type { Address, Server } from "../../../../src/util/compute";
 
-const address = (value: string, version: number, type = "fixed"): Address => ({
+const address = (
+  value: string,
+  version: Address["version"],
+  type: Address["type"] = "fixed"
+): Address => ({
   address: value,
-  network: "net",
   type,
   version,
 });

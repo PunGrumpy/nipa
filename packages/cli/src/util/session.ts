@@ -1,20 +1,20 @@
 // How nipa gets and keeps a session: which profile a run uses, logging in
 // with a password and an OTP code, scoping to a project, and reaching
-// OpenStack services with the token. Handlers reach it through the client
+// Nipa Cloud's Space API with the token. Handlers reach it through the client
 // (`client.profile()`, `client.session()`, `client.cloud()`). The login and
 // switch commands also call interactiveLogin, pickProject and saveLogin.
 
-import { ApiError, createService } from "./api";
-import type { Service } from "./api";
+import { ApiError, createSpace } from "./api";
+import type { Space } from "./api";
+import { NetworkError } from "./http";
 import {
   continueWithTotp,
   KeystoneError,
-  listEndpoints,
   listProjects,
   loginWithPassword,
   rescope,
 } from "./keystone";
-import type { Account, Endpoints, Project, Token } from "./keystone";
+import type { Account, Project, Token } from "./keystone";
 import {
   DEFAULT_PROFILE,
   isActive,
@@ -39,8 +39,8 @@ export interface SignedIn {
 }
 
 export interface Cloud extends SignedIn {
-  /** An OpenStack service from the catalog. Throws when the region has none of this type. */
-  readonly service: (type: string) => Promise<Service>;
+  /** Nipa Cloud's Space API, as the session's project. */
+  readonly space: Space;
 }
 
 /**
@@ -334,46 +334,36 @@ const guardSession =
   };
 
 /**
- * OpenStack services for a session. Each service's URL comes from the
- * catalog, read on first use.
+ * The Space API for a session. It takes the Keystone token, so nipa calls it
+ * without asking for a password again.
  */
 export const connect = (signedIn: SignedIn): Cloud => {
   const { active, session } = signedIn;
-  const { authUrl, region } = active.profile;
   const guard = guardSession(active.name);
-  let { endpoints } = session;
-
-  // nipa reads the catalog on first use, so login and switch don't wait for
-  // it, and saves it with the session, which a switch replaces.
-  const loadEndpoints = async (): Promise<Endpoints> => {
-    if (!endpoints) {
-      endpoints = await guard(() =>
-        listEndpoints({ authUrl, region, token: session.token })
-      );
-      await saveSession({
-        profile: active.name,
-        session: { ...session, endpoints },
-      });
-    }
-    return endpoints;
-  };
-
+  const space = createSpace({
+    projectId: session.project.id,
+    region: active.profile.region,
+    token: session.token,
+    url: active.profile.spaceUrl,
+  });
   return {
     active,
-    service: async (type) => {
-      const loaded = await loadEndpoints();
-      const url = loaded[type];
-      if (!url) {
-        throw new CliError(`there's no ${type} endpoint in ${region}`, {
-          hint: "Check the profile's region with `nipa profile ls`.",
-        });
-      }
-      const service = createService({ token: session.token, type, url });
-      return {
-        get: (path, schema, headers) =>
-          guard(() => service.get(path, schema, headers)),
-      };
-    },
     session,
+    space: {
+      get: (path, schema) =>
+        guard(async () => {
+          try {
+            return await space.get(path, schema);
+          } catch (error) {
+            // The Keystone URL worked for the login, so it isn't the one to check.
+            if (error instanceof NetworkError) {
+              throw new CliError(error.message, {
+                hint: "Check your network connection, or the profile's Space API URL.",
+              });
+            }
+            throw error;
+          }
+        }),
+    },
   };
 };

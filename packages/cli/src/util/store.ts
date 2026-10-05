@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
-import { EndpointsSchema, ProjectSchema } from "./keystone";
+import { ProjectSchema } from "./keystone";
 
 export const DEFAULT_PROFILE = "prod";
 
@@ -63,8 +63,9 @@ const LegacyConfigSchema = ProfileSchema.extend({
 
 const ConfigFileSchema = z.union([ConfigSchema, LegacyConfigSchema]);
 
+// Sessions from before nipa called the Space API also hold the endpoints from
+// Keystone's catalog, which nipa drops when it loads them.
 const SessionSchema = z.object({
-  endpoints: EndpointsSchema.optional(),
   expiresAt: z.iso.datetime({ offset: true }),
   project: ProjectSchema,
   token: z.string().min(1),

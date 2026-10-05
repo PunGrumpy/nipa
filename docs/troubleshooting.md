@@ -24,11 +24,7 @@ In a script, nothing can type a password, so nipa stops with this error instead.
 
 ## "your prod session expired or was revoked"
 
-Keystone or an OpenStack service refused the token before it expired, for example after you changed your password. Run `nipa login` to get a new token.
-
-## "there's no compute endpoint in …"
-
-Keystone's catalog has no public compute endpoint in the profile's region. Check the region with `nipa profile ls`. Nipa Cloud production uses `NCP-TH`.
+Keystone or the Space API refused the token before it expired, for example after you changed your password. Run `nipa login` to get a new token.
 
 ## "`nipa login` needs a terminal to ask for your password"
 
@@ -41,6 +37,8 @@ The name after `-P`, or in `NIPA_PROFILE`, isn't a profile. The error lists the 
 ## "can't reach …"
 
 The request never got an answer. The host name didn't resolve, the server refused the connection, or the Transport Layer Security (TLS) handshake failed. Check the profile's Keystone URL with `nipa profile ls`, then your network connection.
+
+If the host is `space.nipa.cloud`, logging in worked and the Space API didn't answer. Check your network connection. For a profile other than `prod`, check its `spaceUrl` with `nipa profile ls --json`.
 
 ## "… doesn't answer like Keystone v3"
 

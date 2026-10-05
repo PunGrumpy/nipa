@@ -20,7 +20,7 @@ Send each kind of task to its source:
 - **A review of those surfaces**: load the `cli-ux` skill before you judge the diff, even when the review makes no edits
 - **A new command**: follow `docs/add-a-command.md`
 - **A new or changed flag or argument**: change the spec in `src/commands/<name>/command.ts`. Parsing, help and completion all read it
-- **A new OpenStack API call**: add a module in `src/util/`, written like `src/util/compute.ts`, and its routes in `test/mocks/keystone.ts`
+- **A new Space API call**: add a module in `src/util/`, written like `src/util/compute.ts`, and its routes in `test/mocks/keystone.ts`
 - **A new durable UX rule**: update the `cli-ux` skill, not this file
 
 ## Code map
@@ -46,7 +46,7 @@ Shared modules in `src/util/`:
 - `client.ts`: what a handler gets, which is the result stream, the prompts, and the profile, session and cloud for this run
 - `ui.ts`: messages, spinners, tables, prompts and `CliError`
 - `session.ts`, `keystone.ts` and `store.ts`: login, tokens and the files in the config directory
-- `http.ts`, `api.ts`, `compute.ts` and `openstack.ts`: requests to Keystone and the OpenStack APIs
+- `http.ts`, `api.ts`, `compute.ts` and `openstack.ts`: requests to Keystone, the Space API and the OpenStack client
 - `env.ts` and `tool.ts`: the `OS_*` variables and the programs that `os`, `tf` and `exec` run
 
 ## Implementation rules

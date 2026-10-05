@@ -32,7 +32,7 @@ States to test:
 - A wrong OTP code, then a right one, and 3 wrong codes
 - `--project` as an ID, as a name, and as a name nipa can't find
 - A command that needs a session, with no session, with an expired one, and without a terminal
-- A revoked token returning 401 from the compute API
+- A revoked token returning 401 from the Space API
 
 ## Switching projects and profiles
 

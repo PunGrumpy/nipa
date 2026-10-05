@@ -28,12 +28,12 @@ const printServers = (servers: readonly Server[], now: number): void => {
 };
 
 export const ls = handle(lsSubcommand, async ({ client, flags }) => {
-  const { active, service, session } = await client.cloud();
+  const { active, session, space } = await client.cloud();
   const { project } = session;
   const started = performance.now();
   const servers = await withSpinner(
     `Loading the servers in ${project.name}…`,
-    async () => listServers(await service("compute"))
+    () => listServers(space)
   );
   if (flags.json) {
     client.stdout.json({ profile: active.name, project, servers });

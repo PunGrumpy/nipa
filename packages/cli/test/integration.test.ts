@@ -35,8 +35,8 @@ const exitCode = async (args: string[]): Promise<number> => {
 const readJsonFile = async (name: string) =>
   JSON.parse(await readFile(path.join(dir, name), "utf-8"));
 
-const catalogReads = () =>
-  keystone.requests.filter((r) => r === "GET /v3/auth/catalog").length;
+const serverLists = () =>
+  keystone.requests.filter((r) => r === "GET /api/v3/instances").length;
 
 const freshDir = async () => {
   await rm(dir, { force: true, recursive: true });
@@ -367,8 +367,8 @@ describe("server ls", () => {
     await seedSession(dir, keystone.url);
   });
 
-  test("--json lists the project's servers from every page", async () => {
-    const before = catalogReads();
+  test("--json lists the project's servers through the Space API", async () => {
+    const before = serverLists();
     const { code, stdout } = await run(["server", "ls", "--json"]);
     expect(code).toBe(0);
     const { profile, project, servers } = JSON.parse(stdout);
@@ -378,22 +378,30 @@ describe("server ls", () => {
       FAKE_SERVERS.map((s) => s.id)
     );
     expect(servers[1]).toMatchObject({
+      addresses: [
+        { address: "192.0.2.5", type: "fixed", version: 4 },
+        { address: "2001:db8::5", type: "fixed", version: 6 },
+        { address: "203.0.113.10", type: "floating", version: 4 },
+      ],
       flavor: "csa.large.v2",
       name: "web-1",
       status: "ACTIVE",
     });
-    expect(catalogReads()).toBe(before + 1);
+    expect(serverLists()).toBe(before + 1);
   });
 
-  test("keeps the endpoints with the session, so the next run skips the catalog", async () => {
+  test("a session from before the Space API loses its catalog endpoints", async () => {
     const auth = await readJsonFile("auth.json");
-    expect(auth.sessions.prod.endpoints).toEqual({
-      compute: `${keystone.url}/compute/v2.1/`,
-      identity: `${keystone.url}/v3`,
-    });
-    const before = catalogReads();
+    auth.sessions.prod.endpoints = {
+      compute: "https://cloud-api.nipa.cloud:8774/v2.1",
+    };
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
     expect(await exitCode(["server", "ls", "--json"])).toBe(0);
-    expect(catalogReads()).toBe(before);
+    // A switch saves the session again.
+    await run(["switch", "Beta"]);
+    await run(["switch", "Alpha"]);
+    const saved = await readJsonFile("auth.json");
+    expect(saved.sessions.prod.endpoints).toBeUndefined();
   });
 
   test("prints a table on stderr and one ID per line to a pipe", async () => {
@@ -407,14 +415,12 @@ describe("server ls", () => {
     expect(stdout.trim().split("\n")).toEqual(FAKE_SERVERS.map((s) => s.id));
   });
 
-  test("a project without servers reads the catalog again after a switch", async () => {
-    const before = catalogReads();
+  test("a project without servers says so after a switch", async () => {
     await run(["switch", "Beta"]);
     const { code, stderr, stdout } = await run(["server", "ls"]);
     expect(code).toBe(0);
     expect(stderr).toContain("No servers in Beta");
     expect(stdout).toBe("");
-    expect(catalogReads()).toBe(before + 1);
   });
 
   test("a revoked token asks for a new login", async () => {
@@ -430,16 +436,21 @@ describe("server ls", () => {
     expect(stderr).toContain("Run `nipa login`.");
   });
 
-  test("a region without compute says so", async () => {
+  test("an unreachable Space API names its host, not the Keystone URL", async () => {
     await freshDir();
     await seedSession(dir, keystone.url);
     const config = await readJsonFile("config.json");
-    config.profiles.prod.region = "XX";
+    // Nothing listens on port 1, so the connection fails at once.
+    config.profiles.prod.spaceUrl = "http://127.0.0.1:1/api";
     await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
     const { code, stderr } = await run(["server", "ls"]);
     expect(code).toBe(1);
-    expect(stderr).toContain("there's no compute endpoint in XX");
-    expect(stderr).toContain("nipa profile ls");
+    expect(stderr).toContain("can't reach 127.0.0.1:1");
+    expect(stderr).toContain(
+      "Check your network connection, or the profile's Space API URL."
+    );
+    expect(stderr).not.toContain("Check the Keystone URL");
+    expect(stderr).not.toContain("catalog");
   });
 
   test("an unknown subcommand exits 2", async () => {

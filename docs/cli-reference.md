@@ -73,7 +73,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | File | Contents |
 | --- | --- |
 | `config.json` | `currentProfile`, and `profiles` with each profile's `authUrl`, `userDomain`, `region`, `spaceUrl`, last `username` and last `project` |
-| `auth.json` | `sessions` with each profile's token, expiry time, user and project, and the service endpoints from Keystone's catalog once a command needs them |
+| `auth.json` | `sessions` with each profile's token, expiry time, user and project |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
 
@@ -113,7 +113,7 @@ nipa exits with these codes:
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
 
-`nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the compute API's status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` or `floating`:
+`nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the server's OpenStack status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` for an internal IP or `floating` for an external one:
 
 ```json
 {
@@ -124,7 +124,6 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "addresses": [
         {
           "address": "192.0.2.5",
-          "network": "default",
           "type": "fixed",
           "version": 4
         }

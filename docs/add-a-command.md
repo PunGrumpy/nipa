@@ -64,13 +64,13 @@ export const ls = handle(lsSubcommand, async ({ client, flags }) => {
 
 The client holds what the handler needs for this run:
 
-- **`client.cloud()`**: the session, and `service(type)` for each OpenStack API in Keystone's catalog
+- **`client.cloud()`**: the session, and `space`, the Space API as the session's project
 - **`client.stdout`**: where results go, such as JSON, or one ID per line in a pipe
 - **`client.prompts`**: questions for the terminal, and `interactive` to check before you ask one
 
 `client.cloud()` logs in first when the session expired and nipa can prompt. Messages go to stderr through `log`, `success` and `printTable` in `src/util/ui.ts`, not through `client.stdout`.
 
-Pass `service()` the type your cloud's catalog lists for the API. `nipa os catalog list` shows them. Put the API calls in a module such as `src/util/volume.ts`, written like `src/util/compute.ts`, which parses each response with a zod schema. For the table that `nipa volume ls` prints without `--json`, follow `printServers` in `src/commands/server/ls.ts`.
+Call `space.get()` with the path the [Nipa Cloud Space](https://space.nipa.cloud) portal calls under `/api`, such as `/v3/instances`. Your browser's developer tools show those requests. Put the API calls in a module such as `src/util/volume.ts`, written like `src/util/compute.ts`, which parses each response with a zod schema. For the table that `nipa volume ls` prints without `--json`, follow `printServers` in `src/commands/server/ls.ts`.
 
 ## 3. Route the subcommands
 

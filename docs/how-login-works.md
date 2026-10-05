@@ -35,10 +35,12 @@ When you run `nipa os`, `nipa tf` or `nipa exec`, nipa starts the command with t
 
 nipa first removes every other `OS_*` variable from the environment. A stale `OS_PASSWORD` or `OS_CLOUD` from an old openrc would otherwise override the token.
 
-## How nipa finds each service
+## How nipa reaches each service
 
-`nipa server ls` calls the compute API without the OpenStack client. To find that API, nipa reads the service catalog, Keystone's list of each service's URLs, with `GET /v3/auth/catalog`. It does this once per session and saves each service's public URL in the profile's region with the session in `auth.json`.
+`nipa server ls` calls the Space API, the one the [Nipa Cloud Space](https://space.nipa.cloud) portal uses, at `https://space.nipa.cloud/api`. The Space API takes the Keystone token in `X-Auth-Token`, and nipa names the project and region in the `Project-Id` and `Region` headers. So it needs no other login.
 
-`nipa login` and `nipa switch` start a new session, so nipa reads the catalog again for the new project.
+nipa doesn't call the OpenStack APIs in Keystone's catalog, such as compute on `cloud-api.nipa.cloud:8774`. Nipa Cloud serves each of them on its own port and may answer only some networks there, while the Space API answers on 443. `nipa os` and `nipa tf` still call the OpenStack APIs, because the programs they run do.
+
+A profile keeps its Space API URL in `spaceUrl`. `nipa profile add` sets it with `--space-url`, and production's is the default.
 
 `nipa logout` sends `DELETE /v3/auth/tokens` to revoke the token, then deletes it from `auth.json`. Keystone also expires it on its own after 24 hours on Nipa Cloud.
