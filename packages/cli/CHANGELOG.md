@@ -1,5 +1,13 @@
 # nipa-cli
 
+## 0.1.5
+
+### Patch Changes
+
+- 197c333: Add `nipa completion --install`, which saves the tab completion script where bash, zsh or fish loads it, so the shell doesn't run nipa each time it starts. nipa rewrites the saved script when its version changes, so new commands complete after an update. `nipa completion` without a shell uses the one in `$SHELL`.
+- 47797cd: `nipa server ls` marks the servers that a Kubernetes cluster made, such as `k8s-control-plane-1 (Kubernetes master)`, from the Magnum tags the portal reads too. `--json` gives each server `kubernetes`, which is `null` for a server you made, or the cluster's `clusterId` and the node's `role`. The troubleshooting page explains why `nipa os coe` and other commands can't find their service on production.
+- 587c9ac: Give production's Space API only to profiles on production's Keystone. In 0.1.4, a staging profile got production's Space API, which refused its token, so `nipa server ls` said the session had expired. nipa now drops that URL from such profiles. `nipa profile add --space-url` takes the Space portal URL, such as `https://portal-stg-epc.nipa.cloud`, saves its `/api`, and checks that it answers. With another Keystone and a terminal, `profile add` asks for the portal URL. Without one, `server ls`, `db ls`, `lb ls` and `ip ls` say the profile has no Space API URL before they ask for a login. A profile that 0.1.4 saved with a portal URL gets its `/api` when nipa loads it, and a Space API URL that answers with a web page gets an error that says so.
+
 ## 0.1.4
 
 ### Patch Changes
