@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { z } from "zod";
 
-import { ApiError, createSpace } from "../../../src/util/api";
+import { ApiError, createSpace, spaceApiUrl } from "../../../src/util/api";
 import { listServers } from "../../../src/util/compute";
+import { CliError } from "../../../src/util/ui";
 import { alphaSpace } from "../../helpers";
 import { startFakeKeystone } from "../../mocks/keystone";
 import type { FakeKeystone } from "../../mocks/keystone";
@@ -19,13 +20,34 @@ const FAULTS = new Map<string, () => Response>([
       ),
   ],
   ["/html", () => new Response("<h1>Bad Gateway</h1>", { status: 502 })],
-  ["/not-json", () => new Response("ok")],
+  [
+    "/web-page",
+    () =>
+      new Response("<!DOCTYPE html>", {
+        headers: { "Content-Type": "text/html" },
+      }),
+  ],
+  ["/wrong-json", () => Response.json({ name: 1 })],
 ]);
 
 const HeadersSchema = z.object({
   projectId: z.string(),
   region: z.string(),
   token: z.string(),
+});
+
+describe("spaceApiUrl", () => {
+  test.each([
+    ["https://space.nipa.cloud", "https://space.nipa.cloud/api"],
+    [
+      "https://portal-stg-epc.nipa.cloud/",
+      "https://portal-stg-epc.nipa.cloud/api",
+    ],
+    ["https://space.nipa.cloud/api", "https://space.nipa.cloud/api"],
+    ["https://space.nipa.cloud/api/", "https://space.nipa.cloud/api"],
+  ])("%s -> %s", (url, api) => {
+    expect(spaceApiUrl(url)).toBe(api);
+  });
 });
 
 describe("createSpace", () => {
@@ -73,8 +95,16 @@ describe("createSpace", () => {
     await expect(attempt).rejects.toMatchObject({ status });
   });
 
-  test("a body that isn't the expected JSON", async () => {
-    const attempt = space().get("/not-json", z.object({ id: z.string() }));
+  test("a web page, such as a portal's for a path it doesn't know", async () => {
+    const attempt = space().get("/web-page", z.object({}));
+    await expect(attempt).rejects.toThrow(CliError);
+    await expect(attempt).rejects.toThrow(
+      `${server.url}api doesn't answer like the Space API`
+    );
+  });
+
+  test("JSON that isn't the expected shape", async () => {
+    const attempt = space().get("/wrong-json", z.object({ id: z.string() }));
     await expect(attempt).rejects.toThrow("unexpected Space API response");
   });
 });

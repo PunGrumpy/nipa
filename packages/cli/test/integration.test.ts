@@ -187,24 +187,59 @@ describe("profiles", () => {
     expect(notKeystone.stderr).toContain("doesn't answer like Keystone v3");
   });
 
-  test("add keeps --space-url, or production's Space API without it", async () => {
-    expect(
-      await exitCode([
-        "profile",
-        "add",
-        "dev",
-        "--auth-url",
-        keystone.url,
-        "--space-url",
-        "https://space.example.com/api",
-      ])
-    ).toBe(0);
+  test("add takes a Space portal URL and saves its API under /api", async () => {
+    const { code, stderr } = await run([
+      "profile",
+      "add",
+      "dev",
+      "--auth-url",
+      keystone.url,
+      "--space-url",
+      keystone.url,
+    ]);
+    expect(code).toBe(0);
+    const { host } = new URL(keystone.url);
+    expect(stderr).toContain(
+      `Added profile dev (Keystone v3.14, Space API ${host})`
+    );
+    expect(stderr).not.toContain("NOTE");
     const config = await readJsonFile("config.json");
-    expect(config.profiles.dev.spaceUrl).toBe("https://space.example.com/api");
-    expect(config.profiles.staging.spaceUrl).toBe(
-      "https://space.nipa.cloud/api"
+    expect(config.profiles.dev.spaceUrl).toBe(`${keystone.url}/api`);
+    await run(["profile", "rm", "dev", "--yes"]);
+  });
+
+  test("another Keystone without --space-url gets no Space API, and a note", async () => {
+    const config = await readJsonFile("config.json");
+    expect(config.profiles.staging.spaceUrl).toBeUndefined();
+    const { stderr } = await run([
+      "profile",
+      "add",
+      "dev",
+      "--auth-url",
+      keystone.url,
+    ]);
+    expect(stderr).toContain(
+      "NOTE: dev has no Space API URL, so `nipa server ls` and the other resource commands don't work with it."
     );
     await run(["profile", "rm", "dev", "--yes"]);
+  });
+
+  test("add refuses a --space-url that isn't a Space API", async () => {
+    const { code, stderr } = await run([
+      "profile",
+      "add",
+      "other",
+      "--auth-url",
+      keystone.url,
+      "--space-url",
+      `${keystone.url}/v3`,
+    ]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `${keystone.url}/v3 doesn't answer like the Space API (HTTP 404)`
+    );
+    const config = await readJsonFile("config.json");
+    expect(config.profiles.other).toBeUndefined();
   });
 
   test("add refuses a --space-url that isn't a URL", async () => {
@@ -544,6 +579,57 @@ describe("server ls", () => {
     );
     expect(stderr).not.toContain("Check the Keystone URL");
     expect(stderr).not.toContain("catalog");
+  });
+
+  test("a profile without a Space API says so before it asks for a login", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const config = await readJsonFile("config.json");
+    delete config.profiles.prod.spaceUrl;
+    config.profiles.prod.authUrl = `${keystone.url}/v3`;
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    await rm(path.join(dir, "auth.json"));
+    const { code, stderr } = await run(["server", "ls"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("the prod profile has no Space API URL");
+    expect(stderr).toContain("`nipa -P prod os server list`");
+    expect(stderr).not.toContain("aren't logged in");
+  });
+
+  test("nipa 0.1.4's production Space API on another Keystone is dropped, and a portal URL gets /api", async () => {
+    await freshDir();
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        currentProfile: "prod",
+        profiles: {
+          old: {
+            authUrl: "https://identity-api.nipa.cloud/v3",
+            region: "NCP-TH",
+            userDomain: "nipacloud",
+          },
+          portal: {
+            authUrl: "https://keystone.example.com/v3",
+            region: "NCP-TH",
+            spaceUrl: "https://portal.example.com",
+            userDomain: "nipacloud",
+          },
+          staging: {
+            authUrl: "https://keystone.example.com/v3",
+            region: "NCP-TH",
+            spaceUrl: "https://space.nipa.cloud/api",
+            userDomain: "nipacloud",
+          },
+        },
+      })
+    );
+    const { stdout } = await run(["profile", "ls", "--json"]);
+    const profiles = JSON.parse(stdout);
+    const byName = (name: string) =>
+      profiles.find((p: { name: string }) => p.name === name);
+    expect(byName("staging").spaceUrl).toBeUndefined();
+    expect(byName("portal").spaceUrl).toBe("https://portal.example.com/api");
+    expect(byName("old").spaceUrl).toBe("https://space.nipa.cloud/api");
   });
 
   test("an unknown subcommand exits 2", async () => {

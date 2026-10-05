@@ -131,6 +131,8 @@ const prompt = async <T>(ask: () => Promise<T>): Promise<T> => {
 interface TextPrompt {
   message: string;
   default?: string;
+  /** False lets Enter answer with an empty string. */
+  required?: boolean;
   validate?: (value: string) => string | true;
 }
 
@@ -177,7 +179,9 @@ export const createPrompts = (streams: {
     secret: (message) =>
       prompt(() => password({ mask: "*", message }, context)),
     text: (options) =>
-      prompt(() => input({ ...options, required: true }, context)),
+      prompt(() =>
+        input({ ...options, required: options.required ?? true }, context)
+      ),
   };
 };
 

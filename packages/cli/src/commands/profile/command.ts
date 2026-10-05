@@ -27,7 +27,8 @@ export const addSubcommand = defineCommand({
       value: { kind: "text", name: "region" },
     },
     {
-      description: "Space API URL (default: https://space.nipa.cloud/api)",
+      description:
+        "Space portal URL, such as https://space.nipa.cloud (default: production's for production's Keystone)",
       long: "space-url",
       value: { kind: "text", name: "url" },
     },

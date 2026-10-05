@@ -334,17 +334,34 @@ const guardSession =
   };
 
 /**
+ * The profile's Space API URL. Throws when it has none, before nipa asks for
+ * a password it couldn't use.
+ */
+export const requireSpaceUrl = (active: ActiveProfile): string => {
+  const { spaceUrl } = active.profile;
+  if (!spaceUrl) {
+    throw new CliError(`the ${active.name} profile has no Space API URL`, {
+      hint: `Remove it with \`nipa profile rm ${active.name}\`, then add it again with \`--space-url\` and its Space portal URL. \`nipa -P ${active.name} os server list\` works without one.`,
+    });
+  }
+  return spaceUrl;
+};
+
+/**
  * The Space API for a session. It takes the Keystone token, so nipa calls it
  * without asking for a password again.
  */
-export const connect = (signedIn: SignedIn): Cloud => {
-  const { active, session } = signedIn;
+export const connect = (input: {
+  signedIn: SignedIn;
+  spaceUrl: string;
+}): Cloud => {
+  const { active, session } = input.signedIn;
   const guard = guardSession(active.name);
   const space = createSpace({
     projectId: session.project.id,
     region: active.profile.region,
     token: session.token,
-    url: active.profile.spaceUrl,
+    url: input.spaceUrl,
   });
   return {
     active,

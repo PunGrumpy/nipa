@@ -1,3 +1,4 @@
+import { probeSpace, spaceApiUrl } from "../../util/api";
 import { handle } from "../../util/command";
 import { probe } from "../../util/keystone";
 import {
@@ -8,7 +9,14 @@ import {
   saveConfig,
 } from "../../util/store";
 import type { Config, Profile } from "../../util/store";
-import { bold, log, success, usageError, withSpinner } from "../../util/ui";
+import {
+  bold,
+  log,
+  note,
+  success,
+  usageError,
+  withSpinner,
+} from "../../util/ui";
 import type { Prompts } from "../../util/ui";
 import { addSubcommand } from "./command";
 
@@ -26,6 +34,39 @@ const validateName =
 const validateUrl = (value: string): string | true =>
   ProfileSchema.shape.authUrl.safeParse(value).success ||
   "Enter an http or https URL, such as https://keystone.example.com/v3";
+
+const SPACE_URL_HINT =
+  "Enter the http or https URL of the Space portal, such as https://space.nipa.cloud";
+
+/**
+ * The Space portal or API URL: --space-url, production's for production's
+ * Keystone, or what the person types. Undefined when they skip it, or when
+ * nipa can't ask.
+ */
+const spaceUrlInput = async (input: {
+  authUrl: string;
+  flag: string | undefined;
+  prompts: Prompts;
+}): Promise<string | undefined> => {
+  if (input.flag !== undefined) {
+    return input.flag;
+  }
+  if (input.authUrl === PROD_PROFILE.authUrl) {
+    return PROD_PROFILE.spaceUrl;
+  }
+  if (!input.prompts.interactive) {
+    return undefined;
+  }
+  const answer = await input.prompts.text({
+    message: "Space portal URL (Enter to skip)",
+    required: false,
+    validate: (value) =>
+      value === "" ||
+      ProfileSchema.shape.authUrl.safeParse(value).success ||
+      SPACE_URL_HINT,
+  });
+  return answer === "" ? undefined : answer;
+};
 
 const valueOrAsk = (input: {
   value: string | undefined;
@@ -82,17 +123,26 @@ export const add = handle(addSubcommand, async ({ args, client, flags }) => {
     (prompts.interactive
       ? await prompts.text({ default: PROD_PROFILE.region, message: "Region" })
       : PROD_PROFILE.region);
-  const spaceUrl = flags["space-url"] ?? PROD_PROFILE.spaceUrl;
-  if (!ProfileSchema.shape.spaceUrl.safeParse(spaceUrl).success) {
-    throw usageError(
-      `invalid --space-url "${spaceUrl}"`,
-      "Enter an http or https URL, such as https://space.example.com/api"
-    );
+  const spaceInput = await spaceUrlInput({
+    authUrl,
+    flag: flags["space-url"],
+    prompts,
+  });
+  if (
+    spaceInput !== undefined &&
+    !ProfileSchema.shape.authUrl.safeParse(spaceInput).success
+  ) {
+    throw usageError(`invalid --space-url "${spaceInput}"`, SPACE_URL_HINT);
   }
+  const spaceUrl =
+    spaceInput === undefined ? undefined : spaceApiUrl(spaceInput);
   const started = performance.now();
   const version = await withSpinner(`Checking ${authUrl}…`, () =>
     probe(authUrl)
   );
+  if (spaceUrl !== undefined) {
+    await withSpinner(`Checking ${spaceUrl}…`, () => probeSpace(spaceUrl));
+  }
   const profile: Profile = { authUrl, region, spaceUrl, userDomain };
   const use =
     flags.use ??
@@ -102,10 +152,17 @@ export const add = handle(addSubcommand, async ({ args, client, flags }) => {
     currentProfile: use ? name : config.currentProfile,
     profiles: { ...config.profiles, [name]: profile },
   });
+  const space =
+    spaceUrl === undefined ? "" : `, Space API ${new URL(spaceUrl).host}`;
   success(
-    `Added profile ${bold(name)} (Keystone ${version})`,
+    `Added profile ${bold(name)} (Keystone ${version}${space})`,
     performance.now() - started
   );
+  if (spaceUrl === undefined) {
+    note(
+      `${name} has no Space API URL, so \`nipa server ls\` and the other resource commands don't work with it. Pass \`--space-url\` with its Space portal URL when you add it.`
+    );
+  }
   log(
     use
       ? `Now using ${bold(name)}. Run \`nipa login\` to log in to it.`
