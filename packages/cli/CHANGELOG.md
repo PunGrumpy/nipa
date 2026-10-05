@@ -1,5 +1,14 @@
 # nipa-cli
 
+## 0.1.4
+
+### Patch Changes
+
+- 3adea28: Add `nipa db ls`, which lists the managed database clusters in your project with their engine, status, address, flavor and age. `nipa server ls` doesn't show them.
+- 3adea28: Add `nipa ip ls`, which lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything.
+- 3adea28: Add `nipa lb ls`, which lists the load balancers in your project with their status, health, virtual IP, listener count and age.
+- 49a0027: `nipa server ls` calls Nipa Cloud's Space API at `https://space.nipa.cloud/api` on port 443, instead of the compute endpoint in Keystone's catalog on port 8774, which many networks can't reach. A profile keeps its Space API URL in `spaceUrl`, and `nipa profile add --space-url` sets it. `nipa server ls --json` no longer has `network` on each address, because the Space API doesn't name it. nipa no longer reads Keystone's catalog or saves its endpoints in `auth.json`.
+
 ## 0.1.3
 
 ### Patch Changes
