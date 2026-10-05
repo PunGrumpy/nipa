@@ -13,6 +13,7 @@ import { formatAge, formatDuration, formatElapsed } from "../../../src/util/ui";
 const profile: Profile = {
   authUrl: "https://id.example/v3",
   region: "NCP-TH",
+  spaceUrl: "https://space.example/api",
   userDomain: "nipacloud",
 };
 

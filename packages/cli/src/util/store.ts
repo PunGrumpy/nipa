@@ -4,20 +4,25 @@ import path from "node:path";
 
 import { z } from "zod";
 
-import { EndpointsSchema, ProjectSchema } from "./keystone";
+import { ProjectSchema } from "./keystone";
 
 export const DEFAULT_PROFILE = "prod";
 
 export const PROD_PROFILE = {
   authUrl: "https://identity-api.nipa.cloud/v3",
   region: "NCP-TH",
+  spaceUrl: "https://space.nipa.cloud/api",
   userDomain: "nipacloud",
 } as const;
 
+const HttpUrlSchema = z.url({ protocol: /^https?$/u });
+
 export const ProfileSchema = z.object({
-  authUrl: z.url({ protocol: /^https?$/u }),
+  authUrl: HttpUrlSchema,
   project: ProjectSchema.optional(),
   region: z.string().min(1),
+  // Profiles from before nipa called the Space API use production's.
+  spaceUrl: HttpUrlSchema.default(PROD_PROFILE.spaceUrl),
   userDomain: z.string().min(1),
   username: z.string().optional(),
 });
@@ -58,8 +63,9 @@ const LegacyConfigSchema = ProfileSchema.extend({
 
 const ConfigFileSchema = z.union([ConfigSchema, LegacyConfigSchema]);
 
+// Sessions from before nipa called the Space API also hold the endpoints from
+// Keystone's catalog, which nipa drops when it loads them.
 const SessionSchema = z.object({
-  endpoints: EndpointsSchema.optional(),
   expiresAt: z.iso.datetime({ offset: true }),
   project: ProjectSchema,
   token: z.string().min(1),

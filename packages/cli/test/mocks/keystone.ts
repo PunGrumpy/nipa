@@ -1,6 +1,6 @@
 // me@example.com has the MFA rule password + totp. plain@example.com has no MFA.
-// The catalog puts Nova on the same server, where Alpha has 3 servers on 2
-// pages and the other projects have none. With gateway, it answers like Nipa's
+// The Space API is on the same server under /api, where Alpha has 3 servers
+// and the other projects have none. With gateway, Keystone answers like Nipa's
 // gateway: every 401 has an empty body, and a token without a catalog fails.
 
 import { randomUUID } from "node:crypto";
@@ -29,62 +29,48 @@ const PROJECTS = [
   { domain_id: "d1", enabled: true, id: ALPHA_ID, name: "Alpha" },
 ];
 
-export const FAKE_REGION = "NCP-TH";
-
 const DAY_MS = 86_400_000;
 
 const flavor = (name: string) => ({
   disk: 0,
-  ephemeral: 0,
-  extra_specs: {},
-  original_name: name,
+  id: `flavor-${name}`,
+  name,
   ram: 4096,
-  swap: 0,
   vcpus: 2,
 });
 
-const fixed = (addr: string, version = 4) => ({
-  "OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:00:00:01",
-  "OS-EXT-IPS:type": "fixed",
-  addr,
-  version,
-});
+const ip = (address: string) => ({ address });
 
-/** Alpha's servers, newest first, the way Nova lists them. */
+/** Alpha's servers, newest first, the way the Space API lists them. */
 export const FAKE_SERVERS = [
   {
-    addresses: { "default-network": [fixed("192.0.2.7")] },
     ageMs: 2 * 60_000,
+    external_ips: [],
     flavor: flavor("csa.large.v2"),
     id: "33333333-3333-4333-8333-333333333333",
+    internal_ips: [ip("192.0.2.7")],
     name: "web-2",
     status: "BUILD",
   },
   {
-    addresses: {
-      "default-network": [
-        fixed("192.0.2.5"),
-        { ...fixed("203.0.113.10"), "OS-EXT-IPS:type": "floating" },
-      ],
-      v6: [fixed("2001:db8::5", 6)],
-    },
     ageMs: 3 * DAY_MS,
+    external_ips: [ip("203.0.113.10")],
     flavor: flavor("csa.large.v2"),
     id: "22222222-2222-4222-8222-222222222222",
+    internal_ips: [ip("192.0.2.5"), ip("2001:db8::5")],
     name: "web-1",
     status: "ACTIVE",
   },
   {
-    addresses: { private: [fixed("198.51.100.4")] },
     ageMs: 40 * DAY_MS,
+    external_ips: [],
     flavor: flavor("csa.xlarge.v2"),
     id: "11111111-1111-4111-8111-111111111111",
+    internal_ips: [ip("198.51.100.4")],
     name: "db-1",
     status: "SHUTOFF",
   },
 ];
-
-const PAGE_SIZE = 2;
 
 const USERS = new Map([
   [FAKE_USER.name, { mfa: true, user: FAKE_USER }],
@@ -128,67 +114,26 @@ const unauthorized = () =>
     { status: 401 }
   );
 
-const catalog = (origin: string) => ({
-  catalog: [
-    {
-      endpoints: [
-        {
-          interface: "internal",
-          region_id: FAKE_REGION,
-          url: `${origin}/internal`,
-        },
-        { interface: "public", region_id: "OTHER", url: `${origin}/other` },
-        {
-          interface: "public",
-          region_id: FAKE_REGION,
-          url: `${origin}/compute/v2.1/`,
-        },
-      ],
-      type: "compute",
-    },
-    {
-      endpoints: [
-        { interface: "public", region_id: FAKE_REGION, url: `${origin}/v3` },
-      ],
-      type: "identity",
-    },
-  ],
-});
+const spaceFault = (status: number, message: string) =>
+  Response.json({ message, status }, { status });
 
-// Without microversion 2.47, Nova sends the flavor's ID instead of its name.
-const toNova = (
-  server: (typeof FAKE_SERVERS)[number],
-  microversion: boolean
-) => {
-  const { ageMs, flavor: embedded, ...rest } = server;
-  return {
-    ...rest,
-    created: new Date(Date.now() - ageMs).toISOString(),
-    flavor: microversion ? embedded : { id: "f1", links: [] },
-  };
-};
-
-const listServers = (req: Request, projectId: string | undefined) => {
-  const url = new URL(req.url);
+// The Space API takes a Keystone token and names the project in a header.
+const listServers = (req: Request) => {
+  const projectId = req.headers.get("Project-Id");
+  if (!projectId) {
+    return spaceFault(
+      400,
+      "The 'project-id' header is required to access this API."
+    );
+  }
   const servers = projectId === ALPHA_ID ? FAKE_SERVERS : [];
-  const marker = url.searchParams.get("marker");
-  const start = marker ? servers.findIndex((s) => s.id === marker) + 1 : 0;
-  const page = servers.slice(start, start + PAGE_SIZE);
-  const last = page.at(-1);
-  const more = last !== undefined && start + PAGE_SIZE < servers.length;
-  const microversion =
-    req.headers.get("OpenStack-API-Version") === "compute 2.47";
   return Response.json({
-    servers: page.map((server) => toNova(server, microversion)),
-    // Some clouds put an internal host in the next link.
-    servers_links: more
-      ? [
-          {
-            href: `http://nova.internal:8774/v2.1/servers/detail?marker=${last.id}`,
-            rel: "next",
-          },
-        ]
-      : undefined,
+    instances: servers.map(({ ageMs, ...server }) => ({
+      ...server,
+      created: new Date(Date.now() - ageMs).toISOString(),
+      tenant_id: projectId,
+    })),
+    page_control: { current_filter: {}, max_item: servers.length },
   });
 };
 
@@ -218,7 +163,6 @@ const throughGateway = async (
 
 export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
   const tokens = new Map<string, typeof FAKE_USER>();
-  const scopes = new Map<string, string | undefined>();
   const receipts = new Map<string, typeof FAKE_USER>();
   const requests: string[] = [];
 
@@ -232,7 +176,6 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     }
     const value = `tok-${randomUUID()}`;
     tokens.set(value, user);
-    scopes.set(value, project?.id);
     const token = {
       expires_at: new Date(Date.now() + 24 * 3_600_000).toISOString(),
       project: project && {
@@ -320,8 +263,17 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     );
   };
 
+  const space = (req: Request, pathname: string): Response => {
+    if (!tokens.has(req.headers.get("X-Auth-Token") ?? "")) {
+      return spaceFault(401, "The requested resource requires authorization.");
+    }
+    return pathname === "/api/v3/instances"
+      ? listServers(req)
+      : new Response("Not Found", { status: 404 });
+  };
+
   const handle = (req: Request): Response | Promise<Response> => {
-    const { origin, pathname } = new URL(req.url);
+    const { pathname } = new URL(req.url);
     requests.push(`${req.method} ${pathname}`);
     if (pathname === "/v3" || pathname === "/v3/") {
       return Response.json({ version: { id: "v3.14", status: "stable" } });
@@ -329,25 +281,24 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     if (pathname === "/v3/auth/tokens") {
       return authTokens(req);
     }
-    const routes = new Map([
-      [
-        "/compute/v2.1/servers/detail",
-        (t: string) => listServers(req, scopes.get(t)),
-      ],
-      ["/v3/auth/catalog", () => Response.json(catalog(origin))],
-      ["/v3/auth/projects", () => Response.json({ projects: PROJECTS })],
-    ]);
-    const route = routes.get(pathname);
-    if (!route) {
+    if (pathname !== "/v3/auth/projects") {
       return new Response("not found", { status: 404 });
     }
     const token = req.headers.get("X-Auth-Token") ?? "";
-    return tokens.has(token) ? route(token) : unauthorized();
+    return tokens.has(token)
+      ? Response.json({ projects: PROJECTS })
+      : unauthorized();
   };
 
   const server = Bun.serve({
-    fetch: async (req) =>
-      gateway ? throughGateway(req, await handle(req)) : handle(req),
+    fetch: async (req) => {
+      const { pathname } = new URL(req.url);
+      if (pathname.startsWith("/api/")) {
+        requests.push(`${req.method} ${pathname}`);
+        return space(req, pathname);
+      }
+      return gateway ? throughGateway(req, await handle(req)) : handle(req);
+    },
     port: 0,
   });
 

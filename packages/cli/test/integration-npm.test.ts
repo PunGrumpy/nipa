@@ -48,7 +48,7 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
-  test("lists servers through the compute API", async () => {
+  test("lists servers through the Space API", async () => {
     const { code, stdout } = await node("server", "ls", "--json");
     expect(code).toBe(0);
     expect(JSON.parse(stdout).servers).toHaveLength(FAKE_SERVERS.length);

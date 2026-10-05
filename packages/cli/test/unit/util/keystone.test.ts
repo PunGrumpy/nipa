@@ -5,7 +5,6 @@ import {
   errorMessage,
   identityUrl,
   KeystoneError,
-  listEndpoints,
   listProjects,
   loginWithPassword,
   passwordBody,
@@ -13,7 +12,6 @@ import {
   rescope,
   rescopeBody,
   revoke,
-  toEndpoints,
   totpBody,
 } from "../../../src/util/keystone";
 import type { Account } from "../../../src/util/keystone";
@@ -21,7 +19,6 @@ import {
   ALPHA_ID,
   FAKE_PASSCODE,
   FAKE_PASSWORD,
-  FAKE_REGION,
   FAKE_USER,
   PLAIN_USER,
   startFakeKeystone,
@@ -114,50 +111,6 @@ describe("errorMessage", () => {
     expect(errorMessage({ body: {}, status: 500, unauthorized })).toBe(
       "Keystone returned HTTP 500"
     );
-  });
-});
-
-const endpoint = (iface: string, region: string, url: string) => ({
-  interface: iface,
-  region_id: region,
-  url,
-});
-
-describe("toEndpoints", () => {
-  test("keeps each service's public URL in the region", () => {
-    const body = {
-      catalog: [
-        {
-          endpoints: [
-            endpoint("internal", "NCP-TH", "https://nova.internal"),
-            endpoint("public", "OTHER", "https://nova.other"),
-            endpoint("public", "NCP-TH", "https://nova.example"),
-          ],
-          type: "compute",
-        },
-        {
-          endpoints: [endpoint("public", "OTHER", "https://neutron.other")],
-          type: "network",
-        },
-      ],
-    };
-    expect(toEndpoints(body, "NCP-TH")).toEqual({
-      compute: "https://nova.example",
-    });
-  });
-
-  test("falls back to the old region field", () => {
-    const body = {
-      catalog: [
-        {
-          endpoints: [
-            { interface: "public", region: "NCP-TH", url: "https://nova" },
-          ],
-          type: "compute",
-        },
-      ],
-    };
-    expect(toEndpoints(body, "NCP-TH")).toEqual({ compute: "https://nova" });
   });
 });
 
@@ -304,25 +257,6 @@ describe("against a fake Keystone", () => {
       "the session expired or was revoked"
     );
     await expect(revoke(request)).resolves.toBeUndefined();
-  });
-
-  test("listEndpoints reads the catalog for the token's region", async () => {
-    const first = await loginWithPassword(
-      { ...plain, projectId: ALPHA_ID },
-      FAKE_PASSWORD
-    );
-    if (first.kind !== "token") {
-      throw new Error("expected a token");
-    }
-    const endpoints = await listEndpoints({
-      authUrl: keystone.url,
-      region: FAKE_REGION,
-      token: first.token.value,
-    });
-    expect(endpoints).toEqual({
-      compute: `${keystone.url}/compute/v2.1/`,
-      identity: `${keystone.url}/v3`,
-    });
   });
 
   test("probe reads the Keystone version", async () => {

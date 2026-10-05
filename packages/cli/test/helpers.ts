@@ -78,6 +78,7 @@ export const seedSession = async (
     authUrl: keystoneUrl,
     project: alpha,
     region: "NCP-TH",
+    spaceUrl: `${keystoneUrl}/api`,
     userDomain: "nipacloud",
     username: FAKE_USER.name,
   };

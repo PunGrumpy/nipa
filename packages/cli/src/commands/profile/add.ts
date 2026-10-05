@@ -82,11 +82,18 @@ export const add = handle(addSubcommand, async ({ args, client, flags }) => {
     (prompts.interactive
       ? await prompts.text({ default: PROD_PROFILE.region, message: "Region" })
       : PROD_PROFILE.region);
+  const spaceUrl = flags["space-url"] ?? PROD_PROFILE.spaceUrl;
+  if (!ProfileSchema.shape.spaceUrl.safeParse(spaceUrl).success) {
+    throw usageError(
+      `invalid --space-url "${spaceUrl}"`,
+      "Enter an http or https URL, such as https://space.example.com/api"
+    );
+  }
   const started = performance.now();
   const version = await withSpinner(`Checking ${authUrl}…`, () =>
     probe(authUrl)
   );
-  const profile: Profile = { authUrl, region, userDomain };
+  const profile: Profile = { authUrl, region, spaceUrl, userDomain };
   const use =
     flags.use ??
     (prompts.interactive &&

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { z } from "zod";
 
-import { ApiError, createService } from "../../../src/util/api";
+import { ApiError, createSpace } from "../../../src/util/api";
 import { listServers } from "../../../src/util/compute";
 import { loginWithPassword } from "../../../src/util/keystone";
 import {
@@ -16,35 +16,42 @@ import type { FakeKeystone } from "../../mocks/keystone";
 
 const FAULTS = new Map<string, () => Response>([
   [
-    "/nova",
+    "/fault",
     () =>
       Response.json(
-        { itemNotFound: { code: 404, message: "Instance x not found." } },
+        { message: "Instance x not found.", status: 404 },
         { status: 404 }
-      ),
-  ],
-  [
-    "/neutron",
-    () =>
-      Response.json(
-        { NeutronError: { detail: "", message: "Quota exceeded", type: "Q" } },
-        { status: 409 }
       ),
   ],
   ["/html", () => new Response("<h1>Bad Gateway</h1>", { status: 502 })],
   ["/not-json", () => new Response("ok")],
 ]);
 
-describe("createService", () => {
+const HeadersSchema = z.object({
+  projectId: z.string(),
+  region: z.string(),
+  token: z.string(),
+});
+
+describe("createSpace", () => {
   let server: ReturnType<typeof Bun.serve>;
-  const service = () =>
-    createService({ token: "tok", type: "compute", url: `${server.url}` });
+  const space = () =>
+    createSpace({
+      projectId: "p1",
+      region: "NCP-TH",
+      token: "tok",
+      url: `${server.url}api/`,
+    });
 
   beforeAll(() => {
     server = Bun.serve({
       fetch: (req) =>
-        FAULTS.get(new URL(req.url).pathname)?.() ??
-        Response.json({ token: req.headers.get("X-Auth-Token") }),
+        FAULTS.get(new URL(req.url).pathname.replace("/api", ""))?.() ??
+        Response.json({
+          projectId: req.headers.get("Project-Id"),
+          region: req.headers.get("Region"),
+          token: req.headers.get("X-Auth-Token"),
+        }),
       port: 0,
     });
   });
@@ -53,25 +60,27 @@ describe("createService", () => {
     server.stop(true);
   });
 
-  test("sends the token and parses the body", async () => {
-    const body = await service().get("/echo", z.object({ token: z.string() }));
-    expect(body.token).toBe("tok");
+  test("sends the token, project and region, and parses the body", async () => {
+    expect(await space().get("/echo", HeadersSchema)).toEqual({
+      projectId: "p1",
+      region: "NCP-TH",
+      token: "tok",
+    });
   });
 
   test.each([
-    ["/nova", "Instance x not found.", 404],
-    ["/neutron", "Quota exceeded", 409],
-    ["/html", "compute returned HTTP 502", 502],
+    ["/fault", "Instance x not found.", 404],
+    ["/html", "the Space API returned HTTP 502", 502],
   ])("%s: the fault's message and status", async (path, message, status) => {
-    const attempt = service().get(path, z.object({}));
+    const attempt = space().get(path, z.object({}));
     await expect(attempt).rejects.toThrow(ApiError);
     await expect(attempt).rejects.toThrow(message);
     await expect(attempt).rejects.toMatchObject({ status });
   });
 
   test("a body that isn't the expected JSON", async () => {
-    const attempt = service().get("/not-json", z.object({ id: z.string() }));
-    await expect(attempt).rejects.toThrow("unexpected compute response");
+    const attempt = space().get("/not-json", z.object({ id: z.string() }));
+    await expect(attempt).rejects.toThrow("unexpected Space API response");
   });
 });
 
@@ -86,7 +95,7 @@ describe("listServers", () => {
     keystone.stop();
   });
 
-  test("reads every page, by marker, with flavor names", async () => {
+  test("reads the project's servers with flavor names and addresses", async () => {
     const login = await loginWithPassword(
       {
         authUrl: keystone.url,
@@ -99,24 +108,22 @@ describe("listServers", () => {
     if (login.kind !== "token") {
       throw new Error("expected a token");
     }
-    const compute = createService({
+    const space = createSpace({
+      projectId: ALPHA_ID,
+      region: "NCP-TH",
       token: login.token.value,
-      type: "compute",
-      url: `${keystone.url}/compute/v2.1/`,
+      url: `${keystone.url}/api`,
     });
-    const servers = await listServers(compute);
+    const servers = await listServers(space);
     expect(servers.map((s) => s.name)).toEqual(FAKE_SERVERS.map((s) => s.name));
     expect(servers[1]).toMatchObject({
       flavor: "csa.large.v2",
       status: "ACTIVE",
     });
-    expect(servers[1]?.addresses).toContainEqual({
-      address: "203.0.113.10",
-      network: "default-network",
-      type: "floating",
-      version: 4,
-    });
-    const pages = keystone.requests.filter((r) => r.includes("/servers/"));
-    expect(pages).toHaveLength(2);
+    expect(servers[1]?.addresses).toEqual([
+      { address: "192.0.2.5", type: "fixed", version: 4 },
+      { address: "2001:db8::5", type: "fixed", version: 6 },
+      { address: "203.0.113.10", type: "floating", version: 4 },
+    ]);
   });
 });

@@ -14,7 +14,7 @@ Pick the test by what it needs:
 
 Shared fixtures:
 
-- `test/mocks/keystone.ts` starts a fake Keystone with the compute API. Add routes there for a new API
+- `test/mocks/keystone.ts` starts a fake Keystone with the Space API under `/api`. Add routes there for a new API
 - `test/helpers.ts` has `runProcess`, `testEnv`, `seedSession` and `ENTRY`. `testEnv` points `HOME` and `NIPA_CONFIG_DIR` at a temporary directory, so tests never touch your real config
 
 ## What to cover

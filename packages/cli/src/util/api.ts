@@ -12,21 +12,13 @@ export class ApiError extends Error {
   }
 }
 
-const MessageSchema = z.object({ message: z.string() });
-
-// Nova and Cinder wrap the message in an object named after the fault, such
-// as {"itemNotFound": {...}}, and Neutron in {"NeutronError": {...}}.
-const FaultSchema = z.union([
-  MessageSchema.transform((fault) => fault.message),
-  z
-    .record(z.string(), MessageSchema)
-    .transform((faults) => Object.values(faults)[0]?.message),
-]);
+// The Space API answers a failure with {"status": 401, "message": "…"}.
+const FaultSchema = z.object({ message: z.string() });
 
 const readFault = async (res: Response): Promise<string | undefined> => {
   try {
     const parsed = FaultSchema.safeParse(JSON.parse(await res.text()));
-    return parsed.success ? parsed.data : undefined;
+    return parsed.success ? parsed.data.message : undefined;
   } catch {
     return undefined;
   }
@@ -43,42 +35,43 @@ const parseBody = async <T>(
   }
 };
 
-export interface Service {
-  get: <T>(
-    path: string,
-    schema: z.ZodType<T>,
-    headers?: Record<string, string>
-  ) => Promise<T>;
+export interface Space {
+  get: <T>(path: string, schema: z.ZodType<T>) => Promise<T>;
 }
 
-/** An OpenStack service at `url`, such as Nova, called with the token. */
-export const createService = (input: {
-  type: string;
+/**
+ * Nipa Cloud's Space API at `url`, the one the portal calls, as the project
+ * in the token. It takes a Keystone token and serves every service on 443.
+ */
+export const createSpace = (input: {
   url: string;
   token: string;
-}): Service => {
+  projectId: string;
+  region: string;
+}): Space => {
   let base = input.url;
   while (base.endsWith("/")) {
     base = base.slice(0, -1);
   }
   return {
-    get: async (path, schema, headers = {}) => {
+    get: async (path, schema) => {
       const res = await request(`${base}${path}`, {
         headers: {
           Accept: "application/json",
-          ...headers,
+          "Project-Id": input.projectId,
+          Region: input.region,
           "X-Auth-Token": input.token,
         },
       });
       if (!res.ok) {
         const message =
-          (await readFault(res)) ?? `${input.type} returned HTTP ${res.status}`;
+          (await readFault(res)) ?? `the Space API returned HTTP ${res.status}`;
         throw new ApiError(message, res.status);
       }
       const parsed = await parseBody(res, schema);
       if (!parsed.success) {
         throw new ApiError(
-          `unexpected ${input.type} response: ${z.prettifyError(parsed.error)}`,
+          `unexpected Space API response: ${z.prettifyError(parsed.error)}`,
           res.status
         );
       }
