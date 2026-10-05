@@ -6,6 +6,8 @@ import pkg from "../package.json" with { type: "json" };
 import { program } from "./commands";
 import { ApiError } from "./util/api";
 import { createClient } from "./util/client";
+import { programSpec } from "./util/command";
+import { refreshCompletions } from "./util/completion-install";
 import { run } from "./util/dispatch";
 import { isDebug, NetworkError } from "./util/http";
 import { KeystoneError } from "./util/keystone";
@@ -54,6 +56,10 @@ try {
     case "ran": {
       process.exitCode = outcome.exitCode;
       if (outcome.updateNotice) {
+        await refreshCompletions({
+          program: programSpec(program),
+          version: pkg.version,
+        });
         await checkForUpdate(pkg.version);
       }
       break;
