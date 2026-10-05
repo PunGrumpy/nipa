@@ -21,6 +21,7 @@ beforeAll(() => {
   profile = {
     authUrl: keystone.url,
     region: "NCP-TH",
+    spaceUrl: `${keystone.url}/api`,
     userDomain: "nipacloud",
   };
 });

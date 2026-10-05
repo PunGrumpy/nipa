@@ -179,6 +179,40 @@ describe("profiles", () => {
     expect(notKeystone.stderr).toContain("doesn't answer like Keystone v3");
   });
 
+  test("add keeps --space-url, or production's Space API without it", async () => {
+    expect(
+      await exitCode([
+        "profile",
+        "add",
+        "dev",
+        "--auth-url",
+        keystone.url,
+        "--space-url",
+        "https://space.example.com/api",
+      ])
+    ).toBe(0);
+    const config = await readJsonFile("config.json");
+    expect(config.profiles.dev.spaceUrl).toBe("https://space.example.com/api");
+    expect(config.profiles.staging.spaceUrl).toBe(
+      "https://space.nipa.cloud/api"
+    );
+    await run(["profile", "rm", "dev", "--yes"]);
+  });
+
+  test("add refuses a --space-url that isn't a URL", async () => {
+    const { code, stderr } = await run([
+      "profile",
+      "add",
+      "other",
+      "--auth-url",
+      keystone.url,
+      "--space-url",
+      "space",
+    ]);
+    expect(code).toBe(2);
+    expect(stderr).toContain('invalid --space-url "space"');
+  });
+
   test("add without a terminal needs --auth-url", async () => {
     const { code, stderr } = await run(["profile", "add", "dev"]);
     expect(code).toBe(2);

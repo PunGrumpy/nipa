@@ -27,6 +27,11 @@ export const addSubcommand = defineCommand({
       value: { kind: "text", name: "region" },
     },
     {
+      description: "Space API URL (default: https://space.nipa.cloud/api)",
+      long: "space-url",
+      value: { kind: "text", name: "url" },
+    },
+    {
       description: "Make it the current profile",
       long: "use",
       value: { kind: "none" },
@@ -53,7 +58,7 @@ export const rmSubcommand = defineCommand({
 export const profileCommand = defineGroup({
   default: "ls",
   description:
-    "A profile is a Keystone URL, user domain and region with its own session. nipa starts with prod, which is Nipa Cloud production. Add a profile for staging or any other Keystone, then use it with `nipa profile use <name>` or `-P <name>`.",
+    "A profile is a Keystone URL, user domain, region and Space API URL with its own session. nipa starts with prod, which is Nipa Cloud production. Add a profile for staging or any other Keystone, then use it with `nipa profile use <name>` or `-P <name>`.",
   examples: [
     {
       command:

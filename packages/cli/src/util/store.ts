@@ -11,13 +11,18 @@ export const DEFAULT_PROFILE = "prod";
 export const PROD_PROFILE = {
   authUrl: "https://identity-api.nipa.cloud/v3",
   region: "NCP-TH",
+  spaceUrl: "https://space.nipa.cloud/api",
   userDomain: "nipacloud",
 } as const;
 
+const HttpUrlSchema = z.url({ protocol: /^https?$/u });
+
 export const ProfileSchema = z.object({
-  authUrl: z.url({ protocol: /^https?$/u }),
+  authUrl: HttpUrlSchema,
   project: ProjectSchema.optional(),
   region: z.string().min(1),
+  // Profiles from before nipa called the Space API use production's.
+  spaceUrl: HttpUrlSchema.default(PROD_PROFILE.spaceUrl),
   userDomain: z.string().min(1),
   username: z.string().optional(),
 });

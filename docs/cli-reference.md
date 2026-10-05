@@ -37,6 +37,7 @@ These options belong to one command:
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
 | `--region <region>` | `profile add` | The region. The default is `NCP-TH` |
+| `--space-url <url>` | `profile add` | The Space API URL. The default is `https://space.nipa.cloud/api` |
 | `--use` | `profile add` | Makes the new profile the current one |
 | `-y, --yes` | `profile rm` | Removes the profile without asking |
 
@@ -71,14 +72,14 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 
 | File | Contents |
 | --- | --- |
-| `config.json` | `currentProfile`, and `profiles` with each profile's `authUrl`, `userDomain`, `region`, last `username` and last `project` |
+| `config.json` | `currentProfile`, and `profiles` with each profile's `authUrl`, `userDomain`, `region`, `spaceUrl`, last `username` and last `project` |
 | `auth.json` | `sessions` with each profile's token, expiry time, user and project, and the service endpoints from Keystone's catalog once a command needs them |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
 
-`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud` and region `NCP-TH`.
+`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile without `spaceUrl` uses that Space API.
 
 ## Exit codes
 
@@ -138,7 +139,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 }
 ```
 
-`nipa profile ls --json` prints an array with one object per profile. Each object has `name`, `current`, `loggedIn`, `authUrl`, `userDomain` and `region`. It also has `username` and `project` from the last login, and `user` while the session is active.
+`nipa profile ls --json` prints an array with one object per profile. Each object has `name`, `current`, `loggedIn`, `authUrl`, `userDomain`, `region` and `spaceUrl`. It also has `username` and `project` from the last login, and `user` while the session is active.
 
 ## Update check
 

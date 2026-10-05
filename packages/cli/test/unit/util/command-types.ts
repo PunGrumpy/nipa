@@ -48,6 +48,7 @@ export const derived: [
       readonly flags: {
         readonly "auth-url"?: string;
         readonly region?: string;
+        readonly "space-url"?: string;
         readonly use?: true;
         readonly "user-domain"?: string;
       };
