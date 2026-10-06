@@ -1,26 +1,19 @@
 import { handle } from "../../util/command";
 import { listProjects, rescope } from "../../util/keystone";
-import type { Project } from "../../util/keystone";
-import { pickProject, saveLogin, toSession } from "../../util/session";
+import { displayPath } from "../../util/link";
+import {
+  askProject,
+  pickProject,
+  saveLogin,
+  toSession,
+} from "../../util/session";
 import { bold, CliError, note, success, withSpinner } from "../../util/ui";
-import type { Prompts } from "../../util/ui";
 import { switchCommand } from "./command";
-
-const askProject =
-  (prompts: Prompts, current: Project) => (projects: readonly Project[]) =>
-    prompts.choice({
-      choices: projects.map((p) => ({
-        description: p.id,
-        name: p.id === current.id ? `${p.name} ${bold("(current)")}` : p.name,
-        value: p,
-      })),
-      default: projects.find((p) => p.id === current.id),
-      message: "Switch to:",
-    });
 
 export const switchProject = handle(switchCommand, async ({ args, client }) => {
   const { project: wanted } = args;
-  const { active, session } = await client.session();
+  // switch changes the saved project, so a linked folder doesn't count.
+  const { active, session } = await client.savedSession();
   const { authUrl } = active.profile;
   const projects = await withSpinner("Loading your projects…", () =>
     listProjects({ authUrl, token: session.token })
@@ -32,7 +25,11 @@ export const switchProject = handle(switchCommand, async ({ args, client }) => {
     });
   }
   const project = await pickProject({
-    ask: askProject(client.prompts, session.project),
+    ask: askProject({
+      current: session.project,
+      message: "Switch to:",
+      prompts: client.prompts,
+    }),
     projects,
     wanted,
   });
@@ -46,5 +43,11 @@ export const switchProject = handle(switchCommand, async ({ args, client }) => {
   );
   await saveLogin({ active, session: toSession(token, project) });
   success(`Switched to ${bold(project.name)}`, performance.now() - started);
+  const linked = active.link;
+  if (linked && linked.link.project.id !== project.id) {
+    note(
+      `Commands in this folder still use ${bold(linked.link.project.name)}, from ${displayPath(linked.file)}. Run \`nipa unlink\` to use ${project.name} here too.`
+    );
+  }
   return 0;
 });

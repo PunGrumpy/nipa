@@ -6,7 +6,15 @@ import {
   expect,
   test,
 } from "bun:test";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -33,12 +41,29 @@ let keystone: FakeKeystone;
 const run = (args: string[], extraEnv: Record<string, string> = {}) =>
   runProcess(["bun", ENTRY, ...args], { ...testEnv(dir), ...extraEnv });
 
+const exists = async (file: string): Promise<boolean> => {
+  try {
+    await access(file);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Runs nipa in `cwd`, such as a linked folder. */
+const runIn = (cwd: string, args: string[]) =>
+  runProcess(["bun", ENTRY, ...args], testEnv(dir), cwd);
+
 const exitCode = async (args: string[]): Promise<number> => {
   const { code } = await run(args);
   return code;
 };
 
 const inDir = (...parts: string[]) => path.join(dir, ...parts);
+
+// A folder to link, and one below it.
+const infra = () => inDir("infra");
+const modules = () => inDir("infra", "modules");
 
 const readJsonFile = async (name: string) =>
   JSON.parse(await readFile(path.join(dir, name), "utf-8"));
@@ -838,6 +863,128 @@ describe("server start, stop and restart", () => {
     const { code, stderr } = await run(["server", "stop", "web-2", "--yes"]);
     expect(code).toBe(1);
     expect(stderr).toContain("Cannot 'stop' instance");
+  });
+});
+
+describe("link", () => {
+  const BETA_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    await mkdir(modules(), { recursive: true });
+  });
+
+  test("without a project and without a terminal, lists the projects", async () => {
+    const { code, stderr } = await runIn(infra(), ["link"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain("tell nipa which project to link");
+    expect(stderr).toContain("Your projects: Alpha, Beta");
+    expect(await exists(path.join(infra(), ".nipa"))).toBe(false);
+  });
+
+  test("links the folder to a project and profile", async () => {
+    const { code, stderr, stdout } = await runIn(infra(), ["link", "Beta"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain(
+      "Success! Linked .nipa/project.json to Beta (prod)"
+    );
+    expect(stderr).toContain(
+      "Commands in this folder now use Beta. Run `nipa unlink` to stop."
+    );
+    expect(stdout).toBe("");
+    const saved = JSON.parse(
+      await readFile(path.join(infra(), ".nipa", "project.json"), "utf-8")
+    );
+    expect(saved).toMatchObject({
+      profile: "prod",
+      project: { id: BETA_ID, name: "Beta" },
+    });
+    const again = await runIn(infra(), ["link", "Beta"]);
+    expect(again.code).toBe(0);
+    expect(again.stderr).toContain(
+      "NOTE: This folder is already linked to Beta"
+    );
+  });
+
+  test("a folder below uses the linked project, and the saved one stays", async () => {
+    const { code, stderr, stdout } = await runIn(modules(), ["env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(BETA_ID);
+    expect(stderr).toContain("Using project Beta from ../.nipa/project.json");
+    const auth = await readJsonFile("auth.json");
+    expect(auth.sessions.prod.project.id).toBe(ALPHA_ID);
+    const outside = await run(["env"]);
+    expect(outside.stdout).toContain(ALPHA_ID);
+    expect(outside.stderr).not.toContain("Using project");
+  });
+
+  test("whoami --json names the linked project beside the saved one", async () => {
+    const linked = await runIn(infra(), ["whoami", "--json"]);
+    const json = JSON.parse(linked.stdout);
+    expect(json.project.name).toBe("Alpha");
+    expect(json.link.project.name).toBe("Beta");
+    const outside = await run(["whoami", "--json"]);
+    expect(JSON.parse(outside.stdout).link).toBeNull();
+  });
+
+  test("switch changes the saved project, and says the link still wins", async () => {
+    const same = await runIn(infra(), ["switch", "Alpha"]);
+    expect(same.stderr).toContain("You're already using Alpha");
+    await runIn(infra(), ["switch", "Beta"]);
+    const { code, stderr } = await runIn(infra(), ["switch", "Alpha"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("Switched to Alpha");
+    expect(stderr).toContain(
+      "Commands in this folder still use Beta, from .nipa/project.json. Run `nipa unlink` to use Alpha here too."
+    );
+  });
+
+  test("a link to a missing profile says where it comes from, and -P skips it", async () => {
+    const other = inDir("other");
+    await mkdir(path.join(other, ".nipa"), { recursive: true });
+    await writeFile(
+      path.join(other, ".nipa", "project.json"),
+      JSON.stringify({
+        profile: "staging",
+        project: { id: BETA_ID, name: "Beta" },
+      })
+    );
+    const { code, stderr } = await runIn(other, ["env"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      'no profile named "staging" in .nipa/project.json'
+    );
+    const withProd = await runIn(other, ["-P", "prod", "env"]);
+    expect(withProd.code).toBe(0);
+    expect(withProd.stdout).toContain(ALPHA_ID);
+  });
+
+  test("a broken link file says how to fix it", async () => {
+    const broken = inDir("broken");
+    await mkdir(path.join(broken, ".nipa"), { recursive: true });
+    await writeFile(path.join(broken, ".nipa", "project.json"), "{");
+    const { code, stderr } = await runIn(broken, ["env"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("project.json isn't valid JSON");
+    expect(stderr).toContain(
+      "Fix the file, or run `nipa unlink` and `nipa link` again."
+    );
+  });
+
+  test("unlink deletes the closest link, then has nothing to do", async () => {
+    const { code, stderr } = await runIn(modules(), ["unlink"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain(
+      "Success! Unlinked ../.nipa/project.json from Beta"
+    );
+    expect(await exists(path.join(infra(), ".nipa"))).toBe(false);
+    const again = await runIn(modules(), ["unlink"]);
+    expect(again.code).toBe(0);
+    expect(again.stderr).toContain(
+      "NOTE: This folder isn't linked to a project"
+    );
   });
 });
 

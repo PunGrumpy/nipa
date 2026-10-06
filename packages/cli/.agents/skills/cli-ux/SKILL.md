@@ -51,7 +51,7 @@ Load only the reference the task needs:
 | --- | --- |
 | Any change to output or flow | [`references/core.md`](references/core.md) |
 | New or changed copy, or a copy review | [`references/core.md`](references/core.md) and [`references/copy.md`](references/copy.md) |
-| `login`, `switch`, sessions, or prompts | [`references/command-contracts.md`](references/command-contracts.md) |
+| `login`, `switch`, `link`, sessions, or prompts | [`references/command-contracts.md`](references/command-contracts.md) |
 | `os`, `tf`, `exec`, or `env` | [`references/command-contracts.md`](references/command-contracts.md) |
 | `server start`, `stop` or `restart` | [`references/command-contracts.md`](references/command-contracts.md) |
 | Tests, stale-string sweeps, or a review | [`references/verification.md`](references/verification.md) |

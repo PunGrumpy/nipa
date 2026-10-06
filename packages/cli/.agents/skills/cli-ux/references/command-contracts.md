@@ -44,6 +44,26 @@ Rules:
 - Without an argument and without a terminal, fail with exit code 2 and a hint listing the names to pass
 - Choosing the current project or profile is a no-op. Print a `note`, such as `You're already using my-project`, and exit 0
 - `switch` with one project skips the prompt and uses it
+- `switch` and `link` read the saved session through `client.savedSession()`, so a linked folder never hides the saved project. After `switch` in a linked folder, a `note` says the folder still uses its own project and names `nipa unlink`
+
+## Linked folders
+
+`nipa link [project]` writes `.nipa/project.json` with a profile and a project, like the Vercel CLI's `.vercel/project.json`. `findLink` in `src/util/link.ts` finds the closest one at or above the working folder.
+
+Rules:
+
+- The link's profile comes after `--profile` and `NIPA_PROFILE`, and before the current profile. The link's project applies only when the profile nipa picked is the link's
+- In a linked folder, `client.session()` exchanges the saved token for one in the linked project, keeps it in memory, and logs `Using project my-project from .nipa/project.json` after the profile line. It never saves that token
+- A link to a missing profile names the link file in the error. A broken link file names `nipa unlink` in the hint
+- `link` without a project and without a terminal fails with exit code 2 and lists the projects, like `switch`. Linking a folder to its own project again is a no-op `note`
+- `unlink` with no link is a no-op `note`, and exits 0
+
+States to test:
+
+- A command in the linked folder, in a folder below it, and outside it
+- `-P` with another profile in a linked folder
+- `whoami --json` with and without a link
+- A missing profile and a broken link file
 
 ## Running tools
 

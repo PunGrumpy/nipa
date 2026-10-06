@@ -35,6 +35,8 @@ nipa tf plan
 
 `nipa server` lists, inspects, starts, stops and restarts your servers, `nipa os` runs `openstack` and `nipa tf` runs `terraform`. Run `nipa --help` for every command.
 
+To use one profile and project in a folder, such as your Terraform code, run `nipa -P staging link my-project` there.
+
 ## Documentation
 
 Pick the page for what you want to do:

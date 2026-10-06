@@ -21,9 +21,11 @@ export interface RunResult {
 /** stdin is closed, so nipa can't prompt. */
 export const runProcess = async (
   cmd: string[],
-  env: Record<string, string>
+  env: Record<string, string>,
+  cwd?: string
 ): Promise<RunResult> => {
   const proc = Bun.spawn(cmd, {
+    cwd,
     env,
     stderr: "pipe",
     stdin: "ignore",
