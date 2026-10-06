@@ -96,3 +96,57 @@ export const openstackCompletions = async (
   const table = await loadTable(bin);
   return table ? candidates(table, words) : [];
 };
+
+/** Resources whose names nipa completes inside `nipa os`, from the Space API. */
+export type ResourceKind = "servers" | "flavors" | "images" | "networks";
+
+// The commands whose every argument is a server, such as `server stop a b`.
+const SERVER_COMMANDS = [
+  "console log show",
+  "console url show",
+  "server delete",
+  "server lock",
+  "server pause",
+  "server reboot",
+  "server rescue",
+  "server resume",
+  "server show",
+  "server shelve",
+  "server ssh",
+  "server start",
+  "server stop",
+  "server suspend",
+  "server unlock",
+  "server unpause",
+  "server unrescue",
+  "server unshelve",
+].map((command) => command.split(" "));
+
+const VALUE_OPTIONS = new Map<string, ResourceKind>([
+  ["--flavor", "flavors"],
+  ["--image", "images"],
+  ["--network", "networks"],
+]);
+
+/**
+ * What the last word names, when nipa knows: a server after `server show`,
+ * or a flavor after `--flavor`. openstack's own table lists commands and
+ * options, not the values they take.
+ */
+export const valueKind = (
+  words: readonly string[]
+): ResourceKind | undefined => {
+  const previous = words.at(-2) ?? "";
+  if (previous.startsWith("-")) {
+    return VALUE_OPTIONS.get(previous);
+  }
+  if ((words.at(-1) ?? "").startsWith("-")) {
+    return undefined;
+  }
+  const isServerCommand = SERVER_COMMANDS.some(
+    (command) =>
+      words.length > command.length &&
+      command.every((word, index) => words[index] === word)
+  );
+  return isServerCommand ? "servers" : undefined;
+};

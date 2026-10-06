@@ -19,7 +19,12 @@ import {
 } from "../../helpers";
 import { startFakeKeystone } from "../../mocks/keystone";
 import type { FakeKeystone } from "../../mocks/keystone";
-import { FAKE_SERVERS } from "../../mocks/space";
+import {
+  FAKE_NETWORKS,
+  FAKE_OWNED_IMAGES,
+  FAKE_PUBLIC_IMAGES,
+  FAKE_SERVERS,
+} from "../../mocks/space";
 
 const SHELLS = ["bash", "zsh", "fish", "pwsh"] as const;
 
@@ -182,6 +187,27 @@ describe("nipa completion", () => {
     expect(await openstackComplete("server", "list", "-h")).toEqual(["-h"]);
   });
 
+  test("__complete openstack completes resource names from the Space API", async () => {
+    expect(await openstackComplete("server", "show", "web")).toEqual([
+      "web-2",
+      "web-1",
+    ]);
+    expect(
+      await openstackComplete("server", "create", "--flavor", "csa")
+    ).toEqual(["csa.large.v2", "csa.xlarge.v2"]);
+    expect(await openstackComplete("server", "create", "--image", "")).toEqual([
+      ...FAKE_PUBLIC_IMAGES,
+      ...FAKE_OWNED_IMAGES,
+    ]);
+    expect(
+      await openstackComplete("server", "create", "--network", "")
+    ).toEqual(FAKE_NETWORKS);
+    // openstack's own options still come from its table.
+    expect(await openstackComplete("server", "create", "--im")).toEqual([
+      "--image",
+    ]);
+  });
+
   test("__complete openstack splits a command that has subcommands", async () => {
     expect(await openstackComplete("server", "resize", "")).toEqual([
       "confirm",
@@ -253,6 +279,9 @@ describe("bash", () => {
 
   test("openstack commands after os and openstack", async () => {
     expect(await bashComplete("nipa", "os", "server", "l")).toEqual(["list"]);
+    expect(await bashComplete("nipa", "os", "server", "show", "web-1")).toEqual(
+      ["web-1"]
+    );
     const after = await bashComplete("nipa", "-P", "prod", "openstack", "se");
     expect(after).toEqual(["security", "server"]);
   });

@@ -1,10 +1,11 @@
 import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
 import type { CompleteKind } from "../../util/completion";
-import { listServers } from "../../util/compute";
 import { listProjects } from "../../util/keystone";
-import { openstackCompletions } from "../../util/openstack";
-import { connect } from "../../util/session";
+import { resourceNames } from "../../util/names";
+import { openstackCompletions, valueKind } from "../../util/openstack";
+import type { ResourceKind } from "../../util/openstack";
+import { connect, requireSession } from "../../util/session";
 import { isActive, loadConfig, loadSession } from "../../util/store";
 import { completeCommand } from "./command";
 
@@ -22,18 +23,43 @@ const projectNames = async (client: Client): Promise<string[]> => {
 };
 
 // The Space API only, without a login: a Tab press never prompts.
-const serverNames = async (client: Client): Promise<string[]> => {
+const spaceNames = async (
+  client: Client,
+  kind: ResourceKind
+): Promise<string[]> => {
   const active = await client.profile();
-  const session = await loadSession(active.name);
-  if (!(isActive(session) && active.profile.spaceUrl)) {
+  const saved = await loadSession(active.name);
+  const { spaceUrl } = active.profile;
+  if (!(isActive(saved) && spaceUrl)) {
     return [];
   }
-  const { space } = connect({
-    signedIn: { active, session },
-    spaceUrl: active.profile.spaceUrl,
+  // A linked folder completes its own project's names.
+  const project = active.link?.link.project ?? saved.project;
+  return resourceNames({
+    connect: async () => {
+      const signedIn = await requireSession({
+        active,
+        prompts: { ...client.prompts, interactive: false },
+      });
+      return connect({ signedIn, spaceUrl }).space;
+    },
+    kind,
+    scope: `${active.name}:${project.id}`,
   });
-  const servers = await listServers(space);
-  return servers.map((server) => server.name);
+};
+
+/** A resource's names after `nipa os server show`, or openstack's words. */
+const openstackWords = async (
+  client: Client,
+  words: readonly string[]
+): Promise<string[]> => {
+  const kind = valueKind(words);
+  if (!kind) {
+    return openstackCompletions(words);
+  }
+  const typed = words.at(-1) ?? "";
+  const found = await spaceNames(client, kind);
+  return found.filter((name) => name.startsWith(typed));
 };
 
 const values = async (input: {
@@ -51,10 +77,10 @@ const values = async (input: {
       return Object.keys(config.profiles).toSorted();
     }
     case "servers": {
-      return await serverNames(client);
+      return await spaceNames(client, "servers");
     }
     case "openstack": {
-      return await openstackCompletions(words);
+      return await openstackWords(client, words);
     }
     default: {
       const _exhaustive: never = kind;

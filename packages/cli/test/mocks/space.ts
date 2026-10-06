@@ -17,6 +17,9 @@ const flavor = (name: string) => ({
 
 const ip = (address: string) => ({ address });
 
+const LARGE = "csa.large.v2";
+const XLARGE = "csa.xlarge.v2";
+
 // web-1's floating IP, which FAKE_IPS lists too.
 const WEB_1_IP = "203.0.113.10";
 
@@ -25,7 +28,7 @@ export const FAKE_SERVERS = [
   {
     ageMs: 2 * MINUTE_MS,
     external_ips: [],
-    flavor: flavor("csa.large.v2"),
+    flavor: flavor(LARGE),
     id: "33333333-3333-4333-8333-333333333333",
     internal_ips: [ip("192.0.2.7")],
     name: "web-2",
@@ -35,7 +38,7 @@ export const FAKE_SERVERS = [
     "OS-EXT-AZ:availability_zone": "NCP-BKK",
     ageMs: 3 * DAY_MS,
     external_ips: [ip(WEB_1_IP)],
-    flavor: flavor("csa.large.v2"),
+    flavor: flavor(LARGE),
     id: "22222222-2222-4222-8222-222222222222",
     internal_ips: [ip("192.0.2.5"), ip("2001:db8::5")],
     name: "web-1",
@@ -54,7 +57,7 @@ export const FAKE_SERVERS = [
   {
     ageMs: 40 * DAY_MS,
     external_ips: [],
-    flavor: flavor("csa.xlarge.v2"),
+    flavor: flavor(XLARGE),
     id: "11111111-1111-4111-8111-111111111111",
     internal_ips: [ip("198.51.100.4")],
     name: "db-1",
@@ -63,7 +66,7 @@ export const FAKE_SERVERS = [
   {
     ageMs: 60 * DAY_MS,
     external_ips: [],
-    flavor: flavor("csa.xlarge.v2"),
+    flavor: flavor(XLARGE),
     id: "44444444-4444-4444-8444-444444444444",
     internal_ips: [ip("198.51.100.9")],
     metadata: {
@@ -241,6 +244,34 @@ const routes = new Map<string, (ask: Ask) => object>([
     ({ mine }) => ({ external_ips: mine ? FAKE_IPS : [], price: 0.18 }),
   ],
 ]);
+
+/** Flavors, images and networks, for completion inside `nipa os`. */
+export const FAKE_FLAVORS = [LARGE, XLARGE, "dsa.large.v2"];
+export const FAKE_PUBLIC_IMAGES = [
+  "prd-ubuntu-24-v260612",
+  "prd-ubuntu-22-v260610",
+];
+export const FAKE_OWNED_IMAGES = ["web-golden"];
+export const FAKE_NETWORKS = ["default", "Standard_Public_IP_Pool_BKK"];
+
+const named = (list: readonly string[]) => list.map((name) => ({ name }));
+
+routes.set("/api/v4/machine_types", () => ({
+  machine_types: named(FAKE_FLAVORS),
+}));
+routes.set("/api/v4/networks", ({ mine }) => ({
+  networks: named(mine ? FAKE_NETWORKS : FAKE_NETWORKS.slice(1)),
+}));
+routes.set("/api/v4/public_images", () => ({
+  public_images: [{ images: named(FAKE_PUBLIC_IMAGES), name: "Ubuntu" }],
+}));
+// The portal asks for the project's own images with ?table=owned_image, and
+// the answer names its list after the table.
+routes.set("/api/v4/images", ({ mine, query }) =>
+  query.get("table") === "owned_image"
+    ? { owned_images: named(mine ? FAKE_OWNED_IMAGES : []), page_control: {} }
+    : { images: [], page_control: {} }
+);
 
 export const spaceFault = (status: number, message: string): Response =>
   Response.json({ message, status }, { status });

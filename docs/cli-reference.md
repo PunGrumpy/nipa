@@ -91,6 +91,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | `.nipa/project.json` | In a folder that `nipa link` linked: the `profile`, and the `project` with its `id`, `name` and `domainId`. It holds no token, so you can commit it to share the link with your team, or add `.nipa` to `.gitignore` |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
+| `~/.cache/nipa/names.json` | Server, flavor, image and network names from the Space API, for tab completion, kept for a minute per profile and project |
 | `~/.cache/nipa/completion.json` | Where `nipa completion --install` saved each script, and the nipa version that wrote it. When the version changes, the next command rewrites the script |
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
