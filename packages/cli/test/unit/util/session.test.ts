@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import type { Keychain } from "../../../src/util/keychain";
 import { authenticate } from "../../../src/util/session";
 import type { LoginPrompts } from "../../../src/util/session";
 import type { Profile } from "../../../src/util/store";
@@ -156,5 +157,62 @@ describe("authenticate", () => {
       wantedProject: "Nope",
     });
     await expect(attempt).rejects.toThrow('no project named or with ID "Nope"');
+  });
+});
+
+/** The profile after a first login: nipa knows the user and project. */
+const known = (): Profile => ({
+  ...profile,
+  project: { id: ALPHA_ID, name: "Alpha" },
+  username: FAKE_USER.name,
+});
+
+/** A keychain in memory, keyed by user. */
+const memoryKeychain = (saved: Record<string, string> = {}) => {
+  const passwords = new Map(Object.entries(saved));
+  const keychain: Keychain = {
+    name: "test keychain",
+    read: (entry) => Promise.resolve(passwords.get(entry.username)),
+    remove: (entry) => Promise.resolve(passwords.delete(entry.username)),
+    save: (entry, password) => {
+      passwords.set(entry.username, password);
+      return Promise.resolve();
+    },
+  };
+  return { keychain, passwords };
+};
+
+describe("authenticate with a keychain", () => {
+  test("--remember saves the password once Keystone takes it", async () => {
+    const { prompts } = answers({});
+    const { keychain, passwords } = memoryKeychain();
+    await authenticate({ keychain, profile: known(), prompts, remember: true });
+    expect(passwords.get(FAKE_USER.name)).toBe(FAKE_PASSWORD);
+  });
+
+  test("a saved password leaves only the OTP code to ask", async () => {
+    const { asked, prompts } = answers({});
+    const { keychain } = memoryKeychain({ [FAKE_USER.name]: FAKE_PASSWORD });
+    const session = await authenticate({ keychain, profile: known(), prompts });
+    expect(asked).toEqual(["otp 1"]);
+    expect(session.user.name).toBe(FAKE_USER.name);
+  });
+
+  test("a saved password Keystone refuses is deleted, then nipa asks", async () => {
+    const { asked, prompts } = answers({});
+    const { keychain, passwords } = memoryKeychain({
+      [FAKE_USER.name]: "old password",
+    });
+    const session = await authenticate({ keychain, profile: known(), prompts });
+    expect(asked).toEqual(["password", "otp 1"]);
+    expect(passwords.has(FAKE_USER.name)).toBe(false);
+    expect(session.project.id).toBe(ALPHA_ID);
+  });
+
+  test("without --remember, nothing is saved", async () => {
+    const { prompts } = answers({});
+    const { keychain, passwords } = memoryKeychain();
+    await authenticate({ keychain, profile: known(), prompts });
+    expect(passwords.size).toBe(0);
   });
 });

@@ -13,7 +13,7 @@ Resolution order:
 1. **Profile**: `--profile`, then `NIPA_PROFILE`, then the current profile in the config file
 2. **Email**: `--username`, then a prompt whose default is the last email for this profile
 3. **Project ID**: `--project` when it's a 32-character ID, then the profile's last project, then a prompt. Nipa's gateway drops the connection for an unscoped token, so nipa needs a project ID before the first request
-4. **Password**: always a masked prompt
+4. **Password**: the one `nipa login --remember` saved in the OS keychain for this Keystone host and the `--username` or last user, then a masked prompt. With a saved password, nipa skips the email prompt too
 5. **OTP code**: a prompt when Keystone answers that the account needs MFA
 6. **Project by name**: when `--project` is a name, nipa logs in to the known project, lists the projects and switches to the named one
 
@@ -23,7 +23,10 @@ Rules:
 - A command that needs a session prompts for login only when `client.prompts.interactive` is true. Without a terminal, it fails with `your <profile> session expired` or `you aren't logged in to <profile>`, and the hint names `loginLine(profile)`
 - A wrong OTP code gets up to 3 attempts. After a wrong code, nipa says each code works once and asks for the next one
 - A 401 from an API call means Keystone revoked the token. `guardSession` turns it into `your <profile> session expired or was revoked` with the login command as the hint
-- Save the config and the session only after Keystone returns a scoped token
+- Save the config and the session only after Keystone returns a scoped token. Save a `--remember` password only after Keystone accepts it
+- `--remember` checks for a keychain after the terminal check and before any prompt. When Keystone refuses a saved password, delete it, log `The saved password didn't work, so nipa deleted it.`, and ask
+- Never save the OTP code or its secret
+- When a live session has less than 30 minutes left, `requireSession` prints a `note` with the login command. `nipa logout` and `nipa profile rm` delete the saved password
 - `client.session()` runs once per command, so a command that calls it twice never logs in twice
 
 States to test:
@@ -33,6 +36,8 @@ States to test:
 - `--project` as an ID, as a name, and as a name nipa can't find
 - A command that needs a session, with no session, with an expired one, and without a terminal
 - A revoked token returning 401 from the Space API
+- `--remember` saving, a saved password skipping the email and password prompts, and a refused saved password
+- A session with less than 30 minutes left
 
 ## Switching projects and profiles
 

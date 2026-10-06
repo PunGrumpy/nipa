@@ -61,7 +61,7 @@ $ nipa server ls
   db-1      ● Shutoff     198.51.100.4     csa.xlarge.v2     40d
 ```
 
-nipa calls the Space API, the one the Nipa Cloud Space portal uses, with your session, so it doesn't ask for a password. The session lasts until the token expires, which on Nipa Cloud is 24 hours. Run `nipa whoami` to see how long it has left.
+nipa calls the Space API, the one the Nipa Cloud Space portal uses, with your session, so it doesn't ask for a password. The session lasts until the token expires, which on Nipa Cloud is 24 hours. Run `nipa whoami` to see how long it has left. To make the next login ask only for an OTP code, log in once with `nipa login --remember`.
 
 For anything nipa has no command for yet, put `nipa os` in front of an `openstack` command, such as `nipa os volume list`. That runs the OpenStack client, which you install with `pipx install python-openstackclient`.
 

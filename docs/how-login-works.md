@@ -44,3 +44,9 @@ nipa doesn't call the OpenStack APIs in Keystone's catalog, such as compute on `
 Each Space portal has its own Space API under `/api`, and it takes only the tokens of its own Keystone. A staging Keystone pairs with a staging portal, such as `https://portal-stg-epc.nipa.cloud`. So a profile keeps its Space API URL in `spaceUrl`, which `nipa profile add --space-url` sets from the portal URL. A profile on production's Keystone gets production's Space API without it.
 
 `nipa logout` sends `DELETE /v3/auth/tokens` to revoke the token, then deletes it from `auth.json`. Keystone also expires it on its own after 24 hours on Nipa Cloud.
+
+## Why a session lasts 24 hours
+
+Keystone has no refresh token, unlike the OAuth login of the Vercel CLI. A token that Keystone issues for another token, as `nipa switch` and `nipa link` ask for, keeps the first token's expiry time. Application credentials would last longer, but the MFA rule refuses them. So a new session always needs your password and an OTP code.
+
+`nipa login --remember` saves the password in the macOS Keychain, or in Linux's secret service through `secret-tool`, and later logins ask only for the OTP code. nipa never saves the OTP code or its secret, because a second factor on the same disk as the password stops being a second factor. When less than 30 minutes are left, commands that use the session print a note first, so a long `nipa tf apply` doesn't fail halfway.

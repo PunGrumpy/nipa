@@ -36,6 +36,14 @@ The profile's Keystone isn't production's, and nobody gave it a Space portal URL
 
 You ran `nipa login` where nothing can type the answers, such as in continuous integration (CI) or with stdin redirected. nipa never reads a password from a pipe. Log in from a terminal first.
 
+## "the macOS Keychain didn't save your password" or "nipa can't save your password on …"
+
+`nipa login --remember` saves the password with the OS's own tool: `security` on macOS and `secret-tool` on Linux. On macOS, unlock your login keychain. On Linux, install `libsecret-tools` and run a secret service, such as GNOME Keyring, which a server without a desktop often lacks. On other systems, log in without `--remember`.
+
+## "The saved password didn't work, so nipa deleted it."
+
+Your password changed since `nipa login --remember` saved it. nipa asks for the new one. Log in with `--remember` again to save it.
+
 ## "no profile named …"
 
 The name after `-P`, or in `NIPA_PROFILE`, isn't a profile. The error lists the profiles you have. Check `NIPA_PROFILE` with `echo $NIPA_PROFILE` if you didn't pass `-P`.
