@@ -1,6 +1,4 @@
-// A folder's link to a profile and project, like the Vercel CLI's
-// .vercel/project.json. `nipa link` writes .nipa/project.json, and every
-// command in that folder, or a folder below it, uses its project.
+// .nipa/project.json, like the Vercel CLI's .vercel/project.json.
 
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -18,7 +16,6 @@ const LinkSchema = z.object({ profile: z.string(), project: ProjectSchema });
 export type Link = z.infer<typeof LinkSchema>;
 
 export interface FoundLink {
-  /** The link file's path. */
   readonly file: string;
   readonly link: Link;
 }
@@ -69,7 +66,6 @@ export const findLink = async (
   return parent === dir ? undefined : findLink(parent);
 };
 
-/** Links `dir` and returns the file it wrote. */
 export const saveLink = async (input: {
   dir: string;
   link: Link;
@@ -80,7 +76,6 @@ export const saveLink = async (input: {
   return file;
 };
 
-/** Deletes the link file, and its folder when nothing else is in it. */
 export const removeLink = async (file: string): Promise<void> => {
   await rm(file, { force: true });
   try {
@@ -90,6 +85,5 @@ export const removeLink = async (file: string): Promise<void> => {
   }
 };
 
-/** The link file's path as the person would type it from `cwd`. */
 export const displayPath = (file: string, cwd = process.cwd()): string =>
   path.relative(cwd, file);

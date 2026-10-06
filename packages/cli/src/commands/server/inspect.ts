@@ -28,7 +28,6 @@ const fieldsOf = (server: Server, now: number): Field[] => {
       lines: server.securityGroups.map((text) => ({ text })),
     },
   ];
-  // Only a cluster's node has the row, so people's own servers stay short.
   if (server.kubernetes) {
     const { clusterId, role } = server.kubernetes;
     fields.push({

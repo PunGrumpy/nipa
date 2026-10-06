@@ -71,7 +71,6 @@ export const probeSpace = async (url: string): Promise<void> => {
 
 export interface Space {
   get: <T>(path: string, schema: z.ZodType<T>) => Promise<T>;
-  /** Sends a POST without a body, such as an action, and ignores the answer. */
   post: (path: string) => Promise<void>;
 }
 

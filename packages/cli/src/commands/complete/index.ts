@@ -33,7 +33,6 @@ const spaceNames = async (
   if (!(isActive(saved) && spaceUrl)) {
     return [];
   }
-  // A linked folder completes its own project's names.
   const project = active.link?.link.project ?? saved.project;
   return resourceNames({
     connect: async () => {
@@ -48,7 +47,6 @@ const spaceNames = async (
   });
 };
 
-/** A resource's names after `nipa os server show`, or openstack's words. */
 const openstackWords = async (
   client: Client,
   words: readonly string[]

@@ -7,6 +7,8 @@
 import { ApiError, createSpace } from "./api";
 import type { Space } from "./api";
 import { NetworkError } from "./http";
+import { requireKeychain, systemKeychain } from "./keychain";
+import type { Keychain } from "./keychain";
 import {
   continueWithTotp,
   KeystoneError,
@@ -22,11 +24,21 @@ import {
   isActive,
   loadConfig,
   loadSession,
+  msUntilExpiry,
   saveConfig,
   saveSession,
 } from "./store";
 import type { Config, Profile, Session } from "./store";
-import { bold, CliError, dim, log, success, withSpinner } from "./ui";
+import {
+  bold,
+  CliError,
+  dim,
+  formatDuration,
+  log,
+  note,
+  success,
+  withSpinner,
+} from "./ui";
 import type { Prompts } from "./ui";
 
 export interface ActiveProfile {
@@ -137,7 +149,6 @@ const findProject = (input: {
   return match;
 };
 
-/** A choice list of the projects, marking `current` and starting on it. */
 export const askProject =
   (input: { prompts: Prompts; current: Project; message: string }) =>
   (projects: readonly Project[]): Promise<Project> =>
@@ -203,14 +214,72 @@ const verifyOtp = async (input: {
   }
 };
 
+const rememberedLogin = async (input: {
+  keychain: Keychain | undefined;
+  profile: Profile;
+  username: string | undefined;
+}): Promise<{ username: string; password: string } | undefined> => {
+  const username = input.username ?? input.profile.username;
+  if (!(username && input.keychain)) {
+    return undefined;
+  }
+  const password = await input.keychain.read({
+    authUrl: input.profile.authUrl,
+    username,
+  });
+  return password === undefined ? undefined : { password, username };
+};
+
+type PasswordAnswer = Awaited<ReturnType<typeof loginWithPassword>>;
+
+// Keystone refuses a saved password after it changes, so nipa deletes it.
+const checkPassword = async (input: {
+  account: Account;
+  keychain: Keychain | undefined;
+  prompts: LoginPrompts;
+  remembered: string | undefined;
+}): Promise<{ answer: PasswordAnswer; password: string }> => {
+  const { account, keychain, prompts, remembered } = input;
+  const check = async (password: string) => ({
+    answer: await withSpinner("Checking your password…", () =>
+      loginWithPassword(account, password)
+    ),
+    password,
+  });
+  if (remembered === undefined || !keychain) {
+    return check(await prompts.password());
+  }
+  log(`Using the password saved in the ${keychain.name}`);
+  try {
+    return await check(remembered);
+  } catch (error) {
+    if (!(error instanceof KeystoneError && error.status === 401)) {
+      throw error;
+    }
+    await keychain.remove(account);
+    log("The saved password didn't work, so nipa deleted it.");
+    return check(await prompts.password());
+  }
+};
+
 export const authenticate = async (input: {
   profile: Profile;
   prompts: LoginPrompts;
   username?: string;
   wantedProject?: string;
+  keychain?: Keychain;
+  remember?: boolean;
 }): Promise<Session> => {
-  const { profile, prompts, wantedProject } = input;
-  const username = input.username ?? (await prompts.email(profile.username));
+  const { keychain, profile, prompts, wantedProject } = input;
+  const remembered = await rememberedLogin({
+    keychain,
+    profile,
+    username: input.username,
+  });
+  const username =
+    remembered?.username ??
+    input.username ??
+    (await prompts.email(profile.username));
 
   // Nipa's gateway drops the connection for an unscoped token, which has no
   // catalog, so the login names a project before nipa can list them.
@@ -220,31 +289,35 @@ export const authenticate = async (input: {
       : undefined;
   const projectId =
     wantedId ?? profile.project?.id ?? (await prompts.projectId());
-  const password = await prompts.password();
   const account: Account = {
     authUrl: profile.authUrl,
     projectId,
     userDomain: profile.userDomain,
     username,
   };
-
-  const first = await withSpinner("Checking your password…", () =>
-    loginWithPassword(account, password)
-  );
+  const { answer, password } = await checkPassword({
+    account,
+    keychain,
+    prompts,
+    remembered: remembered?.password,
+  });
   const token =
-    first.kind === "token"
-      ? first.token
+    answer.kind === "token"
+      ? answer.token
       : await verifyOtp({
           account,
           ask: prompts.otp,
           attempt: 1,
-          receipt: first.receipt,
+          receipt: answer.receipt,
         });
   if (!token.project) {
     throw new KeystoneError(
       `Keystone returned a token without project ${projectId}`,
       0
     );
+  }
+  if (input.remember && keychain) {
+    await keychain.save(account, password);
   }
   const wantedName = wantedId ? undefined : wantedProject;
   if (wantedName === undefined || token.project.name === wantedName) {
@@ -292,6 +365,7 @@ export const interactiveLogin = async (input: {
   prompts: Prompts;
   username?: string;
   wantedProject?: string;
+  remember?: boolean;
 }): Promise<Session> => {
   const { active, prompts } = input;
   if (!prompts.interactive) {
@@ -302,18 +376,42 @@ export const interactiveLogin = async (input: {
       }
     );
   }
+  // Before any prompt, so a missing keychain fails before you type anything.
+  const keychain = input.remember ? requireKeychain() : systemKeychain();
   const host = dim(`(${new URL(active.profile.authUrl).host})`);
   log(`Logging in to ${bold(active.name)} ${host}`);
   const session = await authenticate({
+    keychain,
     profile: active.profile,
     prompts: loginPrompts(prompts),
+    remember: input.remember,
     username: input.username,
     wantedProject: input.wantedProject,
   });
   await saveLogin({ active, session });
   const who = bold(session.user.name);
   success(`Logged in as ${who}, project ${bold(session.project.name)}`);
+  if (input.remember && keychain) {
+    log(
+      `Saved your password in the ${keychain.name}, so the next login asks only for an OTP code.`
+    );
+  }
   return session;
+};
+
+const EXPIRY_WARNING_MS = 30 * 60_000;
+
+// A terraform apply that outlives the token fails halfway, so say so first.
+const warnBeforeExpiry = (input: {
+  profile: string;
+  session: Session;
+}): void => {
+  const left = msUntilExpiry(input.session);
+  if (left < EXPIRY_WARNING_MS) {
+    note(
+      `Your ${input.profile} session expires in ${formatDuration(left)}. Run \`${loginLine(input.profile)}\` to start a new one.`
+    );
+  }
 };
 
 const savedSession = async (input: {
@@ -323,6 +421,7 @@ const savedSession = async (input: {
   const { active, prompts } = input;
   const session = await loadSession(active.name);
   if (isActive(session)) {
+    warnBeforeExpiry({ profile: active.name, session });
     return session;
   }
   const hint = `Run \`${loginLine(active.name)}\`.`;

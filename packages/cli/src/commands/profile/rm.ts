@@ -1,4 +1,5 @@
 import { handle } from "../../util/command";
+import { forgetPassword } from "../../util/keychain";
 import { revoke } from "../../util/keystone";
 import {
   clearSession,
@@ -48,6 +49,7 @@ export const rm = handle(rmSubcommand, async ({ args, client, flags }) => {
     }
   }
   await clearSession(name);
+  await forgetPassword(profile);
   const profiles = Object.fromEntries(
     Object.entries(config.profiles).filter(([key]) => key !== name)
   );

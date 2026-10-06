@@ -6,6 +6,7 @@ export const login = handle(loginCommand, async ({ client, flags }) => {
   await interactiveLogin({
     active: await client.profile(),
     prompts: client.prompts,
+    remember: flags.remember,
     username: flags.username,
     wantedProject: flags.project,
   });

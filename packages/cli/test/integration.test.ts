@@ -26,6 +26,12 @@ import {
   seedSession,
   testEnv,
 } from "./helpers";
+import {
+  installFakeKeychain,
+  keychainKey,
+  readFakeKeychain,
+  writeFakeKeychain,
+} from "./mocks/keychain";
 import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import {
@@ -51,7 +57,6 @@ const exists = async (file: string): Promise<boolean> => {
   }
 };
 
-/** Runs nipa in `cwd`, such as a linked folder. */
 const runIn = (cwd: string, args: string[]) =>
   runProcess(["bun", ENTRY, ...args], testEnv(dir), cwd);
 
@@ -62,7 +67,6 @@ const exitCode = async (args: string[]): Promise<number> => {
 
 const inDir = (...parts: string[]) => path.join(dir, ...parts);
 
-// A folder to link, and one below it.
 const infra = () => inDir("infra");
 const modules = () => inDir("infra", "modules");
 
@@ -79,13 +83,18 @@ const serverChecks = () =>
 const serverActions = () =>
   keystone.requests.filter((r) => r.startsWith("POST /api/v4/instances/"));
 
+const savedKey = () => keychainKey(keystone.url, FAKE_USER.name);
+
+// Every folder gets the fake keychain, so logout never reaches a real one.
 const freshDir = async () => {
   await rm(dir, { force: true, recursive: true });
   dir = await mkdtemp(path.join(tmpdir(), "nipa-test-"));
+  await installFakeKeychain(dir);
 };
 
 beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), "nipa-test-"));
+  await installFakeKeychain(dir);
   keystone = startFakeKeystone({ gateway: true });
 });
 
@@ -994,6 +1003,64 @@ describe("link", () => {
     expect(again.stderr).toContain(
       "NOTE: This folder isn't linked to a project"
     );
+  });
+});
+
+describe("saved passwords and session expiry", () => {
+  beforeEach(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("login --remember without a terminal fails before the keychain", async () => {
+    const { code, stderr } = await run(["login", "--remember"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("`nipa login` needs a terminal");
+    expect(await readFakeKeychain(dir)).toEqual({});
+  });
+
+  test("logout deletes the saved password too", async () => {
+    await writeFakeKeychain(dir, { [savedKey()]: "secret" });
+    const { code, stderr } = await run(["logout"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("Success! Logged out of prod");
+    expect(stderr).toContain("Deleted your saved password.");
+    expect(await readFakeKeychain(dir)).toEqual({});
+  });
+
+  test("logout without a session still deletes a saved password", async () => {
+    await rm(path.join(dir, "auth.json"));
+    await writeFakeKeychain(dir, { [savedKey()]: "secret" });
+    const { code, stderr } = await run(["logout"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("Success! Deleted your saved password for prod");
+    expect(stderr).not.toContain("did nothing");
+    expect(await readFakeKeychain(dir)).toEqual({});
+  });
+
+  test("logout without a saved password says nothing about one", async () => {
+    const { stderr } = await run(["logout"]);
+    expect(stderr).toContain("Success! Logged out of prod");
+    expect(stderr).not.toContain("saved password");
+  });
+
+  test("a session that ends within 30 minutes gets a note first", async () => {
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.prod.expiresAt = new Date(
+      Date.now() + 10 * 60_000
+    ).toISOString();
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const { code, stderr, stdout } = await run(["env"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(
+      /NOTE: Your prod session expires in (?:9|10)m\. Run `nipa login` to start a new one\./u
+    );
+    expect(stdout).not.toContain("NOTE");
+  });
+
+  test("a session with more time left gets no note", async () => {
+    const { stderr } = await run(["env"]);
+    expect(stderr).not.toContain("session expires");
   });
 });
 

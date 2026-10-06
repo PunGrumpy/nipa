@@ -10,7 +10,6 @@ const serverArg = {
   value: { kind: "server" },
 } as const satisfies ArgSpec;
 
-// Like the Vercel CLI's `deploy --no-wait` and `inspect --timeout`.
 const waitFlags = [
   {
     description: "Return once the Space API takes the action, without waiting",

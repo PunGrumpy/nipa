@@ -17,7 +17,6 @@ import { linkCommand } from "./command";
 
 export const link = handle(linkCommand, async ({ args, client }) => {
   const { project: wanted } = args;
-  // The saved session lists the projects, whatever the folder links to now.
   const { active, session } = await client.savedSession();
   const projects = await withSpinner("Loading your projects…", () =>
     listProjects({ authUrl: active.profile.authUrl, token: session.token })

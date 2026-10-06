@@ -1,5 +1,3 @@
-// start, stop and restart: one flow, worded per action.
-
 import { ApiError } from "../../util/api";
 import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
@@ -22,7 +20,6 @@ import { findServer } from "./resolve";
 const DEFAULT_TIMEOUT = "5m";
 const POLL_MS = 2000;
 
-/** `90s`, `10m` or `1h` in milliseconds. Throws a usage error otherwise. */
 const parseTimeout = (text: string): number => {
   const groups = /^(?<count>\d+)(?<unit>[hms])$/u.exec(text)?.groups;
   const count = Number(groups?.count);
@@ -46,11 +43,9 @@ const parseTimeout = (text: string): number => {
 };
 
 interface Wording {
-  /** The status the server ends in. */
   status: string;
   doing: string;
   done: string;
-  /** Whether to ask first, because the server stops answering for a while. */
   confirm: boolean;
 }
 
@@ -127,7 +122,6 @@ const power = async (input: {
       hint: `Run \`nipa server start ${server.name}\` to start it.`,
     });
   }
-  // Starting a running server or stopping a stopped one has nothing to do.
   if (action !== "restart" && server.status === wording.status) {
     note(`${name} is already ${action === "stop" ? "stopped" : "running"}`);
     return 0;

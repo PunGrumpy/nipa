@@ -61,9 +61,7 @@ export interface Volume {
   id: string;
   name: string | null;
   sizeGb: number;
-  /** The volume type, such as Standard_SSD. */
   type: string | null;
-  /** How the server uses it, such as "boot disk". */
   attachedAs: string | null;
 }
 
@@ -75,7 +73,6 @@ export interface Server {
   flavor: string;
   vcpus: number | null;
   ramMb: number | null;
-  /** The availability zone, such as NCP-BKK. */
   zone: string | null;
   addresses: Address[];
   volumes: Volume[];
@@ -168,24 +165,18 @@ const getServerState = async (
 
 export type PowerAction = "start" | "stop" | "restart";
 
-/** Asks Nova to start, stop or restart the server, without waiting for it. */
 export const powerServer = (
   space: Space,
   id: string,
   action: PowerAction
 ): Promise<void> => space.post(`/v4/instances/${id}/action/${action}`);
 
-/** What `waitForServer` saw last: the wanted status, an error, or neither in time. */
 export type WaitOutcome =
   | { kind: "done" }
   | { kind: "error" }
   | { kind: "timeout"; state: ServerState };
 
-/**
- * Asks for the server's state until Nova is done with it: `status`, with no
- * task left. Stops early at ERROR. The first check is right away, because
- * Nova sets the task before it answers the action.
- */
+// Checks at once: Nova sets the task before it answers the action.
 export const waitForServer = (input: {
   space: Space;
   id: string;

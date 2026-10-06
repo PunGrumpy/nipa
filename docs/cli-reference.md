@@ -10,8 +10,8 @@ nipa has 13 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
-| `nipa login [options]` | Asks for your email and password, then for a one-time password (OTP) code when your account uses multi-factor authentication (MFA). Saves a token scoped to a project |
-| `nipa logout` | Revokes the current profile's token and deletes its session |
+| `nipa login [options]` | Asks for your email and password, then for a one-time password (OTP) code when your account uses multi-factor authentication (MFA). Saves a token scoped to a project. With `--remember`, saves your password in the OS keychain, so later logins ask only for an OTP code |
+| `nipa logout` | Revokes the current profile's token, deletes its session, and deletes a password that `--remember` saved |
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code. In a linked folder, it changes the saved project, and the folder keeps its own |
 | `nipa link [project]` | Links this folder to the profile and a project, by name or ID, in `.nipa/project.json`. Commands in this folder and the folders below it use them |
@@ -43,6 +43,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
+| `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
 | `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -88,6 +89,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | --- | --- |
 | `config.json` | `currentProfile`, and `profiles` with each profile's `authUrl`, `userDomain`, `region`, `spaceUrl`, last `username` and last `project` |
 | `auth.json` | `sessions` with each profile's token, expiry time, user and project |
+| macOS Keychain or Linux secret service | With `--remember`, your password, under the service `nipa-cli/<Keystone host>` and your email. `nipa logout` and `nipa profile rm` delete it |
 | `.nipa/project.json` | In a folder that `nipa link` linked: the `profile`, and the `project` with its `id`, `name` and `domainId`. It holds no token, so you can commit it to share the link with your team, or add `.nipa` to `.gitignore` |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |

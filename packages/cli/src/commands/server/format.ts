@@ -24,7 +24,6 @@ export const nameCell = (server: Server): Cell => {
   };
 };
 
-/** `text`, then a dim `detail` such as " (external)". */
 export const withDetail = (text: string, detail: string): Cell => ({
   paint: () => `${text}${dim(detail)}`,
   text: `${text}${detail}`,
@@ -33,11 +32,9 @@ export const withDetail = (text: string, detail: string): Cell => ({
 const plural = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? "" : "s"}`;
 
-/** 4096 MB reads as 4 GB, and 512 MB as 0.5 GB. */
 const gigabytes = (mb: number): string =>
   `${Number((mb / 1024).toFixed(1))} GB`;
 
-/** The flavor's name, then its size when the Space API sends it. */
 export const flavorCell = (server: Server): Cell => {
   const size: string[] = [];
   if (server.vcpus !== null) {
@@ -51,7 +48,6 @@ export const flavorCell = (server: Server): Cell => {
     : withDetail(server.flavor, ` (${size.join(", ")})`);
 };
 
-/** One line per address, the external ones first and marked. */
 export const addressCells = (server: Server): Cell[] => {
   const external = server.addresses.filter((a) => a.type === "floating");
   const internal = server.addresses.filter((a) => a.type === "fixed");
