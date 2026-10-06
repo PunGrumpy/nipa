@@ -19,6 +19,7 @@ import {
 } from "../../helpers";
 import { startFakeKeystone } from "../../mocks/keystone";
 import type { FakeKeystone } from "../../mocks/keystone";
+import { FAKE_SERVERS } from "../../mocks/space";
 
 const SHELLS = ["bash", "zsh", "fish", "pwsh"] as const;
 
@@ -156,6 +157,11 @@ describe("nipa completion", () => {
     expect(lines(profiles.stdout)).toEqual(["prod"]);
   });
 
+  test("__complete lists server names from the Space API", async () => {
+    const servers = await nipa("__complete", "servers");
+    expect(lines(servers.stdout)).toEqual(FAKE_SERVERS.map((s) => s.name));
+  });
+
   test("__complete openstack walks openstack's commands", async () => {
     expect(await openstackComplete("se")).toEqual(["security", "server"]);
     expect(await openstackComplete("server", "")).toEqual([
@@ -233,6 +239,13 @@ describe("bash", () => {
     expect(await bashComplete("nipa", "switch", "")).toEqual(["Alpha", "Beta"]);
   });
 
+  test("server subcommands list server names", async () => {
+    expect(await bashComplete("nipa", "server", "stop", "web")).toEqual([
+      "web-2",
+      "web-1",
+    ]);
+  });
+
   test("global options before the command", async () => {
     expect(await bashComplete("nipa", "-P", "")).toEqual(["prod"]);
     expect(await bashComplete("nipa", "-P", "prod", "sw")).toEqual(["switch"]);
@@ -251,7 +264,16 @@ describe("bash", () => {
   });
 
   test("server subcommands and their flags", async () => {
-    expect(await bashComplete("nipa", "server", "")).toEqual(["ls"]);
+    expect(await bashComplete("nipa", "server", "")).toEqual([
+      "ls",
+      "inspect",
+      "start",
+      "stop",
+      "restart",
+    ]);
+    expect(
+      await bashComplete("nipa", "server", "stop", "web-1", "--y")
+    ).toEqual(["--yes"]);
     expect(await bashComplete("nipa", "servers", "ls", "--j")).toEqual([
       "--json",
     ]);
@@ -298,6 +320,11 @@ describe.if(has("fish"))("fish", () => {
 
   test("switch lists projects from the session", async () => {
     expect(await fishComplete("nipa switch ")).toEqual(["Alpha", "Beta"]);
+  });
+
+  test("server subcommands list server names", async () => {
+    const names = await fishComplete("nipa server inspect web");
+    expect(names.toSorted()).toEqual(["web-1", "web-2"]);
   });
 
   test("completion lists shells", async () => {

@@ -23,6 +23,7 @@ import {
   handle,
   route,
 } from "../../../src/util/command";
+import type { CompleteKind } from "../../../src/util/completion";
 import type { Input } from "../../../src/util/spec";
 
 type Equal<A, B> =
@@ -61,7 +62,7 @@ export const derived: [
   Equal<
     Input<typeof completeCommand>["args"],
     {
-      readonly kind: "projects" | "profiles" | "openstack";
+      readonly kind: CompleteKind;
       readonly words: readonly string[];
     }
   >,

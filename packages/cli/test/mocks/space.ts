@@ -32,13 +32,24 @@ export const FAKE_SERVERS = [
     status: "BUILD",
   },
   {
+    "OS-EXT-AZ:availability_zone": "NCP-BKK",
     ageMs: 3 * DAY_MS,
     external_ips: [ip(WEB_1_IP)],
     flavor: flavor("csa.large.v2"),
     id: "22222222-2222-4222-8222-222222222222",
     internal_ips: [ip("192.0.2.5"), ip("2001:db8::5")],
     name: "web-1",
+    security_groups: ["default", "web"],
     status: "ACTIVE",
+    volumes: [
+      {
+        attached_as: "boot disk",
+        id: "vvvv1111-0000-4000-8000-000000000001",
+        name: "web-1-vol-0",
+        size: 10,
+        volume_type: "Standard_SSD",
+      },
+    ],
   },
   {
     ageMs: 40 * DAY_MS,
@@ -183,17 +194,24 @@ interface Ask {
   /** Whether the project in the request owns the fake resources. */
   mine: boolean;
   query: URLSearchParams;
+  /** Each server's status now, after the actions this fake has run. */
+  statuses: ReadonlyMap<string, string>;
 }
+
+/** Each server's status, from FAKE_SERVERS. Actions change the copy. */
+export const fakeStatuses = (): Map<string, string> =>
+  new Map(FAKE_SERVERS.map((server) => [server.id, server.status]));
 
 const routes = new Map<string, (ask: Ask) => object>([
   [
     "/api/v3/instances",
-    ({ mine }) => {
+    ({ mine, statuses }) => {
       const servers = mine ? FAKE_SERVERS : [];
       return {
         instances: servers.map(({ ageMs, ...server }) => ({
           ...server,
           created: ago(ageMs),
+          status: statuses.get(server.id) ?? server.status,
         })),
         page_control: { current_filter: {}, max_item: servers.length },
       };
@@ -227,16 +245,64 @@ const routes = new Map<string, (ask: Ask) => object>([
 export const spaceFault = (status: number, message: string): Response =>
   Response.json({ message, status }, { status });
 
+// Nova's answer to an action the server's state doesn't allow.
+const conflict = (action: string, id: string) =>
+  spaceFault(
+    409,
+    `Cannot '${action}' instance ${id} while it is in this state`
+  );
+
+// What each action needs, and the status it leaves. Nova sets the task
+// before it answers, and this fake finishes it at once.
+const ACTIONS = new Map([
+  ["restart", { after: "ACTIVE", from: "ACTIVE" }],
+  ["start", { after: "ACTIVE", from: "SHUTOFF" }],
+  ["stop", { after: "SHUTOFF", from: "ACTIVE" }],
+]);
+
+// db-1's state stops answering once an action reaches it, like a gateway
+// that times out while Nova works.
+const DB_1_ID = "11111111-1111-4111-8111-111111111111";
+
+const INSTANCE =
+  /^\/api\/v4\/instances\/(?<id>[^/]+)(?:\/action\/(?<action>[a-z_]+))?$/u;
+
+const handleInstance = (input: {
+  req: Request;
+  mine: boolean;
+  statuses: Map<string, string>;
+  match: RegExpExecArray;
+}): Response => {
+  const id = input.match.groups?.id ?? "";
+  const action = input.match.groups?.action;
+  const status = input.mine ? input.statuses.get(id) : undefined;
+  if (status === undefined) {
+    return spaceFault(404, `Instance ${id} could not be found.`);
+  }
+  if (action === undefined && input.req.method === "GET") {
+    if (id === DB_1_ID && status !== "SHUTOFF") {
+      return spaceFault(503, "Service Unavailable");
+    }
+    return Response.json({ instance: { id, status, task_state: null } });
+  }
+  const rule = action === undefined ? undefined : ACTIONS.get(action);
+  if (!rule || input.req.method !== "POST") {
+    return spaceFault(405, "Method Not Allowed");
+  }
+  if (status !== rule.from) {
+    return conflict(action ?? "", id);
+  }
+  input.statuses.set(id, rule.after);
+  return new Response(null, { status: 202 });
+};
+
 /** Answers a Space API request whose token is valid, as `owner`'s resources. */
 export const handleSpace = (input: {
   req: Request;
   owner: string;
+  statuses: Map<string, string>;
 }): Response => {
   const url = new URL(input.req.url);
-  const route = routes.get(url.pathname);
-  if (!route) {
-    return new Response("Not Found", { status: 404 });
-  }
   const projectId = input.req.headers.get("Project-Id");
   if (!projectId) {
     return spaceFault(
@@ -244,7 +310,21 @@ export const handleSpace = (input: {
       "The 'project-id' header is required to access this API."
     );
   }
+  const mine = projectId === input.owner;
+  const instance = INSTANCE.exec(url.pathname);
+  if (instance) {
+    return handleInstance({
+      match: instance,
+      mine,
+      req: input.req,
+      statuses: input.statuses,
+    });
+  }
+  const route = routes.get(url.pathname);
+  if (!route) {
+    return new Response("Not Found", { status: 404 });
+  }
   return Response.json(
-    route({ mine: projectId === input.owner, query: url.searchParams })
+    route({ mine, query: url.searchParams, statuses: input.statuses })
   );
 };

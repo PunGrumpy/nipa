@@ -15,6 +15,10 @@ nipa has 11 commands. Without a command, it prints help.
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code |
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. A server that a Kubernetes cluster made shows its role after its name, such as `(Kubernetes master)`. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
+| `nipa server inspect <server> [--json]` | Shows one server's ID, status, flavor with its vCPUs and RAM, zone, addresses, volumes, security groups and age, by name or ID. In a pipe, it prints the server's ID |
+| `nipa server start <server> [options]` | Starts a stopped server, then waits until it's active |
+| `nipa server stop <server> [options]` | Stops a server after you confirm, then waits until it's shut off |
+| `nipa server restart <server> [options]` | Restarts a running server after you confirm, then waits until it's active again. `nipa server reboot` is the same command |
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
@@ -27,6 +31,8 @@ nipa has 11 commands. Without a command, it prints help.
 
 `nipa help <command>` and `nipa <command> --help` print the help for one command. `nipa help profile rm` and `nipa profile rm --help` print the help for one subcommand. A command with subcommands runs its default subcommand when you name none, so `nipa server --json` runs `nipa server ls --json`. A mistyped command name gets a suggestion, such as "Did you mean `nipa login`?".
 
+`nipa server start`, `stop` and `restart` wait up to 5 minutes for the server to finish, or as long as `--timeout` says. They exit with code `1` when the server goes into an error state or is still busy after that. With `--no-wait`, they return once the Space API takes the action, and `nipa server inspect` shows when the server finishes. Starting a running server or stopping a stopped one prints a note and exits with code `0`.
+
 ## Command options
 
 These options belong to one command:
@@ -35,7 +41,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
-| `--json` | `whoami`, `profile ls`, `server ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
@@ -43,7 +49,9 @@ These options belong to one command:
 | `--space-url <url>` | `profile add` | The Space portal URL, such as `https://space.nipa.cloud`, or its API URL. nipa saves the API under the portal's `/api` and checks that it answers. A profile on production's Keystone gets `https://space.nipa.cloud/api` without it. With another Keystone, nipa asks for it in a terminal, and Enter skips it |
 | `--use` | `profile add` | Makes the new profile the current one |
 | `--install` | `completion` | Saves the script where the shell loads it, instead of printing it |
-| `-y, --yes` | `profile rm` | Removes the profile without asking |
+| `-y, --yes` | `profile rm`, `server stop`, `server restart` | Skips the confirmation. Without a terminal, these commands need it |
+| `--no-wait` | `server start`, `server stop`, `server restart` | Returns once the Space API takes the action, without waiting for the server |
+| `--timeout <duration>` | `server start`, `server stop`, `server restart` | How long to wait for the server, as a number and `s`, `m` or `h`, such as `90s` or `10m`. The default is `5m`. It can't go with `--no-wait` |
 
 ## Global options
 
@@ -96,7 +104,7 @@ nipa exits with these codes:
 | `1` | An error, such as a wrong password or an expired session |
 | `2` | A usage error: an unknown command or option, a missing value or argument, or an extra argument |
 | `127` | `nipa exec` couldn't find the command |
-| `130` | You pressed Ctrl+C at a prompt |
+| `130` | You pressed Ctrl+C at a prompt, or answered No to a confirmation |
 
 `nipa os`, `nipa tf` and `nipa exec` exit with the code of the program they ran. When a signal stops that program, the code is 128 plus the signal number.
 
@@ -138,11 +146,26 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "id": "9abc…",
       "kubernetes": null,
       "name": "web-1",
-      "status": "ACTIVE"
+      "ramMb": 4096,
+      "securityGroups": ["default"],
+      "status": "ACTIVE",
+      "vcpus": 2,
+      "volumes": [
+        {
+          "attachedAs": "boot disk",
+          "id": "def0…",
+          "name": "web-1-vol-0",
+          "sizeGb": 10,
+          "type": "Standard_SSD"
+        }
+      ],
+      "zone": "NCP-BKK"
     }
   ]
 }
 ```
+
+`ramMb`, `vcpus`, `zone`, `attachedAs`, a volume's `name` and its `type` are `null` when the Space API doesn't send them. `nipa server inspect --json` prints the same fields for one server, under `server` instead of `servers`.
 
 `nipa db ls --json` prints the profile, the project and its database clusters, newest first. `primary` is the instance that takes writes, or `null` while the cluster is being created. Its `status` is the instance's status, such as `ACTIVE` or `BUILD`, `health` is `HEALTHY` when the database answers, and `externalAddress` is `null` without an external IP:
 

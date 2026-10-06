@@ -53,6 +53,7 @@ Load only the reference the task needs:
 | New or changed copy, or a copy review | [`references/core.md`](references/core.md) and [`references/copy.md`](references/copy.md) |
 | `login`, `switch`, sessions, or prompts | [`references/command-contracts.md`](references/command-contracts.md) |
 | `os`, `tf`, `exec`, or `env` | [`references/command-contracts.md`](references/command-contracts.md) |
+| `server start`, `stop` or `restart` | [`references/command-contracts.md`](references/command-contracts.md) |
 | Tests, stale-string sweeps, or a review | [`references/verification.md`](references/verification.md) |
 
 Put new durable rules where they belong: wording in `copy.md`, flow, streams and layout in `core.md`, one command's state machine in `command-contracts.md`, and test or review gates in `verification.md`. A new rule needs evidence from the current source, its scope, and the consequence it prevents. One shipped string isn't enough.

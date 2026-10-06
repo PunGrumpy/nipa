@@ -1,8 +1,10 @@
 import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
 import type { CompleteKind } from "../../util/completion";
+import { listServers } from "../../util/compute";
 import { listProjects } from "../../util/keystone";
 import { openstackCompletions } from "../../util/openstack";
+import { connect } from "../../util/session";
 import { isActive, loadConfig, loadSession } from "../../util/store";
 import { completeCommand } from "./command";
 
@@ -19,6 +21,21 @@ const projectNames = async (client: Client): Promise<string[]> => {
   return projects.map((p) => p.name);
 };
 
+// The Space API only, without a login: a Tab press never prompts.
+const serverNames = async (client: Client): Promise<string[]> => {
+  const active = await client.profile();
+  const session = await loadSession(active.name);
+  if (!(isActive(session) && active.profile.spaceUrl)) {
+    return [];
+  }
+  const { space } = connect({
+    signedIn: { active, session },
+    spaceUrl: active.profile.spaceUrl,
+  });
+  const servers = await listServers(space);
+  return servers.map((server) => server.name);
+};
+
 const values = async (input: {
   client: Client;
   kind: CompleteKind;
@@ -32,6 +49,9 @@ const values = async (input: {
     case "profiles": {
       const config = await loadConfig();
       return Object.keys(config.profiles).toSorted();
+    }
+    case "servers": {
+      return await serverNames(client);
     }
     case "openstack": {
       return await openstackCompletions(words);

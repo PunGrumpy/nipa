@@ -71,6 +71,8 @@ export const probeSpace = async (url: string): Promise<void> => {
 
 export interface Space {
   get: <T>(path: string, schema: z.ZodType<T>) => Promise<T>;
+  /** Sends a POST without a body, such as an action, and ignores the answer. */
+  post: (path: string) => Promise<void>;
 }
 
 /**
@@ -84,21 +86,26 @@ export const createSpace = (input: {
   region: string;
 }): Space => {
   const base = trimSlashes(input.url);
+  const send = async (path: string, method: string): Promise<Response> => {
+    const res = await request(`${base}${path}`, {
+      headers: {
+        Accept: "application/json",
+        "Project-Id": input.projectId,
+        Region: input.region,
+        "X-Auth-Token": input.token,
+      },
+      method,
+    });
+    if (!res.ok) {
+      const message =
+        (await readFault(res)) ?? `the Space API returned HTTP ${res.status}`;
+      throw new ApiError(message, res.status);
+    }
+    return res;
+  };
   return {
     get: async (path, schema) => {
-      const res = await request(`${base}${path}`, {
-        headers: {
-          Accept: "application/json",
-          "Project-Id": input.projectId,
-          Region: input.region,
-          "X-Auth-Token": input.token,
-        },
-      });
-      if (!res.ok) {
-        const message =
-          (await readFault(res)) ?? `the Space API returned HTTP ${res.status}`;
-        throw new ApiError(message, res.status);
-      }
+      const res = await send(path, "GET");
       // A portal answers a path it doesn't know with its web page.
       if (!res.headers.get("Content-Type")?.includes("json")) {
         throw new CliError(`${base} doesn't answer like the Space API`, {
@@ -113,6 +120,9 @@ export const createSpace = (input: {
         );
       }
       return parsed.data;
+    },
+    post: async (path) => {
+      await send(path, "POST");
     },
   };
 };

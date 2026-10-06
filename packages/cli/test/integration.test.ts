@@ -46,6 +46,13 @@ const readJsonFile = async (name: string) =>
 const serverLists = () =>
   keystone.requests.filter((r) => r === "GET /api/v3/instances").length;
 
+const serverChecks = () =>
+  keystone.requests.filter((r) => r.startsWith("GET /api/v4/instances/"))
+    .length;
+
+const serverActions = () =>
+  keystone.requests.filter((r) => r.startsWith("POST /api/v4/instances/"));
+
 const freshDir = async () => {
   await rm(dir, { force: true, recursive: true });
   dir = await mkdtemp(path.join(tmpdir(), "nipa-test-"));
@@ -636,6 +643,201 @@ describe("server ls", () => {
     const { code, stderr } = await run(["server", "nope"]);
     expect(code).toBe(2);
     expect(stderr).toContain('unknown subcommand "server nope"');
+  });
+});
+
+describe("server inspect", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json prints the server with its volumes, zone and security groups", async () => {
+    const { code, stdout } = await run([
+      "server",
+      "inspect",
+      "web-1",
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    const { profile, project, server } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(server).toMatchObject({
+      flavor: "csa.large.v2",
+      id: "22222222-2222-4222-8222-222222222222",
+      ramMb: 4096,
+      securityGroups: ["default", "web"],
+      vcpus: 2,
+      volumes: [{ name: "web-1-vol-0", sizeGb: 10 }],
+      zone: "NCP-BKK",
+    });
+  });
+
+  test("prints the details on stderr, and the ID to a pipe", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    const { code, stderr, stdout } = await run(["server", "inspect", id]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Server web-1 in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Flavor\s+csa\.large\.v2 \(2 vCPUs, 4 GB RAM\)/u);
+    expect(stderr).toMatch(
+      /Addresses\s+203\.0\.113\.10 \(external\)\n\s+192\.0\.2\.5\n/u
+    );
+    expect(stderr).toMatch(
+      /Volumes\s+web-1-vol-0 \(10 GB Standard_SSD, boot disk\)/u
+    );
+    expect(stderr).toMatch(/Security groups\s+default\n\s+web\n/u);
+    expect(stderr).toMatch(/Created\s+3d ago/u);
+    expect(stderr).not.toContain("Kubernetes");
+    expect(stdout).toBe(`${id}\n`);
+  });
+
+  test("a Kubernetes node names its role and cluster", async () => {
+    const { stderr } = await run(["server", "inspect", "k8s-control-plane-1"]);
+    expect(stderr).toMatch(
+      /Kubernetes\s+master \(cluster dddd1111-0000-4000-8000-000000000001\)/u
+    );
+    expect(stderr).toMatch(/Zone\s+-/u);
+  });
+
+  test("an unknown server points to server ls", async () => {
+    const { code, stderr, stdout } = await run(["server", "inspect", "nope"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain('no server named or with ID "nope" in Alpha');
+    expect(stderr).toContain("Run `nipa server ls` to see your servers.");
+    expect(stdout).toBe("");
+  });
+
+  test("a missing server argument exits 2", async () => {
+    const { code } = await run(["server", "inspect"]);
+    expect(code).toBe(2);
+  });
+});
+
+describe("server start, stop and restart", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("stop needs --yes without a terminal, and sends nothing", async () => {
+    const before = serverActions().length;
+    const { code, stderr } = await run(["server", "stop", "web-1"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain("stopping web-1 needs confirmation");
+    expect(stderr).toContain("Add `--yes` to stop it without asking.");
+    expect(serverActions()).toHaveLength(before);
+  });
+
+  test("stop --yes stops the server and waits for it", async () => {
+    const { code, stderr, stdout } = await run([
+      "server",
+      "stop",
+      "web-1",
+      "-y",
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(
+      /> Success! Stopped web-1 in Alpha \[\d+(?:ms|s)\]/u
+    );
+    expect(stdout).toBe("");
+    expect(serverActions().at(-1)).toBe(
+      "POST /api/v4/instances/22222222-2222-4222-8222-222222222222/action/stop"
+    );
+    expect(keystone.requests).toContain(
+      "GET /api/v4/instances/22222222-2222-4222-8222-222222222222"
+    );
+    const { stderr: list } = await run(["server", "ls"]);
+    expect(list).toMatch(/web-1\s+● Shutoff/u);
+  });
+
+  test("a stopped server: stop is a no-op, restart says to start it", async () => {
+    const before = serverActions().length;
+    const stop = await run(["server", "stop", "web-1", "--yes"]);
+    expect(stop.code).toBe(0);
+    expect(stop.stderr).toContain("NOTE: web-1 is already stopped");
+    const restart = await run(["server", "restart", "web-1", "--yes"]);
+    expect(restart.code).toBe(1);
+    expect(restart.stderr).toContain("Error: web-1 is stopped");
+    expect(restart.stderr).toContain(
+      "Run `nipa server start web-1` to start it."
+    );
+    expect(serverActions()).toHaveLength(before);
+  });
+
+  test("start needs no confirmation", async () => {
+    const { code, stderr } = await run(["server", "start", "web-1"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Success! Started web-1 in Alpha/u);
+    const again = await run(["server", "start", "web-1"]);
+    expect(again.stderr).toContain("NOTE: web-1 is already running");
+  });
+
+  test("restart and its reboot alias restart a running server", async () => {
+    const { code, stderr } = await run(["server", "reboot", "web-1", "--yes"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Success! Restarted web-1 in Alpha/u);
+    expect(serverActions().at(-1)).toBe(
+      "POST /api/v4/instances/22222222-2222-4222-8222-222222222222/action/restart"
+    );
+  });
+
+  test("a bad --timeout, or --timeout with --no-wait, exits 2 before anything", async () => {
+    const before = keystone.requests.length;
+    const bad = await run(["server", "start", "web-1", "--timeout", "5x"]);
+    expect(bad.code).toBe(2);
+    expect(bad.stderr).toContain('"5x" isn\'t a duration');
+    expect(bad.stderr).toContain("such as `--timeout 90s` or `--timeout 10m`.");
+    const both = await run([
+      "server",
+      "stop",
+      "web-1",
+      "-y",
+      "--no-wait",
+      "--timeout",
+      "1m",
+    ]);
+    expect(both.code).toBe(2);
+    expect(both.stderr).toContain("--no-wait and --timeout don't go together");
+    expect(keystone.requests).toHaveLength(before);
+  });
+
+  test("--no-wait sends the action and returns without checking", async () => {
+    const before = serverChecks();
+    const { code, stderr, stdout } = await run([
+      "server",
+      "stop",
+      "web-1",
+      "--yes",
+      "--no-wait",
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Success! Asked to stop web-1 in Alpha/u);
+    expect(stderr).toContain("Run `nipa server inspect web-1` to check on it.");
+    expect(stderr).not.toContain("Stopped web-1");
+    expect(stdout).toBe("");
+    expect(serverChecks()).toBe(before);
+    const started = await run(["server", "start", "web-1", "--timeout", "90s"]);
+    expect(started.code).toBe(0);
+    expect(started.stderr).toMatch(/> Success! Started web-1 in Alpha/u);
+  });
+
+  test("a failed check after the action says nipa already sent it", async () => {
+    const { code, stderr } = await run(["server", "start", "db-1"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("Error: Service Unavailable");
+    expect(stderr).toContain(
+      "nipa asked to start db-1 before this failed. Run `nipa server inspect db-1` to check it."
+    );
+    expect(stderr).not.toContain("--debug");
+    expect(stderr).not.toContain("Success!");
+  });
+
+  test("Nova's refusal comes through as the error", async () => {
+    // web-2 is still building, so Nova won't stop it.
+    const { code, stderr } = await run(["server", "stop", "web-2", "--yes"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("Cannot 'stop' instance");
   });
 });
 

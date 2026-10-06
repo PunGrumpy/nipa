@@ -31,7 +31,9 @@ export type ArgValue =
   | { readonly kind: "text" }
   | { readonly kind: "choice"; readonly choices: Choices }
   | { readonly kind: "project" }
-  | { readonly kind: "profile" };
+  | { readonly kind: "profile" }
+  /** A server name. Completes from the Space API. */
+  | { readonly kind: "server" };
 
 export interface ArgSpec {
   /**

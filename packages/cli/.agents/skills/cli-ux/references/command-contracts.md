@@ -73,3 +73,32 @@ Rules:
 - Write the whole result to stdout, in every mode, and nothing else to stdout
 - Pick the syntax from `--shell`, then from `$SHELL`
 - This is the one command that prints the token. Never echo it anywhere else
+
+## Starting, stopping and restarting servers
+
+`nipa server start`, `stop` and `restart` change a server's power state through the Space API, in `src/commands/server/power.ts`.
+
+Resolution order:
+
+1. **Flags**: a bad `--timeout`, or `--timeout` with `--no-wait`, fails with exit code 2 before nipa logs in or calls the API
+2. **Server**: the argument, matched by ID first, then by name. No match, or a name that two servers share, fails before any change. The second error lists the IDs to pass instead
+3. **No-op**: starting a running server or stopping a stopped one prints a `note`, such as `web-1 is already stopped`, and exits 0. Restarting a stopped server fails with a hint naming `nipa server start`
+4. **Confirmation**: `stop` and `restart` ask `Stop server web-1 in my-project?`, which defaults to No. `--yes` skips it, and without a terminal they fail with exit code 2 and a hint naming `--yes`. `start` never asks
+5. **Action**: one `POST` to the Space API, then a check of the server's state every 2 seconds until Nova reports the wanted status with no task left. With `--no-wait`, nipa stops after the `POST`, says it asked for the action, and names `nipa server inspect`
+
+Rules:
+
+- Name the project in the prompt and the success line, because the `prod` profile prints nothing else that names it
+- Send nothing before the server, the no-op checks and the confirmation all pass
+- Once the `POST` succeeds, the action can't be undone. An error from a later check keeps its message, and its hint says nipa already asked for the action and names `nipa server inspect`, so nobody sends it twice
+- Stop waiting at `ERROR` or after `--timeout`, 5 minutes by default, and exit 1 with a hint naming `nipa server inspect`
+- Print nothing to stdout. The success line on stderr is the result
+
+States to test:
+
+- A name, an ID, an unknown server, and a name two servers share
+- Each no-op, and a restart of a stopped server
+- `stop` and `restart` without `--yes` and without a terminal, with no `POST` sent
+- A check that fails after the `POST` succeeds
+- A refusal from Nova, such as stopping a server that's still building
+- `--no-wait` sending one `POST` and no checks, and a bad `--timeout`
