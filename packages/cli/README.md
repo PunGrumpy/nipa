@@ -1,26 +1,61 @@
-# nipa
+<!-- contentType: Landing · plan: docs/content-plan.md -->
 
-nipa logs in to Nipa Cloud with your password and a one-time password (OTP) code, then lists your servers, databases, load balancers and external IPs, or runs `openstack` and `terraform` with that session. You type an OTP code once a day, not once per command.
+<h1 align="center">nipa</h1>
 
-## Install nipa
+<p align="center">Log in to Nipa Cloud once a day. Run OpenStack tools all day.</p>
 
-Install the `nipa` command from npm. It needs Node.js 22.13 or later:
+<p align="center">
+  <a href="https://github.com/PunGrumpy/nipa/blob/main/docs/quickstart.md"><strong>Quickstart</strong></a> ·
+  <a href="https://github.com/PunGrumpy/nipa/blob/main/docs/cli-reference.md"><strong>CLI reference</strong></a> ·
+  <a href="https://github.com/PunGrumpy/nipa/blob/main/docs/troubleshooting.md"><strong>Troubleshooting</strong></a> ·
+  <a href="https://github.com/PunGrumpy/nipa/releases/latest"><strong>Releases</strong></a>
+</p>
+
+## Usage
+
+nipa logs in to Nipa Cloud with your password and a one-time password (OTP) code, then runs `openstack`, `terraform` or any OpenStack tool with that session. You type an OTP code once a day, not once per command.
+
+Install nipa from npm. It needs Node.js 22.13 or later:
 
 ```sh
 npm install -g nipa-cli
 ```
 
-Each [GitHub release](https://github.com/PunGrumpy/nipa/releases/latest) also has a binary for macOS, Linux and Windows that needs nothing else installed.
+Without Node.js, download the binary for your platform from the [latest release](https://github.com/PunGrumpy/nipa/releases/latest).
 
-## Run your first commands
-
-Log in, then list the servers in your project:
+Log in, then run commands with that session:
 
 ```sh
 nipa login
 nipa server ls
+nipa os volume list
+nipa tf plan
 ```
 
-Put `nipa os` in front of any `openstack` command for everything else, such as `nipa os volume list`.
+`nipa server ls` lists your servers, `nipa os` runs `openstack` and `nipa tf` runs `terraform`. Run `nipa --help` for every command.
 
-The [documentation](https://github.com/PunGrumpy/nipa#read-the-docs) covers profiles, tab completion and every command.
+## Documentation
+
+Pick the page for what you want to do:
+
+- [Run your first command with nipa](https://github.com/PunGrumpy/nipa/blob/main/docs/quickstart.md): install, log in and list servers
+- [Use nipa with a staging Keystone](https://github.com/PunGrumpy/nipa/blob/main/docs/profiles.md): add a profile and switch to it
+- [How nipa logs in with MFA](https://github.com/PunGrumpy/nipa/blob/main/docs/how-login-works.md): what nipa sends to Keystone and where it keeps the token
+- [Fix login and session errors](https://github.com/PunGrumpy/nipa/blob/main/docs/troubleshooting.md): find the cause of an error message
+
+## Contributing
+
+nipa is a TypeScript monorepo that runs on [Bun](https://bun.sh), with the CLI in `packages/cli`. Install the dependencies, then run the checks that CI runs:
+
+```sh
+bun install
+bun run test
+bun run check
+bun run typecheck
+```
+
+The tests run against a fake Keystone, so you don't need an account. [Add a command to nipa](https://github.com/PunGrumpy/nipa/blob/main/docs/add-a-command.md) and [Release nipa](https://github.com/PunGrumpy/nipa/blob/main/docs/releasing.md) cover the rest, including [Conventional Commits](https://www.conventionalcommits.org) and changesets.
+
+## License
+
+[MIT](https://github.com/PunGrumpy/nipa/blob/main/LICENSE)
