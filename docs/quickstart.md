@@ -67,7 +67,7 @@ For anything nipa has no command for yet, put `nipa os` in front of an `openstac
 
 ## 4. Turn on tab completion
 
-nipa completes its commands, options, and your project and server names when you press Tab. After `nipa os`, it completes openstack's commands and options too. Add the line for your shell to its startup file:
+nipa completes its commands, options, and your project and server names when you press Tab. After `nipa os`, it completes openstack's commands and options too, and the names of your servers, flavors, images and networks, such as `nipa os server show <Tab>` and `--flavor <Tab>`. Add the line for your shell to its startup file:
 
 ```sh
 echo 'eval "$(nipa completion zsh)"' >> ~/.zshrc

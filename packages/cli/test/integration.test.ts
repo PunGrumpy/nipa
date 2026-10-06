@@ -32,6 +32,7 @@ import {
   FAKE_DATABASES,
   FAKE_IPS,
   FAKE_LOAD_BALANCERS,
+  FAKE_NETWORKS,
   FAKE_SERVERS,
 } from "./mocks/space";
 
@@ -971,6 +972,14 @@ describe("link", () => {
     expect(stderr).toContain(
       "Fix the file, or run `nipa unlink` and `nipa link` again."
     );
+  });
+
+  test("tab completion lists the linked project's names", async () => {
+    const words = ["__complete", "openstack", "--", "server", "create"];
+    const linked = await runIn(modules(), [...words, "--network", ""]);
+    expect(linked.stdout.trim().split("\n")).toEqual(FAKE_NETWORKS.slice(1));
+    const outside = await run([...words, "--network", ""]);
+    expect(outside.stdout.trim().split("\n")).toEqual(FAKE_NETWORKS);
   });
 
   test("unlink deletes the closest link, then has nothing to do", async () => {
