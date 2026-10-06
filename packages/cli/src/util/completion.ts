@@ -20,7 +20,12 @@ export const COMPLETION_SHELLS = ["bash", "zsh", "fish", "pwsh"] as const;
 export type CompletionShell = (typeof COMPLETION_SHELLS)[number];
 
 /** The words `nipa __complete` takes. The scripts run it for values only nipa knows. */
-export const COMPLETE_KINDS = ["projects", "profiles", "openstack"] as const;
+export const COMPLETE_KINDS = [
+  "projects",
+  "profiles",
+  "servers",
+  "openstack",
+] as const;
 
 export type CompleteKind = (typeof COMPLETE_KINDS)[number];
 
@@ -86,6 +91,9 @@ const bashArg = (value: ArgValue): string | undefined => {
     }
     case "profile": {
       return `_nipa_reply "$(${dynamic("profiles")} 2>/dev/null)"`;
+    }
+    case "server": {
+      return `_nipa_reply "$(${dynamic("servers")} 2>/dev/null)"`;
     }
     case "choice": {
       return `_nipa_reply ${value.choices.join(" ")}`;
@@ -242,6 +250,9 @@ const zshArg = ({ arg, position }: Offered): string => {
     }
     case "profile": {
       return `'${position}:profile:{_nipa_dynamic profiles profile}'`;
+    }
+    case "server": {
+      return `'${position}:server:{_nipa_dynamic servers server}'`;
     }
     case "choice": {
       return `'${position}:${arg.name}:(${value.choices.join(" ")})'`;
@@ -418,6 +429,9 @@ const fishArg = (value: ArgValue): string | undefined => {
     case "profile": {
       return fishDynamic("profiles");
     }
+    case "server": {
+      return fishDynamic("servers");
+    }
     case "choice": {
       return fishQuote(value.choices.join(" "));
     }
@@ -587,6 +601,9 @@ const pwshArg = (value: ArgValue): string | undefined => {
     }
     case "profile": {
       return "(Dynamic profiles)";
+    }
+    case "server": {
+      return "(Dynamic servers)";
     }
     case "choice": {
       return pwshList(value.choices);

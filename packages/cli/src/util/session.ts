@@ -363,24 +363,26 @@ export const connect = (input: {
     token: session.token,
     url: input.spaceUrl,
   });
+  const call = <T>(task: () => Promise<T>): Promise<T> =>
+    guard(async () => {
+      try {
+        return await task();
+      } catch (error) {
+        // The Keystone URL worked for the login, so it isn't the one to check.
+        if (error instanceof NetworkError) {
+          throw new CliError(error.message, {
+            hint: "Check your network connection, or the profile's Space API URL.",
+          });
+        }
+        throw error;
+      }
+    });
   return {
     active,
     session,
     space: {
-      get: (path, schema) =>
-        guard(async () => {
-          try {
-            return await space.get(path, schema);
-          } catch (error) {
-            // The Keystone URL worked for the login, so it isn't the one to check.
-            if (error instanceof NetworkError) {
-              throw new CliError(error.message, {
-                hint: "Check your network connection, or the profile's Space API URL.",
-              });
-            }
-            throw error;
-          }
-        }),
+      get: (path, schema) => call(() => space.get(path, schema)),
+      post: (path) => call(() => space.post(path)),
     },
   };
 };

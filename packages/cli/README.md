@@ -28,11 +28,12 @@ Log in, then run commands with that session:
 ```sh
 nipa login
 nipa server ls
+nipa server inspect web-1
 nipa os volume list
 nipa tf plan
 ```
 
-`nipa server ls` lists your servers, `nipa os` runs `openstack` and `nipa tf` runs `terraform`. Run `nipa --help` for every command.
+`nipa server` lists, inspects, starts, stops and restarts your servers, `nipa os` runs `openstack` and `nipa tf` runs `terraform`. Run `nipa --help` for every command.
 
 ## Documentation
 

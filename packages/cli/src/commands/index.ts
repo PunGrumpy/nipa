@@ -22,7 +22,10 @@ import { whoami } from "./whoami";
 export const program: Program = {
   examples: [
     { command: "nipa login", description: "Log in and pick a project" },
-    { command: "nipa server ls", description: server.spec.summary },
+    {
+      command: "nipa server ls",
+      description: "List the servers in your project",
+    },
     {
       command: "nipa os volume list",
       description: "Run any openstack command with the session",

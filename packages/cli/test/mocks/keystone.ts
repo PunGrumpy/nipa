@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { handleSpace, spaceFault } from "./space";
+import { fakeStatuses, handleSpace, spaceFault } from "./space";
 
 export const FAKE_USER = { id: "u1", name: "me@example.com" };
 export const PLAIN_USER = { id: "u2", name: "plain@example.com" };
@@ -101,6 +101,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
   const tokens = new Map<string, typeof FAKE_USER>();
   const receipts = new Map<string, typeof FAKE_USER>();
   const requests: string[] = [];
+  const statuses = fakeStatuses();
 
   const issue = (
     user: typeof FAKE_USER,
@@ -203,7 +204,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     if (!tokens.has(req.headers.get("X-Auth-Token") ?? "")) {
       return spaceFault(401, "The requested resource requires authorization.");
     }
-    return handleSpace({ owner: ALPHA_ID, req });
+    return handleSpace({ owner: ALPHA_ID, req, statuses });
   };
 
   const handle = (req: Request): Response | Promise<Response> => {

@@ -103,6 +103,13 @@ describe("createSpace", () => {
     );
   });
 
+  test("post sends the token and fails with the fault's message", async () => {
+    await expect(space().post("/echo")).resolves.toBeUndefined();
+    const attempt = space().post("/fault");
+    await expect(attempt).rejects.toThrow("Instance x not found.");
+    await expect(attempt).rejects.toMatchObject({ status: 404 });
+  });
+
   test("JSON that isn't the expected shape", async () => {
     const attempt = space().get("/wrong-json", z.object({ id: z.string() }));
     await expect(attempt).rejects.toThrow("unexpected Space API response");
@@ -126,7 +133,25 @@ describe("listServers", () => {
     expect(servers.map((s) => s.name)).toEqual(FAKE_SERVERS.map((s) => s.name));
     expect(servers[1]).toMatchObject({
       flavor: "csa.large.v2",
+      ramMb: 4096,
+      securityGroups: ["default", "web"],
       status: "ACTIVE",
+      vcpus: 2,
+      volumes: [
+        {
+          attachedAs: "boot disk",
+          id: "vvvv1111-0000-4000-8000-000000000001",
+          name: "web-1-vol-0",
+          sizeGb: 10,
+          type: "Standard_SSD",
+        },
+      ],
+      zone: "NCP-BKK",
+    });
+    expect(servers[0]).toMatchObject({
+      securityGroups: [],
+      volumes: [],
+      zone: null,
     });
     expect(servers[1]?.kubernetes).toBeNull();
     expect(servers[3]?.kubernetes).toEqual({
