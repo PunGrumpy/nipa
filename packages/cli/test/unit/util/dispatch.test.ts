@@ -164,6 +164,7 @@ const fakeClient = (input: { globals: GlobalValues }): Client => {
       secret: fail,
       text: fail,
     },
+    savedSession: fail,
     session: fail,
     stdout: {
       isTTY: false,

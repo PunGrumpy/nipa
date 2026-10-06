@@ -10,6 +10,7 @@ import { env } from "./env";
 import { exec } from "./exec";
 import { ip } from "./ip";
 import { lb } from "./lb";
+import { link } from "./link";
 import { login } from "./login";
 import { logout } from "./logout";
 import { os } from "./os";
@@ -17,6 +18,7 @@ import { profile } from "./profile";
 import { server } from "./server";
 import { switchProject } from "./switch";
 import { tf } from "./tf";
+import { unlink } from "./unlink";
 import { whoami } from "./whoami";
 
 export const program: Program = {
@@ -37,7 +39,10 @@ export const program: Program = {
   ],
   hidden: [complete],
   sections: [
-    { commands: [login, logout, whoami, switchProject], title: "Session" },
+    {
+      commands: [login, logout, whoami, switchProject, link, unlink],
+      title: "Session",
+    },
     { commands: [server, db, lb, ip], title: "Resources" },
     { commands: [os, tf, exec, env], title: "Run tools" },
     { commands: [profile, completion], title: "Setup" },

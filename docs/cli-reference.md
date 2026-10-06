@@ -6,14 +6,16 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 11 commands. Without a command, it prints help.
+nipa has 13 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
 | `nipa login [options]` | Asks for your email and password, then for a one-time password (OTP) code when your account uses multi-factor authentication (MFA). Saves a token scoped to a project |
 | `nipa logout` | Revokes the current profile's token and deletes its session |
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
-| `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code |
+| `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code. In a linked folder, it changes the saved project, and the folder keeps its own |
+| `nipa link [project]` | Links this folder to the profile and a project, by name or ID, in `.nipa/project.json`. Commands in this folder and the folders below it use them |
+| `nipa unlink` | Deletes the closest `.nipa/project.json`, at or above this folder |
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. A server that a Kubernetes cluster made shows its role after its name, such as `(Kubernetes master)`. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
 | `nipa server inspect <server> [--json]` | Shows one server's ID, status, flavor with its vCPUs and RAM, zone, addresses, volumes, security groups and age, by name or ID. In a pipe, it prints the server's ID |
 | `nipa server start <server> [options]` | Starts a stopped server, then waits until it's active |
@@ -65,7 +67,7 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | `-h, --help` |  | Prints help |
 | `-v, --version` |  | Prints the version |
 
-nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then `currentProfile` in `config.json`.
+nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`.
 
 ## Other environment variables
 
@@ -86,6 +88,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | --- | --- |
 | `config.json` | `currentProfile`, and `profiles` with each profile's `authUrl`, `userDomain`, `region`, `spaceUrl`, last `username` and last `project` |
 | `auth.json` | `sessions` with each profile's token, expiry time, user and project |
+| `.nipa/project.json` | In a folder that `nipa link` linked: the `profile`, and the `project` with its `id`, `name` and `domainId`. It holds no token, so you can commit it to share the link with your team, or add `.nipa` to `.gitignore` |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
 | `~/.cache/nipa/completion.json` | Where `nipa completion --install` saved each script, and the nipa version that wrote it. When the version changes, the next command rewrites the script |
@@ -119,10 +122,13 @@ nipa exits with these codes:
   "loggedIn": true,
   "profile": "prod",
   "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "link": null,
   "region": "NCP-TH",
   "user": { "id": "9012…", "name": "me@example.com" }
 }
 ```
+
+`project` is the saved session's project. In a linked folder, `link` has the link file's path in `file`, and the `project` that commands there use.
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
 

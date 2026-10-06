@@ -15,6 +15,8 @@ import {
   rescope,
 } from "./keystone";
 import type { Account, Project, Token } from "./keystone";
+import { displayPath, findLink } from "./link";
+import type { FoundLink } from "./link";
 import {
   DEFAULT_PROFILE,
   isActive,
@@ -31,6 +33,8 @@ export interface ActiveProfile {
   readonly config: Config;
   readonly name: string;
   readonly profile: Profile;
+  /** The folder's link, when it names this profile. Its project wins. */
+  readonly link: FoundLink | undefined;
 }
 
 export interface SignedIn {
@@ -44,23 +48,30 @@ export interface Cloud extends SignedIn {
 }
 
 /**
- * The profile a run uses: `--profile`, then NIPA_PROFILE, then the config's
- * current profile. Throws, naming the known profiles, when it doesn't exist.
+ * The profile a run uses: `--profile`, then NIPA_PROFILE, then the folder's
+ * link, then the config's current profile. Throws, naming the known
+ * profiles, when it doesn't exist.
  */
 export const resolveProfile = async (input: {
   override: string | undefined;
 }): Promise<ActiveProfile> => {
-  const config = await loadConfig();
+  const [config, found] = await Promise.all([loadConfig(), findLink()]);
   const name =
-    input.override ?? process.env.NIPA_PROFILE ?? config.currentProfile;
+    input.override ??
+    process.env.NIPA_PROFILE ??
+    found?.link.profile ??
+    config.currentProfile;
   const profile = config.profiles[name];
   if (!profile) {
     const known = Object.keys(config.profiles).join(", ");
-    throw new CliError(`no profile named "${name}"`, {
+    const from =
+      found?.link.profile === name ? ` in ${displayPath(found.file)}` : "";
+    throw new CliError(`no profile named "${name}"${from}`, {
       hint: `Your profiles: ${known}. Add one with \`nipa profile add ${name}\`.`,
     });
   }
-  return { config, name, profile };
+  const link = found?.link.profile === name ? found : undefined;
+  return { config, link, name, profile };
 };
 
 /** `nipa login`, or `nipa login -P staging`, for hints. */
@@ -125,6 +136,21 @@ const findProject = (input: {
   }
   return match;
 };
+
+/** A choice list of the projects, marking `current` and starting on it. */
+export const askProject =
+  (input: { prompts: Prompts; current: Project; message: string }) =>
+  (projects: readonly Project[]): Promise<Project> =>
+    input.prompts.choice({
+      choices: projects.map((p) => ({
+        description: p.id,
+        name:
+          p.id === input.current.id ? `${p.name} ${bold("(current)")}` : p.name,
+        value: p,
+      })),
+      default: projects.find((p) => p.id === input.current.id),
+      message: input.message,
+    });
 
 export const pickProject = (input: {
   projects: readonly Project[];
@@ -290,18 +316,14 @@ export const interactiveLogin = async (input: {
   return session;
 };
 
-/**
- * The profile's live session. Logs in first when it expired and nipa can
- * prompt, and throws "run nipa login" when it can't.
- */
-export const requireSession = async (input: {
+const savedSession = async (input: {
   active: ActiveProfile;
   prompts: Prompts;
-}): Promise<SignedIn> => {
+}): Promise<Session> => {
   const { active, prompts } = input;
   const session = await loadSession(active.name);
   if (isActive(session)) {
-    return { active, session };
+    return session;
   }
   const hint = `Run \`${loginLine(active.name)}\`.`;
   if (!prompts.interactive) {
@@ -310,7 +332,66 @@ export const requireSession = async (input: {
       : new CliError(`you aren't logged in to ${active.name}`, { hint });
   }
   log(session ? "Your session expired." : "You aren't logged in yet.");
-  return { active, session: await interactiveLogin({ active, prompts }) };
+  return interactiveLogin({ active, prompts });
+};
+
+/**
+ * A token for the linked project, for this run only, so the saved session
+ * and other folders keep their project.
+ */
+const linkedSession = async (input: {
+  active: ActiveProfile;
+  link: FoundLink;
+  session: Session;
+}): Promise<Session> => {
+  const { active, session } = input;
+  const { file, link } = input.link;
+  let token: Token;
+  try {
+    token = await withSpinner(`Switching to ${link.project.name}…`, () =>
+      rescope({
+        authUrl: active.profile.authUrl,
+        projectId: link.project.id,
+        token: session.token,
+      })
+    );
+  } catch (error) {
+    if (error instanceof KeystoneError && error.status === 401) {
+      throw new CliError(
+        `can't use project ${link.project.name}, which ${displayPath(file)} links to`,
+        {
+          hint: `Run \`nipa link\` to pick another project. If Keystone revoked your session, run \`${loginLine(active.name)}\`.`,
+        }
+      );
+    }
+    throw error;
+  }
+  log(
+    `Using project ${bold(link.project.name)} from ${dim(displayPath(file))}`
+  );
+  return toSession(token, link.project);
+};
+
+/**
+ * The profile's live session. Logs in first when it expired and nipa can
+ * prompt, and throws "run nipa login" when it can't. In a linked folder, the
+ * token is for the linked project, unless `linked` is false.
+ */
+export const requireSession = async (input: {
+  active: ActiveProfile;
+  prompts: Prompts;
+  linked?: boolean;
+}): Promise<SignedIn> => {
+  const { active, prompts } = input;
+  const session = await savedSession({ active, prompts });
+  const link = input.linked === false ? undefined : active.link;
+  if (!link || link.link.project.id === session.project.id) {
+    return { active, session };
+  }
+  return {
+    active,
+    session: await linkedSession({ active, link, session }),
+  };
 };
 
 /** A 401 means Keystone revoked the token before it expired. */

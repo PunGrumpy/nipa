@@ -54,7 +54,19 @@ To pick a profile for one terminal only, set `NIPA_PROFILE`:
 export NIPA_PROFILE=staging
 ```
 
-nipa picks the profile in this order: `-P`, then `NIPA_PROFILE`, then the current profile.
+nipa picks the profile in this order: `-P`, then `NIPA_PROFILE`, then a linked folder's profile, then the current profile.
+
+## Link a folder to staging
+
+Link a folder, such as your staging Terraform code, so every command in it uses staging and one project without `-P`:
+
+```sh
+cd infra/staging
+nipa -P staging link my-project
+nipa tf plan
+```
+
+nipa saves the profile and project in `.nipa/project.json`, and commands in the folder and the folders below it use them. Before each command, nipa exchanges your staging token for one in `my-project`, so `nipa switch` in other folders doesn't change this one. Run `nipa unlink` in the folder to remove the link.
 
 ## See and remove profiles
 

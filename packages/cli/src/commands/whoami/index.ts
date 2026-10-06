@@ -1,4 +1,5 @@
 import { handle } from "../../util/command";
+import { displayPath } from "../../util/link";
 import { loginLine } from "../../util/session";
 import { isActive, loadSession, msUntilExpiry } from "../../util/store";
 import { bold, CliError, dim, formatDuration, log } from "../../util/ui";
@@ -21,6 +22,9 @@ export const whoami = handle(whoamiCommand, async ({ client, flags }) => {
     client.stdout.json({
       authUrl: active.profile.authUrl,
       expiresAt: session.expiresAt,
+      link: active.link
+        ? { file: active.link.file, project: active.link.link.project }
+        : null,
       loggedIn: true,
       profile: active.name,
       project: session.project,
@@ -40,6 +44,11 @@ export const whoami = handle(whoamiCommand, async ({ client, flags }) => {
   const projectId = dim(`(${session.project.id})`);
   log(`Profile: ${bold(active.name)} ${where}`);
   log(`Project: ${bold(session.project.name)} ${projectId}`);
+  if (active.link && active.link.link.project.id !== session.project.id) {
+    const { file, link } = active.link;
+    const from = dim(`(${displayPath(file)})`);
+    log(`This folder uses ${bold(link.project.name)} ${from}`);
+  }
   log(`The session expires in ${expiresIn}`);
   return 0;
 });

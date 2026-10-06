@@ -23,8 +23,13 @@ export interface Client {
   readonly program: ProgramSpec;
   /** The profile this run uses: `--profile`, then NIPA_PROFILE, then the current one. */
   readonly profile: () => Promise<ActiveProfile>;
-  /** profile() with a live session. Logs in first when it expired and nipa can prompt. */
+  /**
+   * profile() with a live session. Logs in first when it expired and nipa
+   * can prompt. In a linked folder, the session is for the linked project.
+   */
   readonly session: () => Promise<SignedIn>;
+  /** session() with the saved project, whatever the folder links to. */
+  readonly savedSession: () => Promise<SignedIn>;
   /** session() with the Space API. Says which profile it uses when that isn't prod. */
   readonly cloud: () => Promise<Cloud>;
 }
@@ -55,17 +60,22 @@ export const createClient = (input: {
   const session = once(async () =>
     requireSession({ active: await profile(), prompts })
   );
+  const savedSession = once(async () =>
+    requireSession({ active: await profile(), linked: false, prompts })
+  );
   const cloud = once(async () => {
-    const spaceUrl = requireSpaceUrl(await profile());
-    const signedIn = await session();
-    announceProfile(signedIn.active);
-    return connect({ signedIn, spaceUrl });
+    const active = await profile();
+    const spaceUrl = requireSpaceUrl(active);
+    // Before the session, so a linked project or a login reads under it.
+    announceProfile(active);
+    return connect({ signedIn: await session(), spaceUrl });
   });
   return {
     cloud,
     profile,
     program,
     prompts,
+    savedSession,
     session,
     stdout: createResultStream(process.stdout),
   };
