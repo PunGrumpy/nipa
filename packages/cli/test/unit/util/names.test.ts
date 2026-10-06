@@ -19,7 +19,6 @@ afterAll(async () => {
   await rm(cache, { force: true, recursive: true });
 });
 
-/** A Space API with 2 flavors that counts its calls. */
 const flavorSpace = () => {
   const asked: string[] = [];
   const space: Space = {

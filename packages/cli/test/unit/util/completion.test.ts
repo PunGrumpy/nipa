@@ -202,7 +202,6 @@ describe("nipa completion", () => {
     expect(
       await openstackComplete("server", "create", "--network", "")
     ).toEqual(FAKE_NETWORKS);
-    // openstack's own options still come from its table.
     expect(await openstackComplete("server", "create", "--im")).toEqual([
       "--image",
     ]);

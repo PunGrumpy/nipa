@@ -1,6 +1,5 @@
-// A fake of macOS's `security` and Linux's `secret-tool`, so tests never
-// touch a real keychain. Both keep passwords in $HOME/fake-keychain.json,
-// keyed "service|account", whichever tool saved them.
+// Fakes of `security` and `secret-tool`, so tests never touch a real
+// keychain. Both keep passwords in $HOME/fake-keychain.json.
 
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -48,7 +47,6 @@ if (tool === "security") {
 }
 `;
 
-/** Puts the fake `security` and `secret-tool` in `dir`/bin. */
 export const installFakeKeychain = async (dir: string): Promise<void> => {
   const bin = path.join(dir, "bin");
   await mkdir(bin, { recursive: true });
@@ -63,7 +61,6 @@ export const installFakeKeychain = async (dir: string): Promise<void> => {
 
 const dbFile = (dir: string) => path.join(dir, "fake-keychain.json");
 
-/** The saved passwords, keyed "service|account". */
 export const readFakeKeychain = async (
   dir: string
 ): Promise<Record<string, string>> => {
@@ -79,6 +76,5 @@ export const writeFakeKeychain = (
   passwords: Record<string, string>
 ): Promise<void> => writeFile(dbFile(dir), JSON.stringify(passwords));
 
-/** The key nipa saves a Keystone user's password under. */
 export const keychainKey = (authUrl: string, username: string): string =>
   `nipa-cli/${new URL(authUrl).host}|${username}`;

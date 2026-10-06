@@ -4,7 +4,6 @@ import type { Space } from "../../../src/util/api";
 import { waitForServer } from "../../../src/util/compute";
 import type { ServerState } from "../../../src/util/compute";
 
-/** A Space API that answers each state in turn, then the last one forever. */
 const statesSpace = (states: readonly ServerState[]) => {
   const asked: string[] = [];
   const space: Space = {

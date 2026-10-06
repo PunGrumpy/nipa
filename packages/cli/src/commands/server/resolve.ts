@@ -1,5 +1,3 @@
-// Finds the one server a subcommand names, by ID or by name.
-
 import type { Space } from "../../util/api";
 import { listServers, matchServers } from "../../util/compute";
 import type { Server } from "../../util/compute";

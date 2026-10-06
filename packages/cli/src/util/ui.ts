@@ -259,7 +259,6 @@ export const printTable = (table: {
   writeStderr("");
 };
 
-/** One row of `printFields`: a label, and one or more lines of value. */
 export interface Field {
   label: string;
   lines: readonly Cell[];
@@ -267,11 +266,7 @@ export interface Field {
 
 const painted = (cell: Cell): string => cell.paint?.(cell.text) ?? cell.text;
 
-/**
- * Prints one resource's details the way `printTable` prints a list: between
- * blank lines, 2 spaces in, labels in bold cyan. A value with more lines,
- * such as a server's addresses, continues under the first.
- */
+/** One resource's details, laid out like `printTable`. */
 export const printFields = (fields: readonly Field[]): void => {
   const width = Math.max(...fields.map((field) => field.label.length));
   const indent = " ".repeat(2 + width) + COLUMN_GAP;

@@ -17,7 +17,6 @@ const MachineTypesSchema = z.object({ machine_types: z.array(NamedSchema) });
 const NetworksSchema = z.object({ networks: z.array(NamedSchema) });
 // ?table=owned_image answers with owned_images, not images.
 const OwnedImagesSchema = z.object({ owned_images: z.array(NamedSchema) });
-// The portal groups public images by OS, such as Ubuntu with each release.
 const PublicImagesSchema = z.object({
   public_images: z.array(z.object({ images: z.array(NamedSchema) })),
 });
@@ -60,12 +59,10 @@ const CacheSchema = z.record(
   z.object({ at: z.number(), names: z.array(z.string()) })
 );
 
-/** The project's names of `kind`, from the cache when it's under a minute old. */
 export const resourceNames = async (input: {
   /** The Space API, made only when the cache misses. */
   connect: () => Promise<Space>;
   kind: ResourceKind;
-  /** The profile and project, so another project never gets these names. */
   scope: string;
   now?: number;
 }): Promise<string[]> => {

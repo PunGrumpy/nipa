@@ -97,7 +97,6 @@ export const openstackCompletions = async (
   return table ? candidates(table, words) : [];
 };
 
-/** Resources whose names nipa completes inside `nipa os`, from the Space API. */
 export type ResourceKind = "servers" | "flavors" | "images" | "networks";
 
 // The commands whose every argument is a server, such as `server stop a b`.
@@ -128,11 +127,7 @@ const VALUE_OPTIONS = new Map<string, ResourceKind>([
   ["--network", "networks"],
 ]);
 
-/**
- * What the last word names, when nipa knows: a server after `server show`,
- * or a flavor after `--flavor`. openstack's own table lists commands and
- * options, not the values they take.
- */
+// openstack's own table lists commands and options, not their values.
 export const valueKind = (
   words: readonly string[]
 ): ResourceKind | undefined => {

@@ -201,7 +201,6 @@ interface Ask {
   statuses: ReadonlyMap<string, string>;
 }
 
-/** Each server's status, from FAKE_SERVERS. Actions change the copy. */
 export const fakeStatuses = (): Map<string, string> =>
   new Map(FAKE_SERVERS.map((server) => [server.id, server.status]));
 
@@ -245,7 +244,6 @@ const routes = new Map<string, (ask: Ask) => object>([
   ],
 ]);
 
-/** Flavors, images and networks, for completion inside `nipa os`. */
 export const FAKE_FLAVORS = [LARGE, XLARGE, "dsa.large.v2"];
 export const FAKE_PUBLIC_IMAGES = [
   "prd-ubuntu-24-v260612",
@@ -276,7 +274,6 @@ routes.set("/api/v4/images", ({ mine, query }) =>
 export const spaceFault = (status: number, message: string): Response =>
   Response.json({ message, status }, { status });
 
-// Nova's answer to an action the server's state doesn't allow.
 const conflict = (action: string, id: string) =>
   spaceFault(
     409,

@@ -149,7 +149,6 @@ const findProject = (input: {
   return match;
 };
 
-/** A choice list of the projects, marking `current` and starting on it. */
 export const askProject =
   (input: { prompts: Prompts; current: Project; message: string }) =>
   (projects: readonly Project[]): Promise<Project> =>
@@ -215,7 +214,6 @@ const verifyOtp = async (input: {
   }
 };
 
-/** The saved password for `--username`, or else for the last user. */
 const rememberedLogin = async (input: {
   keychain: Keychain | undefined;
   profile: Profile;
@@ -234,10 +232,7 @@ const rememberedLogin = async (input: {
 
 type PasswordAnswer = Awaited<ReturnType<typeof loginWithPassword>>;
 
-/**
- * Sends the saved password, or asks for one. When Keystone refuses a saved
- * password, which happens after it changes, nipa deletes it and asks.
- */
+// Keystone refuses a saved password after it changes, so nipa deletes it.
 const checkPassword = async (input: {
   account: Account;
   keychain: Keychain | undefined;
@@ -272,9 +267,7 @@ export const authenticate = async (input: {
   prompts: LoginPrompts;
   username?: string;
   wantedProject?: string;
-  /** Where saved passwords are. Undefined skips them. */
   keychain?: Keychain;
-  /** Save the password in `keychain` after Keystone accepts it. */
   remember?: boolean;
 }): Promise<Session> => {
   const { keychain, profile, prompts, wantedProject } = input;
@@ -372,7 +365,6 @@ export const interactiveLogin = async (input: {
   prompts: Prompts;
   username?: string;
   wantedProject?: string;
-  /** `nipa login --remember`: save the password in the OS keychain. */
   remember?: boolean;
 }): Promise<Session> => {
   const { active, prompts } = input;

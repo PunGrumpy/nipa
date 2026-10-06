@@ -57,7 +57,6 @@ const exists = async (file: string): Promise<boolean> => {
   }
 };
 
-/** Runs nipa in `cwd`, such as a linked folder. */
 const runIn = (cwd: string, args: string[]) =>
   runProcess(["bun", ENTRY, ...args], testEnv(dir), cwd);
 
@@ -68,7 +67,6 @@ const exitCode = async (args: string[]): Promise<number> => {
 
 const inDir = (...parts: string[]) => path.join(dir, ...parts);
 
-// A folder to link, and one below it.
 const infra = () => inDir("infra");
 const modules = () => inDir("infra", "modules");
 
@@ -85,7 +83,6 @@ const serverChecks = () =>
 const serverActions = () =>
   keystone.requests.filter((r) => r.startsWith("POST /api/v4/instances/"));
 
-/** Where the fake keychain keeps prod's password. */
 const savedKey = () => keychainKey(keystone.url, FAKE_USER.name);
 
 // Every folder gets the fake keychain, so logout never reaches a real one.

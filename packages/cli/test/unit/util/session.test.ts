@@ -160,14 +160,12 @@ describe("authenticate", () => {
   });
 });
 
-/** The profile after a first login: nipa knows the user and project. */
 const known = (): Profile => ({
   ...profile,
   project: { id: ALPHA_ID, name: "Alpha" },
   username: FAKE_USER.name,
 });
 
-/** A keychain in memory, keyed by user. */
 const memoryKeychain = (saved: Record<string, string> = {}) => {
   const passwords = new Map(Object.entries(saved));
   const keychain: Keychain = {

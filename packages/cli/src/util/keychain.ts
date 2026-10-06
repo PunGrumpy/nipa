@@ -1,8 +1,5 @@
-// Saved passwords for `nipa login --remember`, in the OS's password store.
-// nipa calls the store's own command-line tool, so it works the same on Bun
-// and Node without a native module: `security` on macOS and `secret-tool`
-// (libsecret) on Linux. A password never goes on a command line, where `ps`
-// would show it.
+// The OS's own tools need no native module on Bun or Node. A password goes
+// on stdin, never on a command line, where `ps` would show it.
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -11,18 +8,16 @@ import { text as readText } from "node:stream/consumers";
 import { findCommand } from "./env";
 import { CliError } from "./ui";
 
-/** Which password: one per Keystone host and user. */
 export interface KeychainEntry {
   authUrl: string;
   username: string;
 }
 
 export interface Keychain {
-  /** Where the passwords go, for messages: "macOS Keychain". */
   readonly name: string;
   readonly read: (entry: KeychainEntry) => Promise<string | undefined>;
   readonly save: (entry: KeychainEntry, password: string) => Promise<void>;
-  /** Deletes the password, and says whether there was one. */
+  /** Says whether there was a password to delete. */
   readonly remove: (entry: KeychainEntry) => Promise<boolean>;
 }
 
@@ -60,10 +55,8 @@ const macIds = (entry: KeychainEntry): string[] => [
   entry.username,
 ];
 
-// `security -i` reads its command from stdin, and -X takes the data as hex,
-// so no quoting can break it. `security -w` prints data that isn't plain
-// ASCII as hex, which a password that looks like hex can't be told apart
-// from, so nipa saves the password as base64, which is always plain ASCII.
+// -X takes hex, so no quoting breaks the command. `security -w` prints a
+// password that isn't plain ASCII as hex, so nipa saves it as base64.
 const macKeychain = (bin: string): Keychain => {
   const name = "macOS Keychain";
   return {
@@ -110,7 +103,6 @@ const linuxIds = (entry: KeychainEntry): string[] => [
   entry.username,
 ];
 
-// secret-tool reads the password to store from stdin.
 const linuxKeychain = (bin: string): Keychain => {
   const name = "secret service";
   return {
@@ -138,7 +130,6 @@ const linuxKeychain = (bin: string): Keychain => {
   };
 };
 
-/** The OS's password store, or undefined where nipa has none. */
 export const systemKeychain = (
   platform: NodeJS.Platform = process.platform
 ): Keychain | undefined => {
@@ -153,7 +144,6 @@ export const systemKeychain = (
   return undefined;
 };
 
-/** systemKeychain(), or an error that says what to install. */
 export const requireKeychain = (
   platform: NodeJS.Platform = process.platform
 ): Keychain => {
@@ -170,7 +160,6 @@ export const requireKeychain = (
   });
 };
 
-/** Deletes the profile's saved password, and says whether there was one. */
 export const forgetPassword = (profile: {
   authUrl: string;
   username?: string;
