@@ -6,6 +6,7 @@ import {
   ApiError,
   createSpace,
   spaceApiUrl,
+  spacePortalUrl,
   utcTime,
 } from "../../../src/util/api";
 import { listServers } from "../../../src/util/compute";
@@ -52,6 +53,20 @@ describe("spaceApiUrl", () => {
     ["https://space.nipa.cloud/api/", "https://space.nipa.cloud/api"],
   ])("%s -> %s", (url, api) => {
     expect(spaceApiUrl(url)).toBe(api);
+  });
+});
+
+describe("spacePortalUrl", () => {
+  test.each([
+    ["https://space.nipa.cloud/api", "https://space.nipa.cloud"],
+    [
+      "https://portal-stg-epc.nipa.cloud/api/",
+      "https://portal-stg-epc.nipa.cloud",
+    ],
+    ["http://127.0.0.1:5000/space/api", "http://127.0.0.1:5000/space"],
+    ["https://api.example.com/v1", "https://api.example.com"],
+  ])("%s -> %s", (api, portal) => {
+    expect(spacePortalUrl(api)).toBe(portal);
   });
 });
 

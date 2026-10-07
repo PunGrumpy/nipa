@@ -54,6 +54,16 @@ export const spaceApiUrl = (url: string): string => {
   return path === "" ? `${origin}/api` : `${origin}${path}`;
 };
 
+/**
+ * The portal a Space API serves: https://space.nipa.cloud/api becomes
+ * https://space.nipa.cloud. The inverse of spaceApiUrl.
+ */
+export const spacePortalUrl = (url: string): string => {
+  const { origin, pathname } = new URL(url);
+  const path = trimSlashes(pathname);
+  return path.endsWith("/api") ? `${origin}${path.slice(0, -4)}` : origin;
+};
+
 /** Throws unless `url` answers a request without a token like the Space API. */
 export const probeSpace = async (url: string): Promise<void> => {
   const res = await request(`${url}/v3/instances`, {
