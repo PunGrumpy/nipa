@@ -31,7 +31,6 @@ describe("listQuotas", () => {
       limit: null,
       name: "port",
       unit: null,
-      unlimited: true,
       used: 11,
     });
     expect(quotas[3]).toMatchObject({

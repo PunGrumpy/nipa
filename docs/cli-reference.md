@@ -363,7 +363,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 }
 ```
 
-`nipa quota ls --json` prints the profile, the project and its quotas, by group. `group` and `name` are the Space API's, such as `compute` and `cores`. `used` and `limit` are in `unit`, such as `MB` for RAM, `GB` for volume size and `Bytes` for object storage, and `unit` is `null` for a count. `limit` is `null` and `unlimited` is `true` when the quota has no limit:
+`nipa quota ls --json` prints the profile, the project and its quotas, by group. `group` and `name` are the Space API's, such as `compute` and `cores`. `used` and `limit` are in `unit`, such as `MB` for RAM, `GB` for volume size and `Bytes` for object storage, and `unit` is `null` for a count. `limit` is `null` when the quota has no limit:
 
 ```json
 {
@@ -375,7 +375,6 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "limit": 20,
       "name": "cores",
       "unit": null,
-      "unlimited": false,
       "used": 18
     },
     {
@@ -383,7 +382,6 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "limit": 51200,
       "name": "ram",
       "unit": "MB",
-      "unlimited": false,
       "used": 45056
     },
     {
@@ -391,7 +389,6 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "limit": null,
       "name": "port",
       "unit": null,
-      "unlimited": true,
       "used": 11
     }
   ]

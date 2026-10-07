@@ -22,7 +22,6 @@ const quota = (
   limit,
   name,
   unit: null,
-  unlimited: limit === null,
   used,
 });
 

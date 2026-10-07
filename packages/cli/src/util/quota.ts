@@ -21,7 +21,6 @@ export interface Quota {
   used: number;
   /** Null when the quota is unlimited. */
   limit: number | null;
-  unlimited: boolean;
   /** The unit of `used` and `limit`, such as MB, or null for a count. */
   unit: string | null;
 }
@@ -31,7 +30,6 @@ const toQuota = (line: z.infer<typeof LimitSchema>): Quota => ({
   limit: line.unlimited ? null : line.limit,
   name: line.name,
   unit: line.unit ?? null,
-  unlimited: line.unlimited,
   used: line.usage,
 });
 

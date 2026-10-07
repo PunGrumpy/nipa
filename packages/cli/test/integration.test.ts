@@ -1194,7 +1194,6 @@ describe("quota ls", () => {
         limit: 10,
         name: "instances",
         unit: null,
-        unlimited: false,
         used: 10,
       },
       {
@@ -1202,7 +1201,6 @@ describe("quota ls", () => {
         limit: 20,
         name: "cores",
         unit: null,
-        unlimited: false,
         used: 18,
       },
       {
@@ -1210,7 +1208,6 @@ describe("quota ls", () => {
         limit: 51_200,
         name: "ram",
         unit: "MB",
-        unlimited: false,
         used: 45_056,
       },
       {
@@ -1218,7 +1215,6 @@ describe("quota ls", () => {
         limit: null,
         name: "port",
         unit: null,
-        unlimited: true,
         used: 11,
       },
       {
@@ -1226,7 +1222,6 @@ describe("quota ls", () => {
         limit: null,
         name: "storage_size",
         unit: "Bytes",
-        unlimited: true,
         used: 1_755_585,
       },
       {
@@ -1234,7 +1229,6 @@ describe("quota ls", () => {
         limit: 5,
         name: "shares",
         unit: null,
-        unlimited: false,
         used: 1,
       },
     ]);
