@@ -1066,6 +1066,58 @@ describe("saved passwords and session expiry", () => {
   });
 });
 
+describe("flavor ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the server flavors, smallest first", async () => {
+    const { code, stdout } = await run(["flavor", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { flavors, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(flavors.map((f: { name: string }) => f.name)).toEqual([
+      "nsa.small.v2",
+      "csa.large.v2",
+      "csa.xlarge.v2",
+    ]);
+    expect(flavors.slice(1)).toEqual([
+      {
+        cpuPolicy: "shared",
+        id: "mt-csa.large.v2",
+        name: "csa.large.v2",
+        ramMb: 4096,
+        type: "Shared-Core",
+        vcpus: 2,
+      },
+      {
+        cpuPolicy: "shared",
+        id: "mt-csa.xlarge.v2",
+        name: "csa.xlarge.v2",
+        ramMb: 8192,
+        type: "Shared-Core",
+        vcpus: 4,
+      },
+    ]);
+  });
+
+  test("prints a table on stderr and one name per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["machine-types"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Flavors in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+vCPUs\s+RAM\s+Type/u);
+    expect(stderr).toMatch(/csa\.xlarge\.v2\s+4\s+8 GB\s+Shared-Core/u);
+    expect(stderr).toMatch(/nsa\.small\.v2\s+1\s+1\.5 GB\s+Shared-core/u);
+    expect(stderr).not.toContain("dsa.large.v2");
+    expect(stdout.trim().split("\n")).toEqual([
+      "nsa.small.v2",
+      "csa.large.v2",
+      "csa.xlarge.v2",
+    ]);
+  });
+});
+
 describe("volume ls", () => {
   beforeAll(async () => {
     await freshDir();

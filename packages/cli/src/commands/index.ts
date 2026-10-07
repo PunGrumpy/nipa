@@ -8,6 +8,7 @@ import { completion } from "./completion";
 import { db } from "./db";
 import { env } from "./env";
 import { exec } from "./exec";
+import { flavor } from "./flavor";
 import { ip } from "./ip";
 import { k8s } from "./k8s";
 import { lb } from "./lb";
@@ -48,7 +49,7 @@ export const program: Program = {
       title: "Session",
     },
     {
-      commands: [server, volume, network, sg, ip, lb, k8s, db],
+      commands: [server, flavor, volume, network, sg, ip, lb, k8s, db],
       title: "Resources",
     },
     { commands: [os, tf, exec, env], title: "Run tools" },

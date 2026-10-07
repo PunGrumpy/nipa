@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 17 commands. Without a command, it prints help.
+nipa has 18 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -21,6 +21,7 @@ nipa has 17 commands. Without a command, it prints help.
 | `nipa server start <server> [options]` | Starts a stopped server, then waits until it's active |
 | `nipa server stop <server> [options]` | Stops a server after you confirm, then waits until it's shut off |
 | `nipa server restart <server> [options]` | Restarts a running server after you confirm, then waits until it's active again. `nipa server reboot` is the same command |
+| `nipa flavor ls [--json]` | Lists the flavors a server can have, smallest first, with their vCPUs, RAM and type. The Space portal calls them machine types. The ones only database clusters use don't show. In a pipe, it prints one flavor name per line. `nipa flavor`, `nipa flavors` and `nipa machine-types` do the same |
 | `nipa volume ls [--json]` | Lists the block storage volumes in your project with their status, size, type, the server each one is attached to, and age. In a pipe, it prints one volume ID per line. `nipa volume` and `nipa volumes` do the same |
 | `nipa network ls [--json]` | Lists the networks your project can use with their status, type, zone and age. `VPC` marks one of your project's private networks, and `external` a shared pool of external IPs. In a pipe, it prints one network ID per line. `nipa network` and `nipa networks` do the same |
 | `nipa sg ls [--json]` | Lists the security groups in your project with their inbound and outbound rule counts, age and description. In a pipe, it prints one security group ID per line. `nipa sg`, `nipa security-group` and `nipa security-groups` do the same |
@@ -48,7 +49,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
@@ -102,7 +103,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
 
-`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls` and `ip ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
+`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls` and `ip ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
 
 ## Exit codes
 
@@ -179,6 +180,25 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 ```
 
 `ramMb`, `vcpus`, `zone`, `attachedAs`, a volume's `name` and its `type` are `null` when the Space API doesn't send them. `nipa server inspect --json` prints the same fields for one server, under `server` instead of `servers`.
+
+`nipa flavor ls --json` prints the profile, the project and the flavors a server can have, smallest first. `type` is the portal's category, such as `Shared-core` or `Memory Intensive`, and `cpuPolicy` is `shared` or `dedicated`. Both are `null` when the Space API doesn't send them:
+
+```json
+{
+  "flavors": [
+    {
+      "cpuPolicy": "shared",
+      "id": "9abc…",
+      "name": "csa.large.v2",
+      "ramMb": 4096,
+      "type": "Shared-Core",
+      "vcpus": 2
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
 
 `nipa volume ls --json` prints the profile, the project and its volumes, newest first. `status` is Cinder's status, such as `available`, `in-use` or `creating`. `attachments` lists the servers the volume is attached to, by `serverId`, and the `device` each one sees it as. `type` is `null` when the volume has none:
 

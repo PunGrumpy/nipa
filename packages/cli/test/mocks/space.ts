@@ -376,7 +376,38 @@ const routes = new Map<string, (ask: Ask) => object>([
   ],
 ]);
 
-export const FAKE_FLAVORS = [LARGE, XLARGE, "dsa.large.v2"];
+const machineType = (input: {
+  name: string;
+  vcpus: number;
+  ram: number;
+  type: string;
+  resource?: string;
+}) => ({
+  cpu_policy: "shared",
+  disk: 0,
+  id: `mt-${input.name}`,
+  ...input,
+});
+
+/** The machine types, in no order, like the Space API. dsa is for databases. */
+export const FAKE_MACHINE_TYPES = [
+  machineType({ name: LARGE, ram: 4096, type: "Shared-Core", vcpus: 2 }),
+  machineType({ name: XLARGE, ram: 8192, type: "Shared-Core", vcpus: 4 }),
+  machineType({
+    name: "dsa.large.v2",
+    ram: 4096,
+    resource: "dbaas",
+    type: "Shared-core",
+    vcpus: 2,
+  }),
+  machineType({
+    name: "nsa.small.v2",
+    ram: 1536,
+    type: "Shared-core",
+    vcpus: 1,
+  }),
+];
+export const FAKE_FLAVORS = FAKE_MACHINE_TYPES.map((type) => type.name);
 export const FAKE_PUBLIC_IMAGES = [
   "prd-ubuntu-24-v260612",
   "prd-ubuntu-22-v260610",
@@ -408,7 +439,7 @@ export const FAKE_NETWORKS = FAKE_NETWORK_LIST.map((network) => network.name);
 const named = (list: readonly string[]) => list.map((name) => ({ name }));
 
 routes.set("/api/v4/machine_types", () => ({
-  machine_types: named(FAKE_FLAVORS),
+  machine_types: FAKE_MACHINE_TYPES,
 }));
 // Every project sees the shared pool.
 routes.set("/api/v4/networks", ({ mine }) => ({

@@ -32,9 +32,7 @@ const byRoleThenName = (a: ClusterNode, b: ClusterNode): number => {
 };
 
 /** The clusters the servers belong to, newest first. */
-const groupClusters = (
-  servers: readonly Server[]
-): KubernetesCluster[] => {
+const groupClusters = (servers: readonly Server[]): KubernetesCluster[] => {
   const clusters = new Map<string, KubernetesCluster>();
   for (const server of servers) {
     if (!server.kubernetes) {
