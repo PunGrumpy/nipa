@@ -12,7 +12,13 @@ export const lsSubcommand = defineCommand({
 });
 
 export const inspectSubcommand = defineCommand({
-  args: [{ arity: "one", name: "group", value: { kind: "text" } }],
+  args: [
+    {
+      arity: "one",
+      name: "group",
+      value: { kind: "resource", resource: "security-groups" },
+    },
+  ],
   flags: [jsonFlag],
   name: "inspect",
   summary: "Show a security group's rules and the servers that use it",
