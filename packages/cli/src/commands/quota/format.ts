@@ -118,19 +118,34 @@ export const quotaLabel = (quota: Quota): string =>
   GROUPS.get(quota.group)?.names.find(([name]) => name === quota.name)?.[1] ??
   readable(quota.name);
 
-// An unknown group or name ranks last, and a stable sort keeps the Space
+// An unknown name ranks last in its group, and a stable sort keeps the Space
 // API's order among those.
 const rank = (list: readonly string[], item: string): number => {
   const index = list.indexOf(item);
   return index === -1 ? list.length : index;
 };
 
-export const sortQuotas = (quotas: readonly Quota[]): Quota[] =>
-  quotas.toSorted(
+// The known groups in table order, then each unknown group in the order the
+// Space API first sent it, so its quotas stay together when the API
+// interleaves them.
+const groupOrder = (quotas: readonly Quota[]): string[] => {
+  const order = [...GROUP_ORDER];
+  for (const { group } of quotas) {
+    if (!order.includes(group)) {
+      order.push(group);
+    }
+  }
+  return order;
+};
+
+export const sortQuotas = (quotas: readonly Quota[]): Quota[] => {
+  const groups = groupOrder(quotas);
+  return quotas.toSorted(
     (a, b) =>
-      rank(GROUP_ORDER, a.group) - rank(GROUP_ORDER, b.group) ||
+      rank(groups, a.group) - rank(groups, b.group) ||
       rank(names(a.group), a.name) - rank(names(b.group), b.name)
   );
+};
 
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"];
 

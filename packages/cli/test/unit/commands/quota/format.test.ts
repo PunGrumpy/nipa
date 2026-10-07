@@ -57,6 +57,23 @@ describe("sortQuotas", () => {
       "later/alpha",
     ]);
   });
+
+  test("keeps each unknown group together, in the order the API first sent them", () => {
+    const sorted = sortQuotas([
+      quota("shares", 0, 1, "fileStorage"),
+      quota("cores", 0, 1),
+      quota("one", 0, 1, "dns"),
+      quota("share_snapshots", 0, 1, "fileStorage"),
+      quota("two", 0, 1, "dns"),
+    ]);
+    expect(sorted.map((q) => `${q.group}/${q.name}`)).toEqual([
+      "compute/cores",
+      "fileStorage/shares",
+      "fileStorage/share_snapshots",
+      "dns/one",
+      "dns/two",
+    ]);
+  });
 });
 
 describe("formatAmount", () => {
