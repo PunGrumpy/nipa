@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 18 commands. Without a command, it prints help.
+nipa has 19 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -29,6 +29,7 @@ nipa has 18 commands. Without a command, it prints help.
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
+| `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
@@ -50,6 +51,7 @@ These options belong to one command:
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
 | `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
+| `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
