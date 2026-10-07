@@ -105,6 +105,17 @@ A security group blocks every connection that none of its rules allows. Find the
 
 If a rule matches and the connection still fails, check that the server is `ACTIVE` with `nipa server inspect`, that you connect to its external IP, and that a firewall on the server itself, such as `ufw`, allows the port.
 
+## You can't connect to a database
+
+Run `nipa db inspect <database>`. Its last line says whether the database is healthy, or what needs attention. Then check these:
+
+- **Status and Health**: the database takes connections only when its status is `Active` and its health is `Healthy`. `Build` means Trove is still creating it. Health shows when Trove last checked it
+- **Address**: connect to the address and port it shows. Without an `(external)` address, the database has only an internal IP, which answers only inside your project's network, such as from a server on that network
+- **Allowed CIDRs**: when it lists ranges, your client's IP address must be in one of them
+- **Replicas**: a replica that isn't `Active` and `Healthy` can't serve reads
+
+If the database is healthy and you still can't connect, run `nipa db inspect <database> --json` and check `primary.allowedCidrs` and `primary.externalAddress` against where you connect from.
+
 ## Tab completion does nothing
 
 The completion script isn't loaded in your current shell. Open a new terminal after you add it to your startup file, or load it now with `eval "$(nipa completion bash)"`. In bash, completion after `nipa tf` and `nipa exec` also needs the `bash-completion` package.

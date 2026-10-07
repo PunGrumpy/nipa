@@ -2,12 +2,12 @@ import { describe, expect, test } from "bun:test";
 
 import {
   addressCells,
-  flavorCell,
   mainAddress,
   nameCell,
   volumeCells,
 } from "../../../../src/commands/server/format";
 import type { Address, Server } from "../../../../src/util/compute";
+import { flavorCell } from "../../../../src/util/ui";
 
 const address = (
   value: string,

@@ -109,35 +109,50 @@ export const FAKE_SERVERS = [
 ];
 
 const primary = (input: {
+  id: string;
   engine: string;
   version: string;
   status: string;
   health: string;
+  checkedAgoMs: number | null;
   address: string;
   externalAddress: string;
+  allowedCidrs: string[];
 }) => ({
+  allowed_cidrs: input.allowedCidrs,
+  availability_zone: "NCP-BKK",
   datastore_type: input.engine,
   datastore_version: input.version,
   external_ip_address: input.externalAddress,
+  id: input.id,
   instance_status: input.status,
   ip_address: input.address,
   machine_type: { id: "mt1", name: "dsa.large.v1", ram: 4096, vcpus: 2 },
   operating_status: input.health,
+  service_status_updated:
+    input.checkedAgoMs === null ? null : ago(input.checkedAgoMs),
   volume_size: 10,
 });
+
+const ORDERS_ID = "aaaa1111-0000-4000-8000-000000000001";
+const ORDERS_PRIMARY_ID = "eeee1111-0000-4000-8000-000000000001";
+const ANALYTICS_ID = "aaaa2222-0000-4000-8000-000000000002";
 
 /** The database clusters, oldest first, the way the Space API lists them. */
 export const FAKE_DATABASES = [
   {
     ageMs: 30 * DAY_MS,
     host_name: "orders-aaaa1111",
-    id: "aaaa1111-0000-4000-8000-000000000001",
+    id: ORDERS_ID,
     name: "orders",
     primary: primary({
       address: "192.0.2.20",
+      allowedCidrs: ["203.0.113.0/24", "198.51.100.7/32"],
+      checkedAgoMs: 2 * 60 * MINUTE_MS,
       engine: "mysql",
       externalAddress: "203.0.113.20",
       health: "HEALTHY",
+      id: ORDERS_PRIMARY_ID,
       status: "ACTIVE",
       version: "8.0.34",
     }),
@@ -145,13 +160,16 @@ export const FAKE_DATABASES = [
   {
     ageMs: 5 * MINUTE_MS,
     host_name: "analytics-aaaa2222",
-    id: "aaaa2222-0000-4000-8000-000000000002",
+    id: ANALYTICS_ID,
     name: "analytics",
     primary: primary({
       address: "192.0.2.21",
+      allowedCidrs: [],
+      checkedAgoMs: null,
       engine: "postgresql",
       externalAddress: "",
       health: "UNKNOWN",
+      id: "eeee2222-0000-4000-8000-000000000002",
       status: "BUILD",
       version: "17.10",
     }),
@@ -164,6 +182,55 @@ export const FAKE_DATABASES = [
     primary: null,
   },
 ];
+
+// /v4/databases lists every instance, primaries and replicas, without their
+// machine types.
+const FAKE_DATABASE_INSTANCES = [
+  ...FAKE_DATABASES.flatMap(({ id, name, primary: instance }) =>
+    instance ? [{ ...instance, database_cluster_id: id, name }] : []
+  ),
+  {
+    database_cluster_id: ORDERS_ID,
+    id: "eeee1111-0000-4000-8000-000000000002",
+    instance_status: "ACTIVE",
+    ip_address: "192.0.2.22",
+    name: "orders-replica-1",
+    operating_status: "HEALTHY",
+    replica_of: ORDERS_PRIMARY_ID,
+  },
+];
+
+const dbLog = (name: string, status: string, published: number) => ({
+  files: [],
+  name,
+  published,
+  status,
+  type: "USER",
+});
+
+/** Each primary's logs, by its ID. A primary not here has both off. */
+const FAKE_DATABASE_LOGS = new Map([
+  [
+    ORDERS_PRIMARY_ID,
+    {
+      general: dbLog("general", "Disabled", 0),
+      slow_query: dbLog("slow_query", "Published", 2_097_152),
+    },
+  ],
+]);
+
+// Trove sends backup times in UTC without a zone.
+const troveTime = (ms: number): string => ago(ms).replace(/\.\d+Z$/u, "");
+
+/** Every backup in the project. orders has 6, newest first. */
+export const FAKE_DATABASE_BACKUPS = Array.from({ length: 6 }, (_, index) => ({
+  created_at: troveTime((index + 1) * DAY_MS),
+  database_instance_id: ORDERS_PRIMARY_ID,
+  id: `bk${index + 1}-0000-4000-8000-000000000000`,
+  name: `orders-nightly-${6 - index}`,
+  size: 0.19,
+  status: "COMPLETED",
+}));
 
 /** The load balancers, oldest first. */
 export const FAKE_LOAD_BALANCERS = [
@@ -389,6 +456,28 @@ const routes = new Map<string, (ask: Ask) => object>([
             : clusters.map(({ primary: _primary, ...cluster }) => cluster),
       };
     },
+  ],
+  [
+    "/api/v4/databases",
+    ({ mine, query }) => ({
+      database_instances: mine
+        ? FAKE_DATABASE_INSTANCES.filter(
+            (instance) =>
+              instance.database_cluster_id === query.get("database_cluster_id")
+          )
+        : [],
+    }),
+  ],
+  [
+    "/api/v4/database/backups",
+    ({ mine, query }) => ({
+      database_backups: mine
+        ? FAKE_DATABASE_BACKUPS.filter(
+            (backup) =>
+              backup.database_instance_id === query.get("database_instance_id")
+          )
+        : [],
+    }),
   ],
   [
     "/api/v4/loadbalancers",
@@ -692,6 +781,7 @@ const FAULT_MESSAGES = new Map([
   [500, "Internal Server Error"],
   [503, "Service Unavailable"],
 ]);
+const DATABASE_LOGS = /^\/api\/v4\/database\/(?<id>[^/]+)\/logs$/u;
 
 /** Answers a Space API request whose token is valid, as `owner`'s resources. */
 export const handleSpace = (input: {
@@ -732,6 +822,15 @@ export const handleSpace = (input: {
     return new Response(body, {
       headers: { "Content-Type": "application/x-ndjson" },
     });
+  }
+  const logs = DATABASE_LOGS.exec(url.pathname)?.groups?.id;
+  if (logs !== undefined) {
+    return Response.json(
+      FAKE_DATABASE_LOGS.get(logs) ?? {
+        general: dbLog("general", "Disabled", 0),
+        slow_query: dbLog("slow_query", "Disabled", 0),
+      }
+    );
   }
   const route = routes.get(url.pathname);
   if (!route) {

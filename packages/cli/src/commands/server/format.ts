@@ -1,7 +1,7 @@
 // How nipa shows a server, for every server subcommand.
 
 import type { Server, Volume } from "../../util/compute";
-import { dim, gigabytes, plural, withDetail } from "../../util/ui";
+import { dim, withDetail } from "../../util/ui";
 import type { Cell } from "../../util/ui";
 
 /** The address people reach the server at: a floating IP, then IPv4. */
@@ -22,19 +22,6 @@ export const nameCell = (server: Server): Cell => {
     paint: (text) => `${server.name}${dim(text.slice(server.name.length))}`,
     text: `${server.name} (Kubernetes ${role})`,
   };
-};
-
-export const flavorCell = (server: Server): Cell => {
-  const size: string[] = [];
-  if (server.vcpus !== null) {
-    size.push(plural(server.vcpus, "vCPU"));
-  }
-  if (server.ramMb !== null) {
-    size.push(`${gigabytes(server.ramMb)} RAM`);
-  }
-  return size.length === 0
-    ? { text: server.flavor }
-    : withDetail(server.flavor, ` (${size.join(", ")})`);
 };
 
 export const addressCells = (server: Server): Cell[] => {

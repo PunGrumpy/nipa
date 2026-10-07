@@ -3,15 +3,23 @@
 import { gray, green, red, yellow } from "./ui";
 import type { Cell, Paint } from "./ui";
 
-// OpenStack's statuses: these run or answer, these fail, and these are on
-// their way somewhere. The rest, such as SHUTOFF, SHELVED or DOWN, are gray.
+// OpenStack's statuses: these run, answer or finished, these fail, and these
+// are on their way somewhere. The rest, such as SHUTOFF, SHELVED or DOWN, are gray.
 // Cinder writes its statuses in lowercase, such as in-use or error_deleting.
-const RUNNING = new Set(["ACTIVE", "AVAILABLE", "HEALTHY", "IN-USE", "ONLINE"]);
-const FAILING = new Set(["DEGRADED", "OFFLINE", "UNKNOWN"]);
+const RUNNING = new Set([
+  "ACTIVE",
+  "AVAILABLE",
+  "COMPLETED",
+  "HEALTHY",
+  "IN-USE",
+  "ONLINE",
+]);
+const FAILING = new Set(["DEGRADED", "FAILED", "OFFLINE", "UNKNOWN"]);
 const CHANGING = new Set([
   "ATTACHING",
   "BACKING-UP",
   "BUILD",
+  "BUILDING",
   "CREATING",
   "DELETING",
   "DETACHING",
@@ -19,6 +27,7 @@ const CHANGING = new Set([
   "EXTENDING",
   "HARD_REBOOT",
   "MIGRATING",
+  "NEW",
   "PASSWORD",
   "REBOOT",
   "REBUILD",
