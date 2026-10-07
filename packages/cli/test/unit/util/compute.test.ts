@@ -12,7 +12,11 @@ const statesSpace = (states: readonly ServerState[]) => {
       const state = states[Math.min(asked.length, states.length) - 1];
       return Promise.resolve(
         schema.parse({
-          instance: { status: state?.status, task_state: state?.taskState },
+          instance: {
+            locked: state?.locked,
+            status: state?.status,
+            task_state: state?.taskState,
+          },
         })
       );
     },
@@ -41,9 +45,9 @@ const wait = (states: readonly ServerState[], timeoutMs = 10_000) => {
 describe("waitForServer", () => {
   test("waits for the status and for Nova's task to end", async () => {
     const { asked, outcome } = wait([
-      { status: "ACTIVE", taskState: "powering-off" },
-      { status: "SHUTOFF", taskState: "powering-off" },
-      { status: "SHUTOFF", taskState: null },
+      { locked: false, status: "ACTIVE", taskState: "powering-off" },
+      { locked: false, status: "SHUTOFF", taskState: "powering-off" },
+      { locked: false, status: "SHUTOFF", taskState: null },
     ]);
     expect(await outcome).toEqual({ kind: "done" });
     expect(asked).toEqual([
@@ -55,14 +59,14 @@ describe("waitForServer", () => {
 
   test("stops at ERROR", async () => {
     const { outcome } = wait([
-      { status: "ACTIVE", taskState: "powering-off" },
-      { status: "ERROR", taskState: null },
+      { locked: false, status: "ACTIVE", taskState: "powering-off" },
+      { locked: false, status: "ERROR", taskState: null },
     ]);
     expect(await outcome).toEqual({ kind: "error" });
   });
 
   test("gives up after the timeout with the last state", async () => {
-    const busy = { status: "ACTIVE", taskState: "powering-off" };
+    const busy = { locked: false, status: "ACTIVE", taskState: "powering-off" };
     const { asked, outcome } = wait([busy], 4000);
     expect(await outcome).toEqual({ kind: "timeout", state: busy });
     expect(asked).toHaveLength(3);

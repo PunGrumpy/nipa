@@ -89,6 +89,14 @@ Delete what you no longer use, such as a stopped server or a volume no server us
 
 The file doesn't match the format nipa expects, for example after you edit it by hand. Fix the field the message names, or delete the file. Deleting `auth.json` logs you out of every profile. Deleting `config.json` removes your profiles except `prod`.
 
+## A server is in Error
+
+Nova couldn't finish an action on the server, most often its create. Look at it in three steps:
+
+1. Run `nipa server inspect <server>`. `Last action` names the action that failed, how long ago, and who asked for it
+2. Run `nipa server history <server>` to see every action on the server, newest first, with the request ID that Nova logged each one under. Give that ID to Nipa Cloud support when you ask them why it failed
+3. Run `nipa server logs <server>` to read the console log, where cloud-init writes what it did at boot. If nipa says the server has no console log yet, the server never booted, so the cause is in the create, not inside the server
+
 ## Tab completion does nothing
 
 The completion script isn't loaded in your current shell. Open a new terminal after you add it to your startup file, or load it now with `eval "$(nipa completion bash)"`. In bash, completion after `nipa tf` and `nipa exec` also needs the `bash-completion` package.

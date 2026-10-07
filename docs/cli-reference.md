@@ -17,7 +17,7 @@ nipa has 23 commands. Without a command, it prints help.
 | `nipa link [project]` | Links this folder to the profile and a project, by name or ID, in `.nipa/project.json`. Commands in this folder and the folders below it use them |
 | `nipa unlink` | Deletes the closest `.nipa/project.json`, at or above this folder |
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. A server that a Kubernetes cluster made shows its role after its name, such as `(Kubernetes master)`. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
-| `nipa server inspect <server> [--json]` | Shows one server's ID, status, flavor with its vCPUs and RAM, zone, addresses, volumes, security groups and age, by name or ID. In a pipe, it prints the server's ID |
+| `nipa server inspect <server> [--json]` | Shows one server's ID, status, flavor with its vCPUs and RAM, zone, addresses, volumes, security groups and age, by name or ID. It also shows Nova's task while the server is busy, whether the server is locked, and the last action on it, such as `create failed 26m ago by Ann`. For a server in Error, it names `nipa server history` and `nipa server logs`. In a pipe, it prints the server's ID |
 | `nipa server history <server> [--json]` | Lists the actions on a server, newest first, with their age, the user who asked, the result and the request ID. A failed action's result is `Error`. In a pipe, it prints one request ID per line. `nipa server events` is the same command |
 | `nipa server logs <server> [options]` | Prints a server's console log on stdout as it is, cloud-init output included. The Space API sends the last 100 lines, and `--tail` keeps fewer. A server that never booted has no console log, so nipa exits with code `1` and names `nipa server history` |
 | `nipa server start <server> [options]` | Starts a stopped server, then waits until it's active |
@@ -53,11 +53,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-<<<<<<< HEAD
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `server history`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
-=======
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
->>>>>>> aa8bc8e (feat: print a server's console log with nipa server logs)
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -191,7 +187,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 
 `ramMb`, `vcpus`, `zone`, `attachedAs`, a volume's `name` and its `type` are `null` when the Space API doesn't send them. `nipa server inspect --json` prints the same fields for one server, under `server` instead of `servers`.
 
-`nipa server history --json` prints, or `null` when the server has none:
+`nipa server inspect --json` adds three fields to the server. `taskState` is Nova's task, such as `powering-off`, or `null` when the server is idle. `locked` is `true` when the server is locked against changes, and `null` when the Space API doesn't say. `lastAction` is the newest action, with the fields `nipa server history --json` prints, or `null` when the server has none:
 
 ```json
 {

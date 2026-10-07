@@ -1,5 +1,10 @@
 import { handle } from "../../util/command";
-import type { Server } from "../../util/compute";
+import {
+  actionFailed,
+  getServerState,
+  listServerActions,
+} from "../../util/compute";
+import type { Server, ServerAction, ServerState } from "../../util/compute";
 import { findServer } from "../../util/find";
 import { statusCell } from "../../util/status";
 import {
@@ -10,16 +15,50 @@ import {
   gray,
   log,
   printFields,
+  red,
   withDetail,
+  withSpinner,
 } from "../../util/ui";
-import type { Field } from "../../util/ui";
+import type { Cell, Field } from "../../util/ui";
 import { inspectSubcommand } from "./command";
 import { addressCells, flavorCell, volumeCells } from "./format";
 
-const fieldsOf = (server: Server, now: number): Field[] => {
+/** "create failed 26m ago by Ann", with "create failed" in red. */
+const actionCell = (action: ServerAction, now: number): Cell => {
+  const failed = actionFailed(action);
+  const head = failed ? `${action.action} failed` : action.action;
+  const remark = failed || action.remark === null ? "" : ` (${action.remark})`;
+  const by = action.user === null ? "" : ` by ${action.user}`;
+  const age = formatAge(now - Date.parse(action.startedAt));
+  return {
+    paint: failed
+      ? (text) => `${red(head)}${text.slice(head.length)}`
+      : undefined,
+    text: `${head}${remark} ${age} ago${by}`,
+  };
+};
+
+const fieldsOf = (input: {
+  server: Server;
+  state: ServerState;
+  lastAction: ServerAction | null;
+  now: number;
+}): Field[] => {
+  const { lastAction, now, server, state } = input;
   const fields: Field[] = [
     { label: "ID", lines: [{ text: server.id }] },
     { label: "Status", lines: [statusCell(server.status)] },
+  ];
+  if (state.taskState !== null) {
+    fields.push({ label: "Task", lines: [{ text: state.taskState }] });
+  }
+  if (state.locked === true) {
+    fields.push({ label: "Locked", lines: [{ text: "yes" }] });
+  }
+  if (lastAction) {
+    fields.push({ label: "Last action", lines: [actionCell(lastAction, now)] });
+  }
+  fields.push(
     { label: "Flavor", lines: [flavorCell(server)] },
     { label: "Zone", lines: server.zone ? [{ text: server.zone }] : [] },
     { label: "Addresses", lines: addressCells(server) },
@@ -27,8 +66,8 @@ const fieldsOf = (server: Server, now: number): Field[] => {
     {
       label: "Security groups",
       lines: server.securityGroups.map((text) => ({ text })),
-    },
-  ];
+    }
+  );
   if (server.kubernetes) {
     const { clusterId, role } = server.kubernetes;
     fields.push({
@@ -52,13 +91,36 @@ export const inspect = handle(
       ref: args.server,
       space,
     });
+    const [state, actions] = await withSpinner(
+      `Loading ${server.name}'s state…`,
+      () =>
+        Promise.all([
+          getServerState(space, server.id),
+          listServerActions(space, server.id),
+        ])
+    );
+    const lastAction = actions[0] ?? null;
     if (flags.json) {
-      client.stdout.json({ profile: active.name, project, server });
+      client.stdout.json({
+        profile: active.name,
+        project,
+        server: {
+          ...server,
+          lastAction,
+          locked: state.locked,
+          taskState: state.taskState,
+        },
+      });
       return 0;
     }
     const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
     log(`Server ${bold(server.name)} in ${bold(project.name)} ${elapsed}`);
-    printFields(fieldsOf(server, Date.now()));
+    printFields(fieldsOf({ lastAction, now: Date.now(), server, state }));
+    if (server.status === "ERROR") {
+      log(
+        `Run \`nipa server history ${server.name}\` to see what failed, and \`nipa server logs ${server.name}\` for its console log.`
+      );
+    }
     if (!client.stdout.isTTY) {
       client.stdout.line(server.id);
     }

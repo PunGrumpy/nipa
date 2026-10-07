@@ -551,6 +551,10 @@ export const FAKE_CONSOLE_LOG = [
   .map((line) => `${line}\n`)
   .join("");
 
+// Nova's lock and task, which only v4 sends. web-2 is still building.
+const TASKS = new Map([[WEB_2_ID, "spawning"]]);
+const LOCKED = new Set([WEB_1_ID]);
+
 const action = (input: {
   action: string;
   ageMs: number;
@@ -618,7 +622,14 @@ const handleInstance = (input: {
     if (id === DB_1_ID && status !== "SHUTOFF") {
       return spaceFault(503, "Service Unavailable");
     }
-    return Response.json({ instance: { id, status, task_state: null } });
+    return Response.json({
+      instance: {
+        id,
+        locked: LOCKED.has(id),
+        status,
+        task_state: TASKS.get(id) ?? null,
+      },
+    });
   }
   const rule = verb === undefined ? undefined : ACTIONS.get(verb);
   if (!rule || input.req.method !== "POST") {

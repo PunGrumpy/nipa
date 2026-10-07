@@ -710,6 +710,15 @@ describe("server inspect", () => {
       volumes: [{ name: "web-1-vol-0", sizeGb: 10 }],
       zone: "NCP-BKK",
     });
+    expect(server).toMatchObject({
+      lastAction: {
+        action: "start",
+        remark: null,
+        requestId: "req-web1-start",
+      },
+      locked: true,
+      taskState: null,
+    });
   });
 
   test("prints the details on stderr, and the ID to a pipe", async () => {
@@ -726,6 +735,10 @@ describe("server inspect", () => {
     );
     expect(stderr).toMatch(/Security groups\s+default\n\s+web\n/u);
     expect(stderr).toMatch(/Created\s+3d ago/u);
+    expect(stderr).toMatch(/Locked\s+yes\n/u);
+    expect(stderr).toMatch(/Last action\s+start 1d ago by Ann Example\n/u);
+    expect(stderr).not.toContain("Task");
+    expect(stderr).not.toContain("nipa server history");
     expect(stderr).not.toContain("Kubernetes");
     expect(stdout).toBe(`${id}\n`);
   });
@@ -736,6 +749,22 @@ describe("server inspect", () => {
       /Kubernetes\s+master \(cluster dddd1111-0000-4000-8000-000000000001\)/u
     );
     expect(stderr).toMatch(/Zone\s+-/u);
+  });
+
+  test("a server in Error shows its failed action and points to history and logs", async () => {
+    const { stderr } = await run(["server", "inspect", "k8s-worker-1"]);
+    expect(stderr).toMatch(
+      /Last action\s+create failed 61d ago by Ann Example\n/u
+    );
+    expect(stderr).toContain(
+      "> Run `nipa server history k8s-worker-1` to see what failed, and `nipa server logs k8s-worker-1` for its console log."
+    );
+  });
+
+  test("a building server shows Nova's task", async () => {
+    const { stderr } = await run(["server", "inspect", "web-2"]);
+    expect(stderr).toMatch(/Task\s+spawning\n/u);
+    expect(stderr).not.toContain("Locked");
   });
 
   test("an unknown server points to server ls", async () => {

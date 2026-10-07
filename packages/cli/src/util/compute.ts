@@ -139,23 +139,33 @@ export const listServers = async (space: Space): Promise<Server[]> => {
   return body.instances.map(toServer);
 };
 
-// v4 has Nova's task state, which v3 leaves out. A server is busy until
-// it's null, such as "powering-off" during a stop.
+// v4 has Nova's task state and lock, which v3 leaves out. A server is busy
+// until its task is null, such as "powering-off" during a stop.
 const StateSchema = z.object({
-  instance: z.object({ status: z.string(), task_state: z.string().nullable() }),
+  instance: z.object({
+    locked: z.boolean().nullish(),
+    status: z.string(),
+    task_state: z.string().nullable(),
+  }),
 });
 
 export interface ServerState {
   status: string;
   taskState: string | null;
+  /** True when the server is locked against changes, or null when unknown. */
+  locked: boolean | null;
 }
 
-const getServerState = async (
+export const getServerState = async (
   space: Space,
   id: string
 ): Promise<ServerState> => {
   const { instance } = await space.get(`/v4/instances/${id}`, StateSchema);
-  return { status: instance.status, taskState: instance.task_state };
+  return {
+    locked: instance.locked ?? null,
+    status: instance.status,
+    taskState: instance.task_state,
+  };
 };
 
 export type PowerAction = "start" | "stop" | "restart";
