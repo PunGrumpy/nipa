@@ -10,6 +10,7 @@ import {
   utcTime,
 } from "../../../src/util/api";
 import { listServers } from "../../../src/util/compute";
+import { NetworkError } from "../../../src/util/http";
 import { CliError } from "../../../src/util/ui";
 import { alphaSpace } from "../../helpers";
 import { startFakeKeystone } from "../../mocks/keystone";
@@ -137,6 +138,19 @@ describe("createSpace", () => {
     await expect(attempt).rejects.toThrow(ApiError);
     await expect(attempt).rejects.toThrow(message);
     await expect(attempt).rejects.toMatchObject({ status });
+  });
+
+  test("a signal that aborts stops the request", async () => {
+    const stopped = createSpace({
+      projectId: "p1",
+      region: "NCP-TH",
+      signal: AbortSignal.abort(),
+      token: "tok",
+      url: `${server.url}api/`,
+    });
+    await expect(stopped.get("/echo", HeadersSchema)).rejects.toThrow(
+      NetworkError
+    );
   });
 
   test("a web page, such as a portal's for a path it doesn't know", async () => {

@@ -60,6 +60,9 @@ const timed = async <T>(
 
 const hostOf = (url: string): string => new URL(url).host;
 
+// Each request to a service gives up after this long, like probe and probeSpace.
+const TIMEOUT_MS = 10_000;
+
 const checkConfig = async (): Promise<CheckResult> => {
   try {
     await Promise.all([loadConfig(), loadSession(DEFAULT_PROFILE)]);
@@ -177,6 +180,7 @@ const checkToken = async (
     const { elapsed } = await timed(async () => {
       await listProjects({
         authUrl: active.profile.authUrl,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
         token: session.token,
       });
       if (withSpace) {
@@ -184,6 +188,7 @@ const checkToken = async (
           createSpace({
             projectId: session.project.id,
             region: active.profile.region,
+            signal: AbortSignal.timeout(TIMEOUT_MS),
             token: session.token,
             url: spaceUrl,
           })

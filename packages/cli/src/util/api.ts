@@ -119,6 +119,8 @@ export const createSpace = (input: {
   token: string;
   projectId: string;
   region: string;
+  /** Aborts every request, for a caller that can't wait on a stalled gateway. */
+  signal?: AbortSignal;
 }): Space => {
   const base = trimSlashes(input.url);
   const send = async (path: string, method: string): Promise<Response> => {
@@ -130,6 +132,7 @@ export const createSpace = (input: {
         "X-Auth-Token": input.token,
       },
       method,
+      signal: input.signal,
     });
     if (!res.ok) {
       const message =
