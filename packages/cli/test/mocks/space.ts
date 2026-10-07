@@ -213,6 +213,45 @@ export const FAKE_IPS = [
   },
 ];
 
+/** The volumes, oldest first. web-1-vol-0 is web-1's boot disk. */
+export const FAKE_VOLUMES = [
+  {
+    ageMs: 10 * DAY_MS,
+    attachments: [],
+    availability_zone: "NCP-BKK",
+    bootable: "false",
+    id: "vvvv2222-0000-4000-8000-000000000002",
+    name: "backups",
+    size: 100,
+    status: "available",
+    volume_type: "Standard_SSD",
+  },
+  {
+    ageMs: 3 * DAY_MS,
+    attachments: [
+      { device: "/dev/vda", serverId: "22222222-2222-4222-8222-222222222222" },
+    ],
+    availability_zone: "NCP-BKK",
+    bootable: "true",
+    id: "vvvv1111-0000-4000-8000-000000000001",
+    name: "web-1-vol-0",
+    size: 10,
+    status: "in-use",
+    volume_type: "Standard_SSD",
+  },
+  {
+    ageMs: MINUTE_MS,
+    attachments: [],
+    availability_zone: "NCP-BKK",
+    bootable: "false",
+    id: "vvvv3333-0000-4000-8000-000000000003",
+    name: "",
+    size: 20,
+    status: "creating",
+    volume_type: null,
+  },
+];
+
 const createdAt = <T extends { ageMs: number }>({ ageMs, ...rest }: T) => ({
   ...rest,
   created_at: ago(ageMs),
@@ -262,6 +301,10 @@ const routes = new Map<string, (ask: Ask) => object>([
     ({ mine }) => ({
       loadbalancers: mine ? FAKE_LOAD_BALANCERS.map(createdAt) : [],
     }),
+  ],
+  [
+    "/api/v4/volumes",
+    ({ mine }) => ({ volumes: mine ? FAKE_VOLUMES.map(createdAt) : [] }),
   ],
   [
     "/api/v4/external_ips",

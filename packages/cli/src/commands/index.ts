@@ -20,6 +20,7 @@ import { server } from "./server";
 import { switchProject } from "./switch";
 import { tf } from "./tf";
 import { unlink } from "./unlink";
+import { volume } from "./volume";
 import { whoami } from "./whoami";
 
 export const program: Program = {
@@ -44,10 +45,10 @@ export const program: Program = {
       commands: [login, logout, whoami, switchProject, link, unlink],
       title: "Session",
     },
-    { commands: [server, k8s, db, lb, ip], title: "Resources" },
+    { commands: [server, volume, k8s, db, lb, ip], title: "Resources" },
     { commands: [os, tf, exec, env], title: "Run tools" },
     { commands: [profile, completion], title: "Setup" },
   ],
   summary:
-    "Log in to Nipa Cloud once, then list your servers, Kubernetes clusters, databases, load balancers and external IPs, or run openstack and terraform with the session.",
+    "Log in to Nipa Cloud once, then list your servers, volumes, Kubernetes clusters, databases, load balancers and external IPs, or run openstack and terraform with the session.",
 };

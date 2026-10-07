@@ -40,6 +40,7 @@ import {
   FAKE_LOAD_BALANCERS,
   FAKE_NETWORKS,
   FAKE_SERVERS,
+  FAKE_VOLUMES,
 } from "./mocks/space";
 
 let dir: string;
@@ -1062,6 +1063,64 @@ describe("saved passwords and session expiry", () => {
   test("a session with more time left gets no note", async () => {
     const { stderr } = await run(["env"]);
     expect(stderr).not.toContain("session expires");
+  });
+});
+
+describe("volume ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's volumes, without asking for the servers", async () => {
+    const before = serverLists();
+    const { code, stdout } = await run(["volume", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { project, volumes } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(volumes.map((v: { id: string }) => v.id)).toEqual(
+      FAKE_VOLUMES.map((v) => v.id).toReversed()
+    );
+    expect(volumes[1]).toMatchObject({
+      attachments: [
+        {
+          device: "/dev/vda",
+          serverId: "22222222-2222-4222-8222-222222222222",
+        },
+      ],
+      bootable: true,
+      name: "web-1-vol-0",
+      sizeGb: 10,
+      status: "in-use",
+      type: "Standard_SSD",
+      zone: "NCP-BKK",
+    });
+    expect(serverLists()).toBe(before);
+  });
+
+  test("prints a table with each volume's server, and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["volumes"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Volumes in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Status\s+Size\s+Type\s+Server\s+Age/u);
+    expect(stderr).toMatch(
+      /web-1-vol-0\s+● In use\s+10 GB\s+Standard_SSD\s+web-1\s+3d/u
+    );
+    expect(stderr).toMatch(
+      /backups\s+● Available\s+100 GB\s+Standard_SSD\s+-\s+10d/u
+    );
+    expect(stderr).toMatch(/-\s+● Creating\s+20 GB\s+-\s+-\s+1m/u);
+    expect(stdout.trim().split("\n")).toEqual(
+      FAKE_VOLUMES.map((v) => v.id).toReversed()
+    );
+  });
+
+  test("a project without volumes says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["volume", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No volumes in Beta");
+    expect(stdout).toBe("");
   });
 });
 
