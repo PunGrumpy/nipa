@@ -869,6 +869,8 @@ describe("server logs", () => {
     const { code, stderr, stdout } = await run(["server", "logs", "web-1"]);
     expect(code).toBe(0);
     expect(stdout).toBe(FAKE_CONSOLE_LOG);
+    // No newline is added after the login prompt the log ends in.
+    expect(stdout.endsWith("login: ")).toBe(true);
     expect(stderr).toMatch(/> Console log of web-1 in Alpha \[\d+(?:ms|s)\]/u);
   });
 

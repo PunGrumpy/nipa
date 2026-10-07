@@ -540,16 +540,18 @@ const DB_1_ID = "11111111-1111-4111-8111-111111111111";
 const INSTANCE =
   /^\/api\/v4\/instances\/(?<id>[^/]+)(?:\/action\/(?<action>[a-z_]+)|\/(?<view>logs|action_histories))?$/u;
 
-/** web-1's console log. Every server that booted has this one. */
+/**
+ * web-1's console log. Every server that booted has this one. It ends in a
+ * login prompt without a newline, like Nova's, so a test can tell whether
+ * nipa printed it as it is.
+ */
 export const FAKE_CONSOLE_LOG = [
   "[    0.000000] Linux version 6.8.0-45-generic",
   "[    4.120511] cloud-init[812]: Cloud-init v. 24.1 running 'init'",
   "[   12.400233] cloud-init[812]: ci-info: no authorized SSH keys fingerprints found",
   "[  OK  ] Reached target cloud-init.target - Cloud-init target.",
   "web-1 login: ",
-]
-  .map((line) => `${line}\n`)
-  .join("");
+].join("\n");
 
 // Nova's lock and task, which only v4 sends. web-2 is still building.
 const TASKS = new Map([[WEB_2_ID, "spawning"]]);
