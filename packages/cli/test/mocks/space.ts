@@ -114,7 +114,7 @@ const primary = (input: {
   status: string;
   health: string;
   address: string;
-  externalAddress: string | null;
+  externalAddress: string;
 }) => ({
   datastore_type: input.engine,
   datastore_version: input.version,
@@ -150,7 +150,7 @@ export const FAKE_DATABASES = [
     primary: primary({
       address: "192.0.2.21",
       engine: "postgresql",
-      externalAddress: null,
+      externalAddress: "",
       health: "UNKNOWN",
       status: "BUILD",
       version: "17.10",

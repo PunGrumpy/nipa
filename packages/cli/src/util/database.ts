@@ -49,7 +49,8 @@ const toInstance = (
 ): DatabaseInstance => ({
   address: primary.ip_address,
   engine: primary.datastore_type,
-  externalAddress: primary.external_ip_address ?? null,
+  // The Space API sends "" for a database without an external IP.
+  externalAddress: primary.external_ip_address || null,
   flavor: primary.machine_type.name,
   health: primary.operating_status,
   status: primary.instance_status,
