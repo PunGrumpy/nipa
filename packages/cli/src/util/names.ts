@@ -4,8 +4,15 @@
 import { z } from "zod";
 
 import type { Space } from "./api";
-import { listServers } from "./compute";
-import type { ResourceKind } from "./openstack";
+import {
+  DATABASES,
+  LOAD_BALANCERS,
+  NETWORKS,
+  SECURITY_GROUPS,
+  SERVERS,
+  VOLUMES,
+} from "./find";
+import type { ResourceKind } from "./spec";
 import { readCache, writeCache } from "./store";
 
 const CACHE_FILE = "names.json";
@@ -14,28 +21,39 @@ const FRESH_MS = 60_000;
 const NamedSchema = z.object({ name: z.string() });
 
 const MachineTypesSchema = z.object({ machine_types: z.array(NamedSchema) });
-const NetworksSchema = z.object({ networks: z.array(NamedSchema) });
 // ?table=owned_image answers with owned_images, not images.
 const OwnedImagesSchema = z.object({ owned_images: z.array(NamedSchema) });
 const PublicImagesSchema = z.object({
   public_images: z.array(z.object({ images: z.array(NamedSchema) })),
 });
 
+// A resource without a name has nothing to complete to.
 const names = (items: readonly { name: string }[]): string[] =>
-  items.map((item) => item.name);
+  items.map((item) => item.name).filter((name) => name !== "");
 
 const load = async (space: Space, kind: ResourceKind): Promise<string[]> => {
   switch (kind) {
     case "servers": {
-      return names(await listServers(space));
+      return names(await SERVERS.list(space));
+    }
+    case "volumes": {
+      return names(await VOLUMES.list(space));
+    }
+    case "networks": {
+      return names(await NETWORKS.list(space));
+    }
+    case "security-groups": {
+      return names(await SECURITY_GROUPS.list(space));
+    }
+    case "load-balancers": {
+      return names(await LOAD_BALANCERS.list(space));
+    }
+    case "databases": {
+      return names(await DATABASES.list(space));
     }
     case "flavors": {
       const body = await space.get("/v4/machine_types", MachineTypesSchema);
       return names(body.machine_types);
-    }
-    case "networks": {
-      const body = await space.get("/v4/networks", NetworksSchema);
-      return names(body.networks);
     }
     case "images": {
       const [shared, owned] = await Promise.all([

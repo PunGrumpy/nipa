@@ -4,8 +4,8 @@ import type { CompleteKind } from "../../util/completion";
 import { listProjects } from "../../util/keystone";
 import { resourceNames } from "../../util/names";
 import { openstackCompletions, valueKind } from "../../util/openstack";
-import type { ResourceKind } from "../../util/openstack";
 import { connect, requireSession } from "../../util/session";
+import type { ResourceKind } from "../../util/spec";
 import { isActive, loadConfig, loadSession } from "../../util/store";
 import { completeCommand } from "./command";
 
@@ -74,15 +74,11 @@ const values = async (input: {
       const config = await loadConfig();
       return Object.keys(config.profiles).toSorted();
     }
-    case "servers": {
-      return await spaceNames(client, "servers");
-    }
     case "openstack": {
       return await openstackWords(client, words);
     }
     default: {
-      const _exhaustive: never = kind;
-      return _exhaustive;
+      return await spaceNames(client, kind);
     }
   }
 };

@@ -57,6 +57,17 @@ export const gigabytes = (mb: number): string =>
 export const plural = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? "" : "s"}`;
 
+/** "active" reads as "Active". */
+export const capitalize = (text: string): string =>
+  text.charAt(0).toUpperCase() + text.slice(1);
+
+/** "a", "a and b", "a, b and c": how dispatch lists subcommands too. */
+export const andList = (words: readonly string[]): string => {
+  const last = words.at(-1) ?? "";
+  const rest = words.slice(0, -1);
+  return rest.length === 0 ? last : `${rest.join(", ")} and ${last}`;
+};
+
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
   const hours = Math.floor(minutes / 60);
@@ -232,6 +243,12 @@ export interface Cell {
   text: string;
   paint?: Paint;
 }
+
+/** `text` with a dim `detail` after it, such as "m1.small (2 vCPUs)". */
+export const withDetail = (text: string, detail: string): Cell => ({
+  paint: () => `${text}${dim(detail)}`,
+  text: `${text}${detail}`,
+});
 
 const COLUMN_GAP = " ".repeat(5);
 

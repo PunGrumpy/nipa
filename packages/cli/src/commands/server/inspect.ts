@@ -10,10 +10,11 @@ import {
   gray,
   log,
   printFields,
+  withDetail,
 } from "../../util/ui";
 import type { Field } from "../../util/ui";
 import { inspectSubcommand } from "./command";
-import { addressCells, flavorCell, volumeCells, withDetail } from "./format";
+import { addressCells, flavorCell, volumeCells } from "./format";
 
 const fieldsOf = (server: Server, now: number): Field[] => {
   const fields: Field[] = [

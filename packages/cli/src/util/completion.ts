@@ -3,7 +3,7 @@
 // argument with values to offer, or a passthrough program's own words.
 
 import { GLOBAL_FLAGS, profileFlag } from "./arg-common";
-import { flagWords, namesOf, visibleCommands } from "./spec";
+import { flagWords, namesOf, RESOURCE_KINDS, visibleCommands } from "./spec";
 import type {
   ArgSpec,
   ArgValue,
@@ -23,8 +23,8 @@ export type CompletionShell = (typeof COMPLETION_SHELLS)[number];
 export const COMPLETE_KINDS = [
   "projects",
   "profiles",
-  "servers",
   "openstack",
+  ...RESOURCE_KINDS,
 ] as const;
 
 export type CompleteKind = (typeof COMPLETE_KINDS)[number];
@@ -92,8 +92,8 @@ const bashArg = (value: ArgValue): string | undefined => {
     case "profile": {
       return `_nipa_reply "$(${dynamic("profiles")} 2>/dev/null)"`;
     }
-    case "server": {
-      return `_nipa_reply "$(${dynamic("servers")} 2>/dev/null)"`;
+    case "resource": {
+      return `_nipa_reply "$(${dynamic(value.resource)} 2>/dev/null)"`;
     }
     case "choice": {
       return `_nipa_reply ${value.choices.join(" ")}`;
@@ -251,8 +251,8 @@ const zshArg = ({ arg, position }: Offered): string => {
     case "profile": {
       return `'${position}:profile:{_nipa_dynamic profiles profile}'`;
     }
-    case "server": {
-      return `'${position}:server:{_nipa_dynamic servers server}'`;
+    case "resource": {
+      return `'${position}:${arg.name}:{_nipa_dynamic ${value.resource} ${arg.name}}'`;
     }
     case "choice": {
       return `'${position}:${arg.name}:(${value.choices.join(" ")})'`;
@@ -429,8 +429,8 @@ const fishArg = (value: ArgValue): string | undefined => {
     case "profile": {
       return fishDynamic("profiles");
     }
-    case "server": {
-      return fishDynamic("servers");
+    case "resource": {
+      return fishDynamic(value.resource);
     }
     case "choice": {
       return fishQuote(value.choices.join(" "));
@@ -602,8 +602,8 @@ const pwshArg = (value: ArgValue): string | undefined => {
     case "profile": {
       return "(Dynamic profiles)";
     }
-    case "server": {
-      return "(Dynamic servers)";
+    case "resource": {
+      return `(Dynamic ${value.resource})`;
     }
     case "choice": {
       return pwshList(value.choices);

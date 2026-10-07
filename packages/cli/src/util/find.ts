@@ -1,7 +1,17 @@
 import type { Space } from "./api";
 import { listServers } from "./compute";
 import type { Server } from "./compute";
+import { listDatabases } from "./database";
+import type { Database } from "./database";
+import { listLoadBalancers } from "./load-balancer";
+import type { LoadBalancer } from "./load-balancer";
+import { listNetworks } from "./network";
+import type { Network } from "./network";
+import { listSecurityGroups } from "./security-group";
+import type { SecurityGroup } from "./security-group";
 import { CliError, withSpinner } from "./ui";
+import { listVolumes } from "./volume";
+import type { Volume } from "./volume";
 
 interface Named {
   id: string;
@@ -24,6 +34,41 @@ export const SERVERS: Findable<Server> = {
   lsCommand: "nipa server ls",
   noun: "server",
   plural: "servers",
+};
+
+export const VOLUMES: Findable<Volume> = {
+  list: listVolumes,
+  lsCommand: "nipa volume ls",
+  noun: "volume",
+  plural: "volumes",
+};
+
+export const NETWORKS: Findable<Network> = {
+  list: listNetworks,
+  lsCommand: "nipa network ls",
+  noun: "network",
+  plural: "networks",
+};
+
+export const SECURITY_GROUPS: Findable<SecurityGroup> = {
+  list: listSecurityGroups,
+  lsCommand: "nipa sg ls",
+  noun: "security group",
+  plural: "security groups",
+};
+
+export const LOAD_BALANCERS: Findable<LoadBalancer> = {
+  list: listLoadBalancers,
+  lsCommand: "nipa lb ls",
+  noun: "load balancer",
+  plural: "load balancers",
+};
+
+export const DATABASES: Findable<Database> = {
+  list: listDatabases,
+  lsCommand: "nipa db ls",
+  noun: "database",
+  plural: "databases",
 };
 
 /** The item whose ID is `ref`, or else the one item named `ref`. */

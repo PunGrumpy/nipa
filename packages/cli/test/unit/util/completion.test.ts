@@ -20,10 +20,14 @@ import {
 import { startFakeKeystone } from "../../mocks/keystone";
 import type { FakeKeystone } from "../../mocks/keystone";
 import {
+  FAKE_DATABASES,
+  FAKE_LOAD_BALANCERS,
   FAKE_NETWORKS,
   FAKE_OWNED_IMAGES,
   FAKE_PUBLIC_IMAGES,
+  FAKE_SECURITY_GROUPS,
   FAKE_SERVERS,
+  FAKE_VOLUMES,
 } from "../../mocks/space";
 
 const SHELLS = ["bash", "zsh", "fish", "pwsh"] as const;
@@ -46,6 +50,15 @@ const script = (shell: string): string =>
 
 const lines = (text: string): string[] =>
   text.trim().split(/\r?\n/u).filter(Boolean);
+
+/** The names a Tab press offers, in any order. */
+const named = (items: readonly { name: string }[]): string[] =>
+  items
+    .map((item) => item.name)
+    .filter((name) => name !== "")
+    .toSorted();
+
+const sorted = (stdout: string): string[] => lines(stdout).toSorted();
 
 const FAKE_OPENSTACK = `#!/bin/sh
 [ "$*" = "complete --shell none" ] || exit 1
@@ -165,6 +178,19 @@ describe("nipa completion", () => {
   test("__complete lists server names from the Space API", async () => {
     const servers = await nipa("__complete", "servers");
     expect(lines(servers.stdout)).toEqual(FAKE_SERVERS.map((s) => s.name));
+  });
+
+  test("__complete lists every other resource by name", async () => {
+    const volumes = await nipa("__complete", "volumes");
+    expect(sorted(volumes.stdout)).toEqual(named(FAKE_VOLUMES));
+    const groups = await nipa("__complete", "security-groups");
+    expect(sorted(groups.stdout)).toEqual(named(FAKE_SECURITY_GROUPS));
+    const balancers = await nipa("__complete", "load-balancers");
+    expect(sorted(balancers.stdout)).toEqual(named(FAKE_LOAD_BALANCERS));
+    const databases = await nipa("__complete", "databases");
+    expect(sorted(databases.stdout)).toEqual(named(FAKE_DATABASES));
+    const networks = await nipa("__complete", "networks");
+    expect(sorted(networks.stdout)).toEqual(FAKE_NETWORKS.toSorted());
   });
 
   test("__complete openstack walks openstack's commands", async () => {
