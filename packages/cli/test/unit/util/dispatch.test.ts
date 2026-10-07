@@ -156,6 +156,7 @@ const fakeClient = (input: { globals: GlobalValues }): Client => {
   return {
     cloud: fail,
     profile: fail,
+    profileWithoutBrokenLink: fail,
     program: { examples: [], hidden: [], sections: [], summary: "" },
     prompts: {
       choice: fail,

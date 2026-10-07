@@ -3,6 +3,7 @@
 // run, made by the dispatcher after it has read every global option.
 
 import type { GlobalValues } from "./arg-common";
+import { findLink, LinkError } from "./link";
 import {
   announceProfile,
   connect,
@@ -21,8 +22,13 @@ export interface Client {
   readonly prompts: Prompts;
   /** Every command's spec, for commands that describe nipa itself, such as `completion`. */
   readonly program: ProgramSpec;
-  /** The profile this run uses: `--profile`, then NIPA_PROFILE, then the current one. */
+  /** The profile this run uses: `--profile`, then NIPA_PROFILE, then the folder's link, then the current one. */
   readonly profile: () => Promise<ActiveProfile>;
+  /**
+   * profile(), or the profile without the folder's link when nipa can't read
+   * the link file, for a command that reports that file itself.
+   */
+  readonly profileWithoutBrokenLink: () => Promise<ActiveProfile>;
   /**
    * profile() with a live session. Logs in first when it expired and nipa
    * can prompt. In a linked folder, the session is for the linked project.
@@ -56,7 +62,20 @@ export const createClient = (input: {
     stderr: process.stderr,
     stdin: process.stdin,
   });
-  const profile = once(() => resolveProfile({ override: globals.profile }));
+  const link = once(() => findLink());
+  const profile = once(async () =>
+    resolveProfile({ link: await link(), override: globals.profile })
+  );
+  const profileWithoutBrokenLink = once(async () => {
+    try {
+      return await profile();
+    } catch (error) {
+      if (!(error instanceof LinkError)) {
+        throw error;
+      }
+      return resolveProfile({ override: globals.profile });
+    }
+  });
   const session = once(async () =>
     requireSession({ active: await profile(), prompts })
   );
@@ -73,6 +92,7 @@ export const createClient = (input: {
   return {
     cloud,
     profile,
+    profileWithoutBrokenLink,
     program,
     prompts,
     savedSession,

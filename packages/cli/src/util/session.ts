@@ -17,7 +17,7 @@ import {
   rescope,
 } from "./keystone";
 import type { Account, Project, Token } from "./keystone";
-import { displayPath, findLink } from "./link";
+import { displayPath } from "./link";
 import type { FoundLink } from "./link";
 import {
   DEFAULT_PROFILE,
@@ -70,8 +70,11 @@ export interface Cloud extends SignedIn {
  */
 export const resolveProfile = async (input: {
   override: string | undefined;
+  /** The folder's link, from `findLink()`. Left out, no folder links to a profile. */
+  link?: FoundLink;
 }): Promise<ActiveProfile> => {
-  const [config, found] = await Promise.all([loadConfig(), findLink()]);
+  const { link: found } = input;
+  const config = await loadConfig();
   const candidates: readonly [ProfileSource, string | undefined][] = [
     ["flag", input.override],
     ["env", process.env.NIPA_PROFILE],

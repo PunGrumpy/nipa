@@ -33,10 +33,13 @@ const printReport = (report: CheckReport<string>): void => {
 };
 
 export const doctor = handle(doctorCommand, async ({ client, flags }) => {
+  // The Linked folder check reports a link file nipa can't read, so the
+  // profile comes without one and the checks before it still run.
+  const profile = client.profileWithoutBrokenLink;
   const context: DoctorContext = {
-    profile: client.profile,
+    profile,
     session: async () => {
-      const active = await client.profile();
+      const active = await profile();
       return loadSession(active.name);
     },
     version: pkg.version,
@@ -50,7 +53,7 @@ export const doctor = handle(doctorCommand, async ({ client, flags }) => {
     const resolved = reports.some(
       (report) => report.id === "profile" && report.status === "pass"
     );
-    const active = resolved ? await client.profile() : undefined;
+    const active = resolved ? await profile() : undefined;
     client.stdout.json({
       checks: reports.map((report) => ({
         hint: ("hint" in report && report.hint) || null,

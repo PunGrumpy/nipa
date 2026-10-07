@@ -1348,6 +1348,24 @@ describe("doctor", () => {
       "✖ Linked folder   .nipa/project.json links Gone, which your account can't use\n                  > Run `nipa link` to pick another project.\n"
     );
   });
+  test("a link file that isn't JSON fails the Linked folder check, and the other checks still run", async () => {
+    await seedHealthy();
+    await mkdir(path.join(infra(), ".nipa"), { recursive: true });
+    await writeFile(path.join(infra(), ".nipa", "project.json"), "{ nope");
+    const { code, stderr } = await runIn(infra(), ["doctor"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `✔ Profile         prod (${keystoneHost()}), the current profile`
+    );
+    expect(stderr).toMatch(/^✔ Keystone {8}/mu);
+    expect(stderr).toMatch(/^✔ Space API {7}/mu);
+    expect(stderr).toMatch(/^✔ Token {11}/mu);
+    // The message names the file by its real path, which macOS prefixes with /private.
+    expect(stderr).toMatch(
+      /^✖ Linked folder {3}\S+\/infra\/\.nipa\/project\.json isn't valid JSON\n {18}> Fix the file, or run `nipa unlink` and `nipa link` again\.\n/mu
+    );
+    expect(stderr).toContain("> 8 passed, 1 failed\n");
+  });
 });
 
 describe("link", () => {
