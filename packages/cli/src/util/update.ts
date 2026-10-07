@@ -61,8 +61,19 @@ const fetchLatest = async (): Promise<string | undefined> => {
   }
 };
 
+export const releaseNotes = (version: string): string =>
+  `${RELEASES}/tag/v${version}`;
+
+/** The newer version the last check found, from the cache only. */
+export const knownUpdate = async (
+  version: string
+): Promise<string | undefined> => {
+  const cache = await readCache(CACHE_FILE, CacheSchema);
+  return cache && isNewer(cache.latest, version) ? cache.latest : undefined;
+};
+
 export const updateNotice = (latest: string, current: string): string => {
-  const notes = `${RELEASES}/tag/v${latest}`;
+  const notes = releaseNotes(latest);
   const from = pc.dim(`v${current}`);
   const to = pc.green(`v${latest}`);
   const lines = [
@@ -72,7 +83,7 @@ export const updateNotice = (latest: string, current: string): string => {
   // Width without color codes, so the box lines up.
   const plain = [
     `Update available! v${current} ≫ v${latest}`,
-    `Release notes: ${RELEASES}/tag/v${latest}`,
+    `Release notes: ${notes}`,
   ];
   const width = Math.max(...plain.map((line) => line.length));
   const row = (line: string, plainLine: string) =>

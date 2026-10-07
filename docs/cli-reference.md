@@ -38,6 +38,7 @@ nipa has 23 commands. Without a command, it prints help.
 | `nipa exec <command> [args...]` | Runs any command with the session |
 | `nipa env [--shell bash\|zsh\|fish]` | Prints the session's `OS_*` variables as shell commands |
 | `nipa profile [ls\|add\|use\|rm]` | Lists, adds, picks or removes profiles |
+| `nipa doctor [--json]` | Checks the config files, the profile, its Keystone and Space API, the session and whether Keystone and the Space API accept its token, the folder's link, `openstack` and `terraform`, and the last update check. It prints how to fix each problem, changes nothing, never asks for a password, and exits with code `1` when a check fails. A warning doesn't change the exit code |
 | `nipa completion [shell] [--install]` | Prints the tab completion script for `bash`, `zsh`, `fish` or `pwsh`. Without a shell, nipa uses the one in `$SHELL`. With `--install`, nipa saves the script where the shell loads it instead of printing it: `~/.zfunc/_nipa` for zsh, `~/.local/share/bash-completion/completions/nipa` for bash and `~/.config/fish/completions/nipa.fish` for fish. PowerShell has no such folder |
 
 `nipa help <command>` and `nipa <command> --help` print the help for one command. `nipa help profile rm` and `nipa profile rm --help` print the help for one subcommand. A command with subcommands runs its default subcommand when you name none, so `nipa server --json` runs `nipa server ls --json`. A mistyped command name gets a suggestion, such as "Did you mean `nipa login`?".
@@ -53,7 +54,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -441,6 +442,30 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "used": 11
     }
   ]
+}
+```
+
+`nipa doctor --json` prints the profile it checked, or `null` when nipa couldn't pick one, and one object per check, in the order nipa runs them. `id` is one of `config`, `profile`, `keystone`, `space`, `session`, `token`, `link`, `tools` and `update`. `status` is `pass`, `warn`, `fail` or `skip`, and a check skips when one it needs didn't pass, such as `token` without a session. `hint` says how to fix a warning or failure, and is `null` otherwise:
+
+```json
+{
+  "checks": [
+    {
+      "hint": "Run `nipa login -P staging`.",
+      "id": "session",
+      "status": "fail",
+      "summary": "Your staging session expired",
+      "title": "Session"
+    },
+    {
+      "hint": null,
+      "id": "token",
+      "status": "skip",
+      "summary": "Skipped because Session didn't pass",
+      "title": "Token"
+    }
+  ],
+  "profile": "staging"
 }
 ```
 

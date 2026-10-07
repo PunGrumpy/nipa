@@ -407,7 +407,8 @@ export const interactiveLogin = async (input: {
   return session;
 };
 
-const EXPIRY_WARNING_MS = 30 * 60_000;
+/** Commands warn when the session expires sooner than this. */
+export const EXPIRY_WARNING_MS = 30 * 60_000;
 
 // A terraform apply that outlives the token fails halfway, so say so first.
 const warnBeforeExpiry = (input: {
