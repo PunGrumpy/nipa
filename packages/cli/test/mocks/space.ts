@@ -456,6 +456,62 @@ routes.set("/api/v4/images", ({ mine, query }) =>
     : { images: [], page_control: {} }
 );
 
+/**
+ * The quotas as /v4/limits sends them, one per line, in no order. Servers
+ * are at the limit, vCPUs near it, and fileStorage is a group nipa doesn't
+ * know.
+ */
+export const FAKE_QUOTAS = [
+  { group: "network", limit: -1, name: "port", unlimited: true, usage: 11 },
+  {
+    group: "compute",
+    limit: 20,
+    name: "cores",
+    permission: "",
+    unit_kind: "metric",
+    unlimited: false,
+    usage: 18,
+  },
+  {
+    group: "fileStorage",
+    limit: 5,
+    name: "shares",
+    unlimited: false,
+    usage: 1,
+  },
+  {
+    group: "compute",
+    limit: 51_200,
+    name: "ram",
+    request_constraint: { unit: "GB", unit_kind: "storage" },
+    unit: "MB",
+    unit_kind: "storage",
+    unlimited: false,
+    usage: 45_056,
+  },
+  {
+    group: "objectStorage",
+    limit: -1,
+    name: "storage_size",
+    unit: "Bytes",
+    unit_kind: "storage",
+    unlimited: true,
+    usage: 1_755_585,
+  },
+  {
+    group: "compute",
+    limit: 10,
+    name: "instances",
+    unlimited: false,
+    usage: 10,
+  },
+];
+
+// /v4/limits streams NDJSON, one JSON object per line.
+const LINE_ROUTES = new Map<string, (ask: Ask) => object[]>([
+  ["/api/v4/limits", ({ mine }) => (mine ? FAKE_QUOTAS : [])],
+]);
+
 export const spaceFault = (status: number, message: string): Response =>
   Response.json({ message, status }, { status });
 
@@ -533,11 +589,17 @@ export const handleSpace = (input: {
       statuses: input.statuses,
     });
   }
+  const ask = { mine, query: url.searchParams, statuses: input.statuses };
+  const lines = LINE_ROUTES.get(url.pathname)?.(ask);
+  if (lines) {
+    const body = lines.map((line) => `${JSON.stringify(line)}\n`).join("");
+    return new Response(body, {
+      headers: { "Content-Type": "application/x-ndjson" },
+    });
+  }
   const route = routes.get(url.pathname);
   if (!route) {
     return new Response("Not Found", { status: 404 });
   }
-  return Response.json(
-    route({ mine, query: url.searchParams, statuses: input.statuses })
-  );
+  return Response.json(route(ask));
 };
