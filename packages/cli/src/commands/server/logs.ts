@@ -1,5 +1,6 @@
 import { handle } from "../../util/command";
 import { getConsoleLog } from "../../util/compute";
+import { findServer } from "../../util/find";
 import {
   bold,
   CliError,
@@ -10,7 +11,6 @@ import {
   withSpinner,
 } from "../../util/ui";
 import { logsSubcommand } from "./command";
-import { findServer } from "../../util/find";
 
 const parseTail = (text: string): number => {
   const count = Number(text);
@@ -49,7 +49,7 @@ export const logs = handle(logsSubcommand, async ({ args, client, flags }) => {
   );
   if (consoleLog.kind === "none") {
     throw new CliError(`${server.name} has no console log yet`, {
-      hint: `A server has one once it boots, so this one most likely never booted. Run \`nipa server history ${server.name}\` to see what failed.`,
+      hint: `A server has one once it boots, so this one most likely never booted. Run \`nipa server history ${args.server}\` to see what failed.`,
     });
   }
   const text = lastLines(consoleLog.text, tail);

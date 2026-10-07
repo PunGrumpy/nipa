@@ -117,8 +117,10 @@ export const inspect = handle(
     log(`Server ${bold(server.name)} in ${bold(project.name)} ${elapsed}`);
     printFields(fieldsOf({ lastAction, now: Date.now(), server, state }));
     if (server.status === "ERROR") {
+      // The reference the person typed, so an ID stays an ID when the name
+      // is ambiguous.
       log(
-        `Run \`nipa server history ${server.name}\` to see what failed, and \`nipa server logs ${server.name}\` for its console log.`
+        `Run \`nipa server history ${args.server}\` to see what failed, and \`nipa server logs ${args.server}\` for its console log.`
       );
     }
     if (!client.stdout.isTTY) {

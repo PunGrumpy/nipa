@@ -761,6 +761,15 @@ describe("server inspect", () => {
     );
   });
 
+  test("the hint repeats the ID when the server was named by ID", async () => {
+    const id = "55555555-5555-4555-8555-555555555555";
+    const { stderr } = await run(["server", "inspect", id]);
+    expect(stderr).toContain(
+      `> Run \`nipa server history ${id}\` to see what failed, and \`nipa server logs ${id}\` for its console log.`
+    );
+    expect(stderr).not.toContain("history k8s-worker-1");
+  });
+
   test("a building server shows Nova's task", async () => {
     const { stderr } = await run(["server", "inspect", "web-2"]);
     expect(stderr).toMatch(/Task\s+spawning\n/u);
@@ -834,6 +843,17 @@ describe("server logs", () => {
       "A server has one once it boots, so this one most likely never booted. Run `nipa server history k8s-worker-1` to see what failed."
     );
     expect(stderr).not.toContain("Something went wrong");
+  });
+
+  test("the hint repeats the ID when the server was named by ID", async () => {
+    const id = "55555555-5555-4555-8555-555555555555";
+    const { code, stderr } = await run(["server", "logs", id]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("Error: k8s-worker-1 has no console log yet");
+    expect(stderr).toContain(
+      `Run \`nipa server history ${id}\` to see what failed.`
+    );
+    expect(stderr).not.toContain("history k8s-worker-1");
   });
 
   test("--tail takes a whole number above 0", async () => {
