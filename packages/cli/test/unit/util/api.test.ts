@@ -34,6 +34,20 @@ const FAULTS = new Map<string, () => Response>([
       }),
   ],
   ["/wrong-json", () => Response.json({ name: 1 })],
+  [
+    "/lines",
+    () =>
+      new Response('{"name":"cores"}\n\n{"name":"ram"}\n', {
+        headers: { "Content-Type": "application/x-ndjson" },
+      }),
+  ],
+  [
+    "/bad-line",
+    () =>
+      new Response('{"name":"cores"}\n{"name":', {
+        headers: { "Content-Type": "application/x-ndjson" },
+      }),
+  ],
 ]);
 
 const HeadersSchema = z.object({
@@ -138,6 +152,29 @@ describe("createSpace", () => {
     const attempt = space().post("/fault");
     await expect(attempt).rejects.toThrow("Instance x not found.");
     await expect(attempt).rejects.toMatchObject({ status: 404 });
+  });
+
+  test("getLines parses each line of NDJSON and skips blank ones", async () => {
+    const lines = await space().getLines(
+      "/lines",
+      z.object({ name: z.string() })
+    );
+    expect(lines).toEqual([{ name: "cores" }, { name: "ram" }]);
+  });
+
+  test("getLines fails on a line that isn't the expected shape", async () => {
+    const attempt = space().getLines(
+      "/bad-line",
+      z.object({ name: z.string() })
+    );
+    await expect(attempt).rejects.toThrow("unexpected Space API response");
+  });
+
+  test("getLines rejects a web page like get does", async () => {
+    const attempt = space().getLines("/web-page", z.object({}));
+    await expect(attempt).rejects.toThrow(
+      `${server.url}api doesn't answer like the Space API`
+    );
   });
 
   test("JSON that isn't the expected shape", async () => {

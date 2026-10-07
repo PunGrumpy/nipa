@@ -562,6 +562,7 @@ export const connect = (input: {
     session,
     space: {
       get: (path, schema) => call(() => space.get(path, schema)),
+      getLines: (path, schema) => call(() => space.getLines(path, schema)),
       post: (path) => call(() => space.post(path)),
     },
   };

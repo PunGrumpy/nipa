@@ -25,15 +25,30 @@ const readFault = async (res: Response): Promise<string | undefined> => {
   }
 };
 
-const parseBody = async <T>(
-  res: Response,
+const safeParseText = <T>(
+  text: string,
   schema: z.ZodType<T>
-): Promise<z.ZodSafeParseResult<T>> => {
+): z.ZodSafeParseResult<T> => {
   try {
-    return schema.safeParse(await res.json());
+    return schema.safeParse(JSON.parse(text));
   } catch {
     return schema.safeParse(null);
   }
+};
+
+const parseText = <T>(
+  text: string,
+  schema: z.ZodType<T>,
+  status: number
+): T => {
+  const parsed = safeParseText(text, schema);
+  if (!parsed.success) {
+    throw new ApiError(
+      `unexpected Space API response: ${z.prettifyError(parsed.error)}`,
+      status
+    );
+  }
+  return parsed.data;
 };
 
 const trimSlashes = (text: string): string => {
@@ -90,6 +105,8 @@ export const utcTime = (time: string): string =>
 
 export interface Space {
   get: <T>(path: string, schema: z.ZodType<T>) => Promise<T>;
+  /** For a path that answers NDJSON, one JSON value per line. */
+  getLines: <T>(path: string, schema: z.ZodType<T>) => Promise<T[]>;
   post: (path: string) => Promise<void>;
 }
 
@@ -121,23 +138,27 @@ export const createSpace = (input: {
     }
     return res;
   };
+  const read = async (path: string): Promise<Response> => {
+    const res = await send(path, "GET");
+    // A portal answers a path it doesn't know with its web page. NDJSON
+    // comes as application/x-ndjson.
+    if (!res.headers.get("Content-Type")?.includes("json")) {
+      throw new CliError(`${base} doesn't answer like the Space API`, {
+        hint: "Check the profile's `spaceUrl` with `nipa profile ls --json`. It's the portal URL with /api, such as https://space.nipa.cloud/api.",
+      });
+    }
+    return res;
+  };
   return {
     get: async (path, schema) => {
-      const res = await send(path, "GET");
-      // A portal answers a path it doesn't know with its web page.
-      if (!res.headers.get("Content-Type")?.includes("json")) {
-        throw new CliError(`${base} doesn't answer like the Space API`, {
-          hint: "Check the profile's `spaceUrl` with `nipa profile ls --json`. It's the portal URL with /api, such as https://space.nipa.cloud/api.",
-        });
-      }
-      const parsed = await parseBody(res, schema);
-      if (!parsed.success) {
-        throw new ApiError(
-          `unexpected Space API response: ${z.prettifyError(parsed.error)}`,
-          res.status
-        );
-      }
-      return parsed.data;
+      const res = await read(path);
+      return parseText(await res.text(), schema, res.status);
+    },
+    getLines: async (path, schema) => {
+      const res = await read(path);
+      const text = await res.text();
+      const lines = text.split("\n").filter((line) => line.trim());
+      return lines.map((line) => parseText(line, schema, res.status));
     },
     post: async (path) => {
       await send(path, "POST");

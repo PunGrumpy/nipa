@@ -16,6 +16,7 @@ const statesSpace = (states: readonly ServerState[]) => {
         })
       );
     },
+    getLines: () => Promise.resolve([]),
     post: () => Promise.resolve(),
   };
   return { asked, space };

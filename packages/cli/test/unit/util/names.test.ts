@@ -28,6 +28,7 @@ const flavorSpace = () => {
         schema.parse({ machine_types: [{ name: "a" }, { name: "b" }] })
       );
     },
+    getLines: () => Promise.resolve([]),
     post: () => Promise.resolve(),
   };
   return { asked, space };

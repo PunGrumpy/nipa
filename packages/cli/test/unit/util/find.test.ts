@@ -24,6 +24,7 @@ const space: Space = {
         ],
       })
     ),
+  getLines: () => Promise.resolve([]),
   post: () => Promise.resolve(),
 };
 
