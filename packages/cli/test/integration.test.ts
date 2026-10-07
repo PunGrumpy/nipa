@@ -2281,6 +2281,129 @@ describe("lb ls", () => {
   });
 });
 
+describe("lb inspect", () => {
+  const WEB_LB_ID = "bbbb1111-0000-4000-8000-000000000001";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json prints the load balancer with its listeners, backend groups and members", async () => {
+    const { code, stdout } = await run(["lb", "inspect", "web-lb", "--json"]);
+    expect(code).toBe(0);
+    const { loadBalancer, profile, project } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(loadBalancer).toMatchObject({
+      address: "192.0.2.30",
+      externalAddress: "203.0.113.30",
+      flavor: "lss.large.v2",
+      health: "ONLINE",
+      id: WEB_LB_ID,
+      name: "web-lb",
+      status: "ACTIVE",
+    });
+    expect(loadBalancer.listeners).toEqual([
+      {
+        allowedCidrs: [],
+        backendGroupId: "pool-1",
+        health: "ONLINE",
+        id: "listener-1",
+        name: "web-http",
+        port: 80,
+        protocol: "HTTP",
+        status: "ACTIVE",
+      },
+      {
+        allowedCidrs: ["198.51.100.0/24", "192.0.2.0/24"],
+        backendGroupId: null,
+        health: "ONLINE",
+        id: "listener-2",
+        name: "web-https",
+        port: 443,
+        protocol: "TCP",
+        status: "ERROR",
+      },
+    ]);
+    const [group] = loadBalancer.backendGroups;
+    expect(group).toMatchObject({
+      algorithm: "ROUND_ROBIN",
+      health: "DEGRADED",
+      healthCheck: {
+        delaySeconds: 5,
+        health: "ONLINE",
+        maxRetries: 3,
+        status: "ACTIVE",
+        timeoutSeconds: 3,
+        type: "HTTP",
+      },
+      name: "web-pool",
+    });
+    expect(group.members[2]).toEqual({
+      address: "192.0.2.8",
+      backup: true,
+      health: "OFFLINE",
+      id: "web-3",
+      name: "web-3",
+      port: 80,
+      status: "ACTIVE",
+      weight: 1,
+    });
+  });
+
+  test("shows each part, ends with what stops it serving, and prints the ID to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["lb", "inspect", "web-lb"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Load balancer web-lb in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Status\s+● Active\n\s+Health\s+● Online\n/u);
+    expect(stderr).toMatch(/External IP\s+203\.0\.113\.30\n/u);
+    expect(stderr).toMatch(/Flavor\s+lss\.large\.v2\n/u);
+    expect(stderr).toContain("> 2 listeners");
+    expect(stderr).toMatch(
+      /web-http\s+HTTP:80\s+● Active\s+● Online\s+Any\s+web-pool\n/u
+    );
+    expect(stderr).toMatch(
+      /web-https\s+TCP:443\s+● Error\s+● Online\s+198\.51\.100\.0\/24, 192\.0\.2\.0\/24\s+-\n/u
+    );
+    expect(stderr).toMatch(
+      /web-pool\s+ROUND_ROBIN\s+● Active\s+● Degraded\s+3\s+HTTP every 5s, 3s timeout, 3 retries\n/u
+    );
+    expect(stderr).toMatch(
+      /web-2\s+192\.0\.2\.7:80\s+web-pool\s+1\s+No\s+● Active\s+● Error\n/u
+    );
+    expect(stderr).toMatch(
+      /web-3\s+192\.0\.2\.8:80\s+web-pool\s+1\s+Yes\s+● Active\s+● Offline\n/u
+    );
+    expect(stderr).toContain(
+      "> NOTE: 1 of 2 listeners is unhealthy, 1 of 2 listeners has no members to send traffic to, the backend group is unhealthy and 2 of 3 members are down."
+    );
+    expect(stdout).toBe(`${WEB_LB_ID}\n`);
+  });
+
+  test("a load balancer still being made, by its ID, has no listeners", async () => {
+    const id = "bbbb2222-0000-4000-8000-000000000002";
+    const { code, stderr } = await run(["lb", "inspect", id]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/Status\s+● Pending create\n/u);
+    expect(stderr).toMatch(/External IP\s+-\n\s+Flavor\s+-\n/u);
+    expect(stderr).not.toContain("listeners\n");
+    expect(stderr).toContain(
+      "> NOTE: The load balancer is unhealthy and the load balancer has no listeners."
+    );
+  });
+
+  test("an unknown load balancer points to lb ls", async () => {
+    const { code, stderr, stdout } = await run(["lb", "inspect", "nope"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      'no load balancer named or with ID "nope" in Alpha'
+    );
+    expect(stderr).toContain("Run `nipa lb ls` to see your load balancers.");
+    expect(stdout).toBe("");
+  });
+});
+
 describe("ip ls", () => {
   beforeAll(async () => {
     await freshDir();

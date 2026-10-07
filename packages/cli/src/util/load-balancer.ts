@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Space } from "./api";
 import { listExternalIps } from "./external-ip";
+import { andList, capitalize } from "./ui";
 
 const LoadBalancerSchema = z.object({
   created_at: z.string(),
@@ -297,8 +298,6 @@ const finding = ({ failing: count, noun, predicate, total }: Check): string => {
   return `${count} of ${total} ${noun[1]} ${count === 1 ? one : many}`;
 };
 
-const LIST = new Intl.ListFormat("en", { type: "conjunction" });
-
 export interface Diagnosis {
   healthy: boolean;
   /** One sentence without a final period, such as "2 of 3 members are down". */
@@ -363,9 +362,5 @@ export const diagnose = (lb: LoadBalancerDetail): Diagnosis => {
   if (findings.length === 0) {
     return { healthy: true, verdict: "All listeners and members are healthy" };
   }
-  const verdict = LIST.format(findings);
-  return {
-    healthy: false,
-    verdict: `${verdict.charAt(0).toUpperCase()}${verdict.slice(1)}`,
-  };
+  return { healthy: false, verdict: capitalize(andList(findings)) };
 };

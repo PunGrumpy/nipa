@@ -32,6 +32,7 @@ nipa has 24 commands. Without a command, it prints help.
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa db inspect <database> [--json]` | Shows one database cluster by name or ID: its engine and version, status, health and when Trove last checked it, flavor, storage, zone, address and port, allowed CIDRs, replicas, general and slow query logs, and the 5 newest backups. It ends with a line that says whether the database is healthy and where to connect, or what needs attention. The port is the engine's default, because the Space API doesn't send one. In a pipe, it prints the cluster's ID |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
+| `nipa lb inspect <lb> [--json]` | Shows one load balancer's status, health, virtual IP, external IP and flavor, then each listener, backend group and member with its status and health, by name or ID. It ends with one line that says what stops the load balancer from serving, such as `2 of 3 members are down`, or that every part is healthy. In a pipe, it prints the load balancer's ID |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
 | `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
 | `nipa quota ls [--json]` | Shows each quota of your project, such as servers, vCPUs, RAM and volumes, by group, with how much it uses, its limit and the percent used. A quota at 80% or more shows in yellow, and one at 100% shows in red, because the next create of that resource fails. A note under the table counts them. It exits with code `0` either way. In a pipe, it prints one tab-separated line per quota: its group and name, such as `compute/ram`, the amount used, the limit or `unlimited`, and the unit of both, such as `MB`, `GB` or `Bytes`, or `-` for a count. `nipa quota`, `nipa quotas` and `nipa limits` do the same |
@@ -56,7 +57,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -506,6 +507,68 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
       "status": "ACTIVE"
     }
   ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
+
+`nipa lb inspect --json` prints the profile, the project and one load balancer under `loadBalancer`, with its listeners, backend groups and their members. Every part has an `id`, a `status` and a `health`, which are Octavia's provisioning and operating statuses. A listener with an empty `allowedCidrs` lets every source in. `externalAddress`, `flavor`, a listener's `backendGroupId`, a group's `healthCheck` and a member's `weight` are `null` when the load balancer doesn't have them:
+
+```json
+{
+  "loadBalancer": {
+    "address": "192.0.2.30",
+    "backendGroups": [
+      {
+        "algorithm": "ROUND_ROBIN",
+        "health": "DEGRADED",
+        "healthCheck": {
+          "delaySeconds": 5,
+          "health": "ONLINE",
+          "id": "def0…",
+          "maxRetries": 3,
+          "status": "ACTIVE",
+          "timeoutSeconds": 3,
+          "type": "HTTP"
+        },
+        "id": "cdef…",
+        "members": [
+          {
+            "address": "192.0.2.7",
+            "backup": false,
+            "health": "ERROR",
+            "id": "ef01…",
+            "name": "web-2",
+            "port": 80,
+            "status": "ACTIVE",
+            "weight": 1
+          }
+        ],
+        "name": "web-pool",
+        "protocol": "HTTP",
+        "status": "ACTIVE"
+      }
+    ],
+    "createdAt": "2030-01-01T10:00:00+07:00",
+    "externalAddress": "203.0.113.30",
+    "flavor": "lss.large.v2",
+    "health": "ONLINE",
+    "id": "9abc…",
+    "listeners": [
+      {
+        "allowedCidrs": [],
+        "backendGroupId": "cdef…",
+        "health": "ONLINE",
+        "id": "bcde…",
+        "name": "web-http",
+        "port": 80,
+        "protocol": "HTTP",
+        "status": "ACTIVE"
+      }
+    ],
+    "name": "web-lb",
+    "status": "ACTIVE"
+  },
   "profile": "prod",
   "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
 }
