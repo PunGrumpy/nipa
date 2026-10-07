@@ -138,17 +138,6 @@ export const listServers = async (space: Space): Promise<Server[]> => {
   return body.instances.map(toServer);
 };
 
-/** The servers whose ID is `ref`, or else whose name is `ref`. */
-export const matchServers = (
-  servers: readonly Server[],
-  ref: string
-): Server[] => {
-  const byId = servers.filter((server) => server.id === ref);
-  return byId.length > 0
-    ? byId
-    : servers.filter((server) => server.name === ref);
-};
-
 // v4 has Nova's task state, which v3 leaves out. A server is busy until
 // it's null, such as "powering-off" during a stop.
 const StateSchema = z.object({

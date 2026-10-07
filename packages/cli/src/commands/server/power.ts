@@ -3,6 +3,7 @@ import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
 import { powerServer, waitForServer } from "../../util/compute";
 import type { PowerAction, Server } from "../../util/compute";
+import { findServer } from "../../util/find";
 import { statusLabel } from "../../util/status";
 import {
   bold,
@@ -15,7 +16,6 @@ import {
 } from "../../util/ui";
 import { restartSubcommand, startSubcommand, stopSubcommand } from "./command";
 import { nameCell } from "./format";
-import { findServer } from "./resolve";
 
 const DEFAULT_TIMEOUT = "5m";
 const POLL_MS = 2000;
