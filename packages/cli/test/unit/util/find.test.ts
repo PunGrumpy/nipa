@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { findServer } from "../../../../src/commands/server/resolve";
-import type { Space } from "../../../../src/util/api";
+import type { Space } from "../../../src/util/api";
+import { findServer } from "../../../src/util/find";
 
 const instance = (id: string, name: string) => ({
   created: "2030-01-01T00:00:00Z",

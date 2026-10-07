@@ -1,5 +1,6 @@
 import { handle } from "../../util/command";
 import type { Server } from "../../util/compute";
+import { findServer } from "../../util/find";
 import { statusCell } from "../../util/status";
 import {
   bold,
@@ -13,7 +14,6 @@ import {
 import type { Field } from "../../util/ui";
 import { inspectSubcommand } from "./command";
 import { addressCells, flavorCell, volumeCells, withDetail } from "./format";
-import { findServer } from "./resolve";
 
 const fieldsOf = (server: Server, now: number): Field[] => {
   const fields: Field[] = [

@@ -48,6 +48,12 @@ Your password changed since `nipa login --remember` saved it. nipa asks for the 
 
 The name after `-P`, or in `NIPA_PROFILE`, isn't a profile. The error lists the profiles you have. Check `NIPA_PROFILE` with `echo $NIPA_PROFILE` if you didn't pass `-P`.
 
+## "couldn't open a browser with …"
+
+`nipa open` runs `open` on macOS, `xdg-open` on Linux and `start` on Windows, and that program is missing or failed, such as on a server without a desktop. Open the URL that nipa printed above the error, or run `nipa open --url` to print only the URL.
+
+If the portal shows another project or a page that doesn't load, the portal is on the project you last used in it. Switch to the project that `nipa whoami` names in the portal, then open the link again.
+
 ## "can't reach …"
 
 The request never got an answer. The host name didn't resolve, the server refused the connection, or the Transport Layer Security (TLS) handshake failed. Check the profile's Keystone URL with `nipa profile ls`, then your network connection.

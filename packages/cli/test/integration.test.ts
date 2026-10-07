@@ -1458,6 +1458,78 @@ describe("ip ls", () => {
   });
 });
 
+describe("open", () => {
+  test("prints the portal's project page to a pipe, without a session", async () => {
+    await freshDir();
+    const { code, stderr, stdout } = await run(["open"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("https://space.nipa.cloud/project\n");
+    expect(stderr).toBe("");
+  });
+
+  test("a named resource needs a session", async () => {
+    const { code, stderr, stdout } = await run(["open", "server", "web-1"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("aren't logged in to prod");
+    expect(stdout).toBe("");
+  });
+
+  describe("with a session", () => {
+    beforeAll(async () => {
+      await freshDir();
+      await seedSession(dir, keystone.url);
+    });
+
+    test.each([
+      [["server"], "/compute_instances"],
+      [["sg"], "/security_group"],
+      [
+        ["server", "web-1"],
+        "/compute_instances/22222222-2222-4222-8222-222222222222/overview",
+      ],
+      [
+        ["lb", "web-lb"],
+        "/load_balancers/bbbb1111-0000-4000-8000-000000000001/details",
+      ],
+      [
+        ["db", "orders"],
+        "/sql_databases/aaaa1111-0000-4000-8000-000000000001/overview",
+      ],
+      [
+        ["network", "default"],
+        "/networks/nnnn1111-0000-4000-8000-000000000001",
+      ],
+      [["sg", "web"], "/security_group/ssss2222-0000-4000-8000-000000000002"],
+      [["volume", "web-1-vol-0"], "/volumes?search=web-1-vol-0"],
+      [
+        ["volume", "vvvv3333-0000-4000-8000-000000000003"],
+        "/volumes?search=vvvv3333-0000-4000-8000-000000000003",
+      ],
+    ])("nipa open %p prints %s", async (words, page) => {
+      const { code, stdout } = await run(["open", ...words, "--url"]);
+      expect(code).toBe(0);
+      expect(stdout).toBe(`${keystone.url}${page}\n`);
+    });
+
+    test("an unknown load balancer points to lb ls", async () => {
+      const { code, stderr, stdout } = await run(["open", "lb", "nope"]);
+      expect(code).toBe(1);
+      expect(stderr).toContain(
+        'no load balancer named or with ID "nope" in Alpha'
+      );
+      expect(stderr).toContain("Run `nipa lb ls` to see your load balancers.");
+      expect(stdout).toBe("");
+    });
+
+    test("an unknown kind of resource exits 2 and lists the kinds", async () => {
+      const { code, stderr } = await run(["open", "k8s"]);
+      expect(code).toBe(2);
+      expect(stderr).toContain('unknown resource "k8s"');
+      expect(stderr).toContain("server, volume, network, sg, lb, db");
+    });
+  });
+});
+
 describe("files from nipa 0.1", () => {
   beforeAll(async () => {
     await freshDir();
