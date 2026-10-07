@@ -14,6 +14,7 @@ import { lb } from "./lb";
 import { link } from "./link";
 import { login } from "./login";
 import { logout } from "./logout";
+import { network } from "./network";
 import { os } from "./os";
 import { profile } from "./profile";
 import { server } from "./server";
@@ -45,10 +46,13 @@ export const program: Program = {
       commands: [login, logout, whoami, switchProject, link, unlink],
       title: "Session",
     },
-    { commands: [server, volume, k8s, db, lb, ip], title: "Resources" },
+    {
+      commands: [server, volume, network, ip, lb, k8s, db],
+      title: "Resources",
+    },
     { commands: [os, tf, exec, env], title: "Run tools" },
     { commands: [profile, completion], title: "Setup" },
   ],
   summary:
-    "Log in to Nipa Cloud once, then list your servers, volumes, Kubernetes clusters, databases, load balancers and external IPs, or run openstack and terraform with the session.",
+    "Log in to Nipa Cloud once, then list your servers, volumes, networks, external IPs, load balancers, Kubernetes clusters and databases, or run openstack and terraform with the session.",
 };

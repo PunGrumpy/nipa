@@ -318,15 +318,37 @@ export const FAKE_PUBLIC_IMAGES = [
   "prd-ubuntu-22-v260610",
 ];
 export const FAKE_OWNED_IMAGES = ["web-golden"];
-export const FAKE_NETWORKS = ["default", "Standard_Public_IP_Pool_BKK"];
+/** The networks: the project's VPC network, then a shared pool of external IPs. */
+export const FAKE_NETWORK_LIST = [
+  {
+    availability_zone: "NCP-BKK",
+    created_at: ago(20 * DAY_MS),
+    external_network: false,
+    id: "nnnn1111-0000-4000-8000-000000000001",
+    name: "default",
+    shared: false,
+    status: "ACTIVE",
+  },
+  // Neutron sends this one without a zone, and its time without one too.
+  {
+    created_at: ago(400 * DAY_MS).replace("Z", ""),
+    external_network: true,
+    id: "nnnn2222-0000-4000-8000-000000000002",
+    name: "Standard_Public_IP_Pool_BKK",
+    shared: true,
+    status: "ACTIVE",
+  },
+];
+export const FAKE_NETWORKS = FAKE_NETWORK_LIST.map((network) => network.name);
 
 const named = (list: readonly string[]) => list.map((name) => ({ name }));
 
 routes.set("/api/v4/machine_types", () => ({
   machine_types: named(FAKE_FLAVORS),
 }));
+// Every project sees the shared pool.
 routes.set("/api/v4/networks", ({ mine }) => ({
-  networks: named(mine ? FAKE_NETWORKS : FAKE_NETWORKS.slice(1)),
+  networks: mine ? FAKE_NETWORK_LIST : FAKE_NETWORK_LIST.slice(1),
 }));
 routes.set("/api/v4/public_images", () => ({
   public_images: [{ images: named(FAKE_PUBLIC_IMAGES), name: "Ubuntu" }],

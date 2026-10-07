@@ -1124,6 +1124,54 @@ describe("volume ls", () => {
   });
 });
 
+describe("network ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the networks the project can use, newest first", async () => {
+    const { code, stdout } = await run(["network", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { networks, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(networks.map((n: { name: string }) => n.name)).toEqual(
+      FAKE_NETWORKS
+    );
+    expect(networks[1]).toMatchObject({
+      external: true,
+      shared: true,
+      status: "ACTIVE",
+      zone: null,
+    });
+    expect(networks[1].createdAt).toEndWith("Z");
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["networks"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Networks in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Status\s+Type\s+Zone\s+Age/u);
+    expect(stderr).toMatch(/default\s+● Active\s+VPC\s+NCP-BKK\s+20d/u);
+    expect(stderr).toMatch(
+      /Standard_Public_IP_Pool_BKK\s+● Active\s+external\s+-\s+400d/u
+    );
+    expect(stdout.trim().split("\n")).toEqual([
+      "nnnn1111-0000-4000-8000-000000000001",
+      "nnnn2222-0000-4000-8000-000000000002",
+    ]);
+  });
+
+  test("another project sees only the shared networks", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr } = await run(["network", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("Networks in Beta");
+    expect(stderr).toContain("Standard_Public_IP_Pool_BKK");
+    expect(stderr).not.toContain("VPC");
+  });
+});
+
 describe("k8s ls", () => {
   beforeAll(async () => {
     await freshDir();

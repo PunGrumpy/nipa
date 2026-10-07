@@ -2,7 +2,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { z } from "zod";
 
-import { ApiError, createSpace, spaceApiUrl } from "../../../src/util/api";
+import {
+  ApiError,
+  createSpace,
+  spaceApiUrl,
+  utcTime,
+} from "../../../src/util/api";
 import { listServers } from "../../../src/util/compute";
 import { CliError } from "../../../src/util/ui";
 import { alphaSpace } from "../../helpers";
@@ -47,6 +52,16 @@ describe("spaceApiUrl", () => {
     ["https://space.nipa.cloud/api/", "https://space.nipa.cloud/api"],
   ])("%s -> %s", (url, api) => {
     expect(spaceApiUrl(url)).toBe(api);
+  });
+});
+
+describe("utcTime", () => {
+  test.each([
+    ["2023-09-05T03:24:53.342305", "2023-09-05T03:24:53.342305Z"],
+    ["2030-01-01T00:00:00Z", "2030-01-01T00:00:00Z"],
+    ["2030-01-01T10:00:00+07:00", "2030-01-01T10:00:00+07:00"],
+  ])("%s -> %s", (time, utc) => {
+    expect(utcTime(time)).toBe(utc);
   });
 });
 

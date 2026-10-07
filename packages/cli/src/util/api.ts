@@ -69,6 +69,15 @@ export const probeSpace = async (url: string): Promise<void> => {
   }
 };
 
+const HAS_ZONE = /(?:Z|[+-]\d{2}:?\d{2})$/iu;
+
+/**
+ * Neutron sends UTC times without a zone, such as 2023-09-05T03:24:53.342305,
+ * which Date.parse would read as local time. This adds the Z.
+ */
+export const utcTime = (time: string): string =>
+  HAS_ZONE.test(time) ? time : `${time}Z`;
+
 export interface Space {
   get: <T>(path: string, schema: z.ZodType<T>) => Promise<T>;
   post: (path: string) => Promise<void>;

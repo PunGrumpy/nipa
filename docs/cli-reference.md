@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 15 commands. Without a command, it prints help.
+nipa has 16 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -22,6 +22,7 @@ nipa has 15 commands. Without a command, it prints help.
 | `nipa server stop <server> [options]` | Stops a server after you confirm, then waits until it's shut off |
 | `nipa server restart <server> [options]` | Restarts a running server after you confirm, then waits until it's active again. `nipa server reboot` is the same command |
 | `nipa volume ls [--json]` | Lists the block storage volumes in your project with their status, size, type, the server each one is attached to, and age. In a pipe, it prints one volume ID per line. `nipa volume` and `nipa volumes` do the same |
+| `nipa network ls [--json]` | Lists the networks your project can use with their status, type, zone and age. `VPC` marks one of your project's private networks, and `external` a shared pool of external IPs. In a pipe, it prints one network ID per line. `nipa network` and `nipa networks` do the same |
 | `nipa k8s ls [--json]` | Lists the Kubernetes clusters in your project with their Kubernetes version, nodes, active node count and age. The Space API has no Kubernetes endpoint, so nipa finds each cluster through the servers Magnum made for it, and a cluster without servers doesn't show. In a pipe, it prints one cluster ID per line. `nipa k8s`, `nipa kubernetes` and `nipa coe` do the same |
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
@@ -46,7 +47,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `volume ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `volume ls`, `network ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
@@ -100,7 +101,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
 
-`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `volume ls`, `k8s ls`, `db ls`, `lb ls` and `ip ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
+`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `volume ls`, `network ls`, `k8s ls`, `db ls`, `lb ls` and `ip ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
 
 ## Exit codes
 
@@ -197,6 +198,26 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "zone": "NCP-BKK"
     }
   ]
+}
+```
+
+`nipa network ls --json` prints the profile, the project and the networks it can use, newest first. `external` is `true` for a pool of external IPs and `false` for a VPC network, `shared` is `true` when other projects can use it too, and `zone` is `null` when Neutron picks one. nipa adds the `Z` that Neutron leaves off `createdAt`:
+
+```json
+{
+  "networks": [
+    {
+      "createdAt": "2030-01-01T00:00:00.000000Z",
+      "external": false,
+      "id": "9abc…",
+      "name": "default",
+      "shared": false,
+      "status": "ACTIVE",
+      "zone": "NCP-BKK"
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
 }
 ```
 
