@@ -2,7 +2,8 @@
 // an earlier one skips when that one didn't pass, so no check branches on
 // another's outcome.
 
-import { CliError, plural } from "./ui";
+import { toCliError } from "./errors";
+import { plural } from "./ui";
 
 export type CheckResult =
   | { readonly status: "pass" | "skip"; readonly summary: string }
@@ -59,18 +60,18 @@ export const capitalize = (text: string): string =>
 const usable = (result: CheckResult | undefined): boolean =>
   result?.status === "pass" || result?.status === "warn";
 
-// A check that throws fails with the error's message, so one broken check
-// doesn't hide the rest.
+// A check that throws a known error fails with its message and hint, so one
+// broken check doesn't hide the rest. Any other error is a nipa bug, and
+// crashes with its stack instead of posing as a finding.
 const attempt = async (task: () => Promise<CheckResult>) => {
   try {
     return await task();
   } catch (error) {
-    if (error instanceof CliError) {
-      return fail(capitalize(error.message), error.hint);
+    const known = error instanceof Error ? toCliError(error) : undefined;
+    if (!known) {
+      throw error;
     }
-    return fail(
-      capitalize(error instanceof Error ? error.message : String(error))
-    );
+    return fail(capitalize(known.message), known.hint);
   }
 };
 

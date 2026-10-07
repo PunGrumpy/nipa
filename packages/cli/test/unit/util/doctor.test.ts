@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { fail, pass, runChecks, tally, warn } from "../../../src/util/doctor";
 import type { Check, CheckReport } from "../../../src/util/doctor";
+import { NetworkError } from "../../../src/util/http";
 import { CliError } from "../../../src/util/ui";
 
 type Id = "a" | "b" | "c";
@@ -91,7 +92,7 @@ describe("runChecks", () => {
     expect(reports[1]?.summary).toBe("A was pass");
   });
 
-  test("a check that throws fails with the message and the hint, and the rest still run", async () => {
+  test("a check that throws a known error fails with its message and hint, and the rest still run", async () => {
     const reports = await collect([
       {
         id: "a",
@@ -99,7 +100,12 @@ describe("runChecks", () => {
           Promise.reject(new CliError("no profile", { hint: "Add one." })),
         title: "A",
       },
-      { id: "b", run: () => Promise.reject(new Error("boom")), title: "B" },
+      {
+        id: "b",
+        run: () =>
+          Promise.reject(new NetworkError("https://example.com/v3", "refused")),
+        title: "B",
+      },
       { id: "c", run: () => Promise.resolve(pass("C ran")), title: "C" },
     ]);
     expect(reports).toEqual([
@@ -110,9 +116,34 @@ describe("runChecks", () => {
         summary: "No profile",
         title: "A",
       },
-      expect.objectContaining({ id: "b", status: "fail", summary: "Boom" }),
+      {
+        hint: "Check the Keystone URL with `nipa profile ls`, or your network connection.",
+        id: "b",
+        status: "fail",
+        summary: "Can't reach example.com: refused",
+        title: "B",
+      },
       { id: "c", status: "pass", summary: "C ran", title: "C" },
     ]);
+  });
+
+  test("a check that throws an unknown error crashes the run, because that's a nipa bug", async () => {
+    const seen: string[] = [];
+    const run = runChecks<Id, string>({
+      checks: [
+        { id: "a", run: () => Promise.resolve(pass("A ran")), title: "A" },
+        {
+          id: "b",
+          run: () => Promise.reject(new TypeError("x is not a function")),
+          title: "B",
+        },
+        { id: "c", run: () => Promise.resolve(pass("C ran")), title: "C" },
+      ],
+      context: "ctx",
+      onReport: (report) => seen.push(report.id),
+    });
+    await expect(run).rejects.toThrow(TypeError);
+    expect(seen).toEqual(["a"]);
   });
 });
 
