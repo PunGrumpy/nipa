@@ -642,13 +642,32 @@ const handleInstance = (input: {
   return new Response(null, { status: 202 });
 };
 
+/**
+ * The routes a test made fail, as "GET /api/v4/instances/{id}" to an HTTP
+ * status, so a command can show what it does when one call fails.
+ */
+export type Faults = Map<string, number>;
+
+const FAULT_MESSAGES = new Map([
+  [500, "Internal Server Error"],
+  [503, "Service Unavailable"],
+]);
+
 /** Answers a Space API request whose token is valid, as `owner`'s resources. */
 export const handleSpace = (input: {
   req: Request;
   owner: string;
   statuses: Map<string, string>;
+  faults?: Faults;
 }): Response => {
   const url = new URL(input.req.url);
+  const fault = input.faults?.get(`${input.req.method} ${url.pathname}`);
+  if (fault !== undefined) {
+    return spaceFault(
+      fault,
+      FAULT_MESSAGES.get(fault) ?? "Something went wrong"
+    );
+  }
   const projectId = input.req.headers.get("Project-Id");
   if (!projectId) {
     return spaceFault(

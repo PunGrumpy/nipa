@@ -776,6 +776,75 @@ describe("server inspect", () => {
     expect(stderr).not.toContain("Locked");
   });
 
+  test("still prints the server when its actions can't be read", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    keystone.faults.set(`GET /api/v4/instances/${id}/action_histories`, 500);
+    try {
+      const { code, stderr, stdout } = await run(["server", "inspect", id]);
+      expect(code).toBe(0);
+      expect(stdout).toBe(`${id}\n`);
+      expect(stderr).toMatch(/> Server web-1 in Alpha/u);
+      expect(stderr).toMatch(/Locked\s+yes\n/u);
+      expect(stderr).toMatch(/Last action\s+unavailable\n/u);
+      expect(stderr).toContain(
+        "> Couldn't load web-1's actions: Internal Server Error. Run the command again, or add `--debug` to see the request."
+      );
+      const json = await run(["server", "inspect", id, "--json"]);
+      expect(json.code).toBe(0);
+      expect(JSON.parse(json.stdout).server).toMatchObject({
+        lastAction: null,
+        locked: true,
+        name: "web-1",
+        taskState: null,
+      });
+    } finally {
+      keystone.faults.clear();
+    }
+  });
+
+  test("still prints the server when its state can't be read", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    keystone.faults.set(`GET /api/v4/instances/${id}`, 503);
+    try {
+      const { code, stderr, stdout } = await run(["server", "inspect", id]);
+      expect(code).toBe(0);
+      expect(stdout).toBe(`${id}\n`);
+      expect(stderr).toMatch(/Status\s+● Active\n/u);
+      expect(stderr).toMatch(/Task\s+unavailable\n\s+Locked\s+unavailable\n/u);
+      expect(stderr).toMatch(/Last action\s+start 1d ago by Ann Example\n/u);
+      expect(stderr).toContain(
+        "> Couldn't load web-1's state: Service Unavailable."
+      );
+      const json = await run(["server", "inspect", id, "--json"]);
+      expect(json.code).toBe(0);
+      expect(JSON.parse(json.stdout).server).toMatchObject({
+        lastAction: { action: "start" },
+        locked: null,
+        name: "web-1",
+        taskState: null,
+      });
+    } finally {
+      keystone.faults.clear();
+    }
+  });
+
+  test("fails when the servers themselves can't be read", async () => {
+    keystone.faults.set("GET /api/v3/instances", 503);
+    try {
+      const { code, stderr, stdout } = await run([
+        "server",
+        "inspect",
+        "web-1",
+      ]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain("Error: Service Unavailable");
+      expect(stderr).not.toContain("Server web-1");
+    } finally {
+      keystone.faults.clear();
+    }
+  });
+
   test("an unknown server points to server ls", async () => {
     const { code, stderr, stdout } = await run(["server", "inspect", "nope"]);
     expect(code).toBe(1);

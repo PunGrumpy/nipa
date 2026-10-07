@@ -38,24 +38,51 @@ const actionCell = (action: ServerAction, now: number): Cell => {
   };
 };
 
+/**
+ * A read that inspect can do without: its value, or why it failed. The
+ * server itself comes first and still fails the command.
+ */
+type Loaded<T> = { ok: true; value: T } | { ok: false; reason: string };
+
+const loaded = <T>(result: PromiseSettledResult<T>): Loaded<T> => {
+  if (result.status === "fulfilled") {
+    return { ok: true, value: result.value };
+  }
+  const { reason } = result;
+  return {
+    ok: false,
+    reason: reason instanceof Error ? reason.message : String(reason),
+  };
+};
+
+const UNAVAILABLE: Cell = { paint: dim, text: "unavailable" };
+
 const fieldsOf = (input: {
   server: Server;
-  state: ServerState;
-  lastAction: ServerAction | null;
+  state: Loaded<ServerState>;
+  actions: Loaded<ServerAction[]>;
   now: number;
 }): Field[] => {
-  const { lastAction, now, server, state } = input;
+  const { actions, now, server, state } = input;
   const fields: Field[] = [
     { label: "ID", lines: [{ text: server.id }] },
     { label: "Status", lines: [statusCell(server.status)] },
   ];
-  if (state.taskState !== null) {
-    fields.push({ label: "Task", lines: [{ text: state.taskState }] });
+  if (!state.ok) {
+    fields.push(
+      { label: "Task", lines: [UNAVAILABLE] },
+      { label: "Locked", lines: [UNAVAILABLE] }
+    );
+  } else if (state.value.taskState !== null) {
+    fields.push({ label: "Task", lines: [{ text: state.value.taskState }] });
   }
-  if (state.locked === true) {
+  if (state.ok && state.value.locked === true) {
     fields.push({ label: "Locked", lines: [{ text: "yes" }] });
   }
-  if (lastAction) {
+  const lastAction = actions.ok ? actions.value[0] : undefined;
+  if (!actions.ok) {
+    fields.push({ label: "Last action", lines: [UNAVAILABLE] });
+  } else if (lastAction) {
     fields.push({ label: "Last action", lines: [actionCell(lastAction, now)] });
   }
   fields.push(
@@ -91,31 +118,49 @@ export const inspect = handle(
       ref: args.server,
       space,
     });
-    const [state, actions] = await withSpinner(
+    // The state and the actions add detail. When one of them fails, such as
+    // the 503 the Space API gives while Nova works, the server still prints.
+    const [stateResult, actionsResult] = await withSpinner(
       `Loading ${server.name}'s state…`,
       () =>
-        Promise.all([
+        Promise.allSettled([
           getServerState(space, server.id),
           listServerActions(space, server.id),
         ])
     );
-    const lastAction = actions[0] ?? null;
+    const state = loaded(stateResult);
+    const actions = loaded(actionsResult);
+    const logFailures = () => {
+      const reads = [
+        ["state", state],
+        ["actions", actions],
+      ] as const;
+      for (const [what, read] of reads) {
+        if (!read.ok) {
+          log(
+            `Couldn't load ${server.name}'s ${what}: ${read.reason}. Run the command again, or add \`--debug\` to see the request.`
+          );
+        }
+      }
+    };
     if (flags.json) {
+      logFailures();
       client.stdout.json({
         profile: active.name,
         project,
         server: {
           ...server,
-          lastAction,
-          locked: state.locked,
-          taskState: state.taskState,
+          lastAction: actions.ok ? (actions.value[0] ?? null) : null,
+          locked: state.ok ? state.value.locked : null,
+          taskState: state.ok ? state.value.taskState : null,
         },
       });
       return 0;
     }
     const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
     log(`Server ${bold(server.name)} in ${bold(project.name)} ${elapsed}`);
-    printFields(fieldsOf({ lastAction, now: Date.now(), server, state }));
+    printFields(fieldsOf({ actions, now: Date.now(), server, state }));
+    logFailures();
     if (server.status === "ERROR") {
       // The reference the person typed, so an ID stays an ID when the name
       // is ambiguous.

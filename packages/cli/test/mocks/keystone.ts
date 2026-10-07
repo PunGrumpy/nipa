@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { fakeStatuses, handleSpace, spaceFault } from "./space";
+import type { Faults } from "./space";
 
 export const FAKE_USER = { id: "u1", name: "me@example.com" };
 export const PLAIN_USER = { id: "u2", name: "plain@example.com" };
@@ -39,6 +40,8 @@ const USERS = new Map([
 export interface FakeKeystone {
   url: string;
   requests: string[];
+  /** Space API routes to fail, as "GET /api/v4/instances/{id}" to a status. */
+  faults: Faults;
   stop: () => void;
 }
 
@@ -102,6 +105,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
   const receipts = new Map<string, typeof FAKE_USER>();
   const requests: string[] = [];
   const statuses = fakeStatuses();
+  const faults: Faults = new Map();
 
   const issue = (
     user: typeof FAKE_USER,
@@ -204,7 +208,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     if (!tokens.has(req.headers.get("X-Auth-Token") ?? "")) {
       return spaceFault(401, "The requested resource requires authorization.");
     }
-    return handleSpace({ owner: ALPHA_ID, req, statuses });
+    return handleSpace({ faults, owner: ALPHA_ID, req, statuses });
   };
 
   const handle = (req: Request): Response | Promise<Response> => {
@@ -238,6 +242,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
   });
 
   return {
+    faults,
     requests,
     stop: () => server.stop(true),
     url: `http://localhost:${server.port}`,
