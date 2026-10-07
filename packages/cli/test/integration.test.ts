@@ -40,6 +40,7 @@ import {
   FAKE_LOAD_BALANCERS,
   FAKE_NETWORKS,
   FAKE_SERVERS,
+  FAKE_VOLUMES,
 } from "./mocks/space";
 
 let dir: string;
@@ -553,6 +554,7 @@ describe("server ls", () => {
     expect(servers[3].kubernetes).toEqual({
       clusterId: "dddd1111-0000-4000-8000-000000000001",
       role: "master",
+      version: "1.34.9",
     });
     expect(serverLists()).toBe(before + 1);
   });
@@ -1061,6 +1063,265 @@ describe("saved passwords and session expiry", () => {
   test("a session with more time left gets no note", async () => {
     const { stderr } = await run(["env"]);
     expect(stderr).not.toContain("session expires");
+  });
+});
+
+describe("flavor ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the server flavors, smallest first", async () => {
+    const { code, stdout } = await run(["flavor", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { flavors, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(flavors.map((f: { name: string }) => f.name)).toEqual([
+      "nsa.small.v2",
+      "csa.large.v2",
+      "csa.xlarge.v2",
+    ]);
+    expect(flavors.slice(1)).toEqual([
+      {
+        cpuPolicy: "shared",
+        id: "mt-csa.large.v2",
+        name: "csa.large.v2",
+        ramMb: 4096,
+        type: "Shared-Core",
+        vcpus: 2,
+      },
+      {
+        cpuPolicy: "shared",
+        id: "mt-csa.xlarge.v2",
+        name: "csa.xlarge.v2",
+        ramMb: 8192,
+        type: "Shared-Core",
+        vcpus: 4,
+      },
+    ]);
+  });
+
+  test("prints a table on stderr and one name per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["machine-types"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Flavors in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+vCPUs\s+RAM\s+Type/u);
+    expect(stderr).toMatch(/csa\.xlarge\.v2\s+4\s+8 GB\s+Shared-Core/u);
+    expect(stderr).toMatch(/nsa\.small\.v2\s+1\s+1\.5 GB\s+Shared-core/u);
+    expect(stderr).not.toContain("dsa.large.v2");
+    expect(stdout.trim().split("\n")).toEqual([
+      "nsa.small.v2",
+      "csa.large.v2",
+      "csa.xlarge.v2",
+    ]);
+  });
+});
+
+describe("volume ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's volumes, without asking for the servers", async () => {
+    const before = serverLists();
+    const { code, stdout } = await run(["volume", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { project, volumes } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(volumes.map((v: { id: string }) => v.id)).toEqual(
+      FAKE_VOLUMES.map((v) => v.id).toReversed()
+    );
+    expect(volumes[1]).toMatchObject({
+      attachments: [
+        {
+          device: "/dev/vda",
+          serverId: "22222222-2222-4222-8222-222222222222",
+        },
+      ],
+      bootable: true,
+      name: "web-1-vol-0",
+      sizeGb: 10,
+      status: "in-use",
+      type: "Standard_SSD",
+      zone: "NCP-BKK",
+    });
+    expect(serverLists()).toBe(before);
+  });
+
+  test("prints a table with each volume's server, and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["volumes"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Volumes in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Status\s+Size\s+Type\s+Server\s+Age/u);
+    expect(stderr).toMatch(
+      /web-1-vol-0\s+● In use\s+10 GB\s+Standard_SSD\s+web-1\s+3d/u
+    );
+    expect(stderr).toMatch(
+      /backups\s+● Available\s+100 GB\s+Standard_SSD\s+-\s+10d/u
+    );
+    expect(stderr).toMatch(/-\s+● Creating\s+20 GB\s+-\s+-\s+1m/u);
+    expect(stdout.trim().split("\n")).toEqual(
+      FAKE_VOLUMES.map((v) => v.id).toReversed()
+    );
+  });
+
+  test("a project without volumes says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["volume", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No volumes in Beta");
+    expect(stdout).toBe("");
+  });
+});
+
+describe("network ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the networks the project can use, newest first", async () => {
+    const { code, stdout } = await run(["network", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { networks, project } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(networks.map((n: { name: string }) => n.name)).toEqual(
+      FAKE_NETWORKS
+    );
+    expect(networks[1]).toMatchObject({
+      external: true,
+      shared: true,
+      status: "ACTIVE",
+      zone: null,
+    });
+    expect(networks[1].createdAt).toEndWith("Z");
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["networks"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Networks in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Status\s+Type\s+Zone\s+Age/u);
+    expect(stderr).toMatch(/default\s+● Active\s+VPC\s+NCP-BKK\s+20d/u);
+    expect(stderr).toMatch(
+      /Standard_Public_IP_Pool_BKK\s+● Active\s+external\s+-\s+400d/u
+    );
+    expect(stdout.trim().split("\n")).toEqual([
+      "nnnn1111-0000-4000-8000-000000000001",
+      "nnnn2222-0000-4000-8000-000000000002",
+    ]);
+  });
+
+  test("another project sees only the shared networks", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr } = await run(["network", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("Networks in Beta");
+    expect(stderr).toContain("Standard_Public_IP_Pool_BKK");
+    expect(stderr).not.toContain("VPC");
+  });
+});
+
+describe("sg ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's security groups with their rules", async () => {
+    const { code, stdout } = await run(["sg", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { project, securityGroups } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(securityGroups.map((g: { name: string }) => g.name)).toEqual([
+      "web",
+      "default",
+    ]);
+    expect(securityGroups[0]).toMatchObject({
+      description: null,
+      rules: [
+        {
+          direction: "ingress",
+          portMax: 443,
+          portMin: 443,
+          protocol: "tcp",
+          remoteGroupId: null,
+          remoteIpPrefix: "0.0.0.0/0",
+        },
+      ],
+    });
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["security-groups"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Security groups in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Inbound\s+Outbound\s+Age\s+Description/u);
+    expect(stderr).toMatch(/web\s+1\s+0\s+2d\s+-/u);
+    expect(stderr).toMatch(/default\s+1\s+2\s+30d\s+Default security group/u);
+    expect(stdout.trim().split("\n")).toEqual([
+      "ssss2222-0000-4000-8000-000000000002",
+      "ssss1111-0000-4000-8000-000000000001",
+    ]);
+  });
+
+  test("a project without security groups says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["sg"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No security groups in Beta");
+    expect(stdout).toBe("");
+  });
+});
+
+describe("k8s ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's clusters with their nodes", async () => {
+    const { code, stdout } = await run(["k8s", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { clusters, profile, project } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(clusters).toHaveLength(2);
+    expect(clusters[0]).toMatchObject({
+      id: "dddd1111-0000-4000-8000-000000000001",
+      nodes: [
+        { name: "k8s-control-plane-1", role: "master", status: "ACTIVE" },
+        { name: "k8s-worker-1", role: "worker", status: "ERROR" },
+      ],
+      version: "1.34.9",
+    });
+  });
+
+  test("prints a table on stderr and one cluster ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["coe"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Kubernetes clusters in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Cluster\s+Version\s+Nodes\s+Active\s+Age/u);
+    expect(stderr).toMatch(
+      /dddd1111-0000-4000-8000-000000000001\s+1\.34\.9\s+1 master, 1 worker\s+1 of 2\s+61d/u
+    );
+    expect(stderr).toMatch(
+      /dddd2222-0000-4000-8000-000000000002\s+-\s+1 node\s+0 of 1\s+90d/u
+    );
+    expect(stdout.trim().split("\n")).toEqual([
+      "dddd1111-0000-4000-8000-000000000001",
+      "dddd2222-0000-4000-8000-000000000002",
+    ]);
+  });
+
+  test("a project without clusters says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["kubernetes", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No Kubernetes clusters in Beta");
+    expect(stdout).toBe("");
   });
 });
 

@@ -7,6 +7,8 @@ describe("statusLabel", () => {
     ["ACTIVE", "Active"],
     ["HARD_REBOOT", "Hard reboot"],
     ["SHELVED_OFFLOADED", "Shelved offloaded"],
+    ["in-use", "In use"],
+    ["error_deleting", "Error deleting"],
   ])("%s -> %s", (status, label) => {
     expect(statusLabel(status)).toBe(label);
   });

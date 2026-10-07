@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 13 commands. Without a command, it prints help.
+nipa has 18 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -21,6 +21,11 @@ nipa has 13 commands. Without a command, it prints help.
 | `nipa server start <server> [options]` | Starts a stopped server, then waits until it's active |
 | `nipa server stop <server> [options]` | Stops a server after you confirm, then waits until it's shut off |
 | `nipa server restart <server> [options]` | Restarts a running server after you confirm, then waits until it's active again. `nipa server reboot` is the same command |
+| `nipa flavor ls [--json]` | Lists the flavors a server can have, smallest first, with their vCPUs, RAM and type. The Space portal calls them machine types. The ones only database clusters use don't show. In a pipe, it prints one flavor name per line. `nipa flavor`, `nipa flavors` and `nipa machine-types` do the same |
+| `nipa volume ls [--json]` | Lists the block storage volumes in your project with their status, size, type, the server each one is attached to, and age. In a pipe, it prints one volume ID per line. `nipa volume` and `nipa volumes` do the same |
+| `nipa network ls [--json]` | Lists the networks your project can use with their status, type, zone and age. `VPC` marks one of your project's private networks, and `external` a shared pool of external IPs. In a pipe, it prints one network ID per line. `nipa network` and `nipa networks` do the same |
+| `nipa sg ls [--json]` | Lists the security groups in your project with their inbound and outbound rule counts, age and description. In a pipe, it prints one security group ID per line. `nipa sg`, `nipa security-group` and `nipa security-groups` do the same |
+| `nipa k8s ls [--json]` | Lists the Kubernetes clusters in your project with their Kubernetes version, nodes, active node count and age. The Space API has no Kubernetes endpoint, so nipa finds each cluster through the servers Magnum made for it, and a cluster without servers doesn't show. In a pipe, it prints one cluster ID per line. `nipa k8s`, `nipa kubernetes` and `nipa coe` do the same |
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
@@ -44,7 +49,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
@@ -98,7 +103,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
 
-`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `db ls`, `lb ls` and `ip ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
+`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls` and `ip ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
 
 ## Exit codes
 
@@ -135,7 +140,7 @@ nipa exits with these codes:
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
 
-`nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the server's OpenStack status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` for an internal IP or `floating` for an external one. `kubernetes` is `null` for a server you made. For a Kubernetes node, it has the Magnum cluster's `clusterId` and the node's `role`, such as `master`. `role` is `null` when Magnum sets none:
+`nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the server's OpenStack status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` for an internal IP or `floating` for an external one. `kubernetes` is `null` for a server you made. For a Kubernetes node, it has the Magnum cluster's `clusterId`, the node's `role`, such as `master`, and the Kubernetes `version` of its image, such as `1.34.9`. `role` and `version` are `null` when the server doesn't have them:
 
 ```json
 {
@@ -175,6 +180,120 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 ```
 
 `ramMb`, `vcpus`, `zone`, `attachedAs`, a volume's `name` and its `type` are `null` when the Space API doesn't send them. `nipa server inspect --json` prints the same fields for one server, under `server` instead of `servers`.
+
+`nipa flavor ls --json` prints the profile, the project and the flavors a server can have, smallest first. `type` is the portal's category, such as `Shared-core` or `Memory Intensive`, and `cpuPolicy` is `shared` or `dedicated`. Both are `null` when the Space API doesn't send them:
+
+```json
+{
+  "flavors": [
+    {
+      "cpuPolicy": "shared",
+      "id": "9abc…",
+      "name": "csa.large.v2",
+      "ramMb": 4096,
+      "type": "Shared-Core",
+      "vcpus": 2
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
+
+`nipa volume ls --json` prints the profile, the project and its volumes, newest first. `status` is Cinder's status, such as `available`, `in-use` or `creating`. `attachments` lists the servers the volume is attached to, by `serverId`, and the `device` each one sees it as. `type` is `null` when the volume has none:
+
+```json
+{
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "volumes": [
+    {
+      "attachments": [{ "device": "/dev/vda", "serverId": "9abc…" }],
+      "bootable": true,
+      "createdAt": "2030-01-01T10:00:00+07:00",
+      "id": "def0…",
+      "name": "web-1-vol-0",
+      "sizeGb": 10,
+      "status": "in-use",
+      "type": "Standard_SSD",
+      "zone": "NCP-BKK"
+    }
+  ]
+}
+```
+
+`nipa network ls --json` prints the profile, the project and the networks it can use, newest first. `external` is `true` for a pool of external IPs and `false` for a VPC network, `shared` is `true` when other projects can use it too, and `zone` is `null` when Neutron picks one. nipa adds the `Z` that Neutron leaves off `createdAt`:
+
+```json
+{
+  "networks": [
+    {
+      "createdAt": "2030-01-01T00:00:00.000000Z",
+      "external": false,
+      "id": "9abc…",
+      "name": "default",
+      "shared": false,
+      "status": "ACTIVE",
+      "zone": "NCP-BKK"
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
+
+`nipa sg ls --json` prints the profile, the project and its security groups, newest first, with their rules. A rule's `direction` is `ingress` for traffic in and `egress` for traffic out. `portMin` and `portMax` are `null` for every port. A rule allows `remoteIpPrefix`, a CIDR, or the servers in the security group `remoteGroupId`, and both are `null` for anywhere. `description` is `null` when the group has none:
+
+```json
+{
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "securityGroups": [
+    {
+      "createdAt": "2030-01-01T00:00:00.000000Z",
+      "description": null,
+      "id": "9abc…",
+      "name": "web",
+      "rules": [
+        {
+          "direction": "ingress",
+          "ethertype": "IPv4",
+          "id": "def0…",
+          "portMax": 443,
+          "portMin": 443,
+          "protocol": "tcp",
+          "remoteGroupId": null,
+          "remoteIpPrefix": "0.0.0.0/0"
+        }
+      ]
+    }
+  ]
+}
+```
+
+`nipa k8s ls --json` prints the profile, the project and its Kubernetes clusters, newest first. `id` is the Magnum cluster's ID, `createdAt` is when its oldest node was made, and `nodes` lists masters first, then by name. A node's `status` is the server's status, such as `ACTIVE` or `ERROR`:
+
+```json
+{
+  "clusters": [
+    {
+      "createdAt": "2030-01-01T00:00:00Z",
+      "id": "dddd…",
+      "nodes": [
+        {
+          "id": "4444…",
+          "name": "k8s-control-plane-1",
+          "role": "master",
+          "status": "ACTIVE"
+        }
+      ],
+      "version": "1.34.9"
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
 
 `nipa db ls --json` prints the profile, the project and its database clusters, newest first. `primary` is the instance that takes writes, or `null` while the cluster is being created. Its `status` is the instance's status, such as `ACTIVE` or `BUILD`, `health` is `HEALTHY` when the database answers, and `externalAddress` is `null` without an external IP:
 

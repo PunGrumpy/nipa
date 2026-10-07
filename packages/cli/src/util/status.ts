@@ -5,37 +5,50 @@ import type { Cell, Paint } from "./ui";
 
 // OpenStack's statuses: these run or answer, these fail, and these are on
 // their way somewhere. The rest, such as SHUTOFF, SHELVED or DOWN, are gray.
-const RUNNING = new Set(["ACTIVE", "HEALTHY", "ONLINE"]);
-const FAILING = new Set(["DEGRADED", "ERROR", "OFFLINE", "UNKNOWN"]);
+// Cinder writes its statuses in lowercase, such as in-use or error_deleting.
+const RUNNING = new Set(["ACTIVE", "AVAILABLE", "HEALTHY", "IN-USE", "ONLINE"]);
+const FAILING = new Set(["DEGRADED", "OFFLINE", "UNKNOWN"]);
 const CHANGING = new Set([
+  "ATTACHING",
+  "BACKING-UP",
   "BUILD",
+  "CREATING",
+  "DELETING",
+  "DETACHING",
+  "DOWNLOADING",
+  "EXTENDING",
   "HARD_REBOOT",
   "MIGRATING",
   "PASSWORD",
   "REBOOT",
   "REBUILD",
   "RESCUE",
+  "RESERVED",
   "RESIZE",
+  "RESTORING-BACKUP",
+  "RETYPING",
   "REVERT_RESIZE",
+  "UPLOADING",
   "VERIFY_RESIZE",
 ]);
 
 const paintFor = (status: string): Paint => {
-  if (RUNNING.has(status)) {
+  const upper = status.toUpperCase();
+  if (RUNNING.has(upper)) {
     return green;
   }
-  if (FAILING.has(status)) {
+  if (FAILING.has(upper) || upper.startsWith("ERROR")) {
     return red;
   }
-  if (CHANGING.has(status) || status.startsWith("PENDING_")) {
+  if (CHANGING.has(upper) || upper.startsWith("PENDING_")) {
     return yellow;
   }
   return gray;
 };
 
-/** HARD_REBOOT reads as "Hard reboot". */
+/** HARD_REBOOT reads as "Hard reboot", and in-use as "In use". */
 export const statusLabel = (status: string): string => {
-  const words = status.toLowerCase().replaceAll("_", " ");
+  const words = status.toLowerCase().replaceAll(/[_-]/gu, " ");
   return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 };
 

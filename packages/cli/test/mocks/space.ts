@@ -77,6 +77,31 @@ export const FAKE_SERVERS = [
     name: "k8s-control-plane-1",
     status: "ACTIVE",
   },
+  {
+    ageMs: 61 * DAY_MS,
+    external_ips: [],
+    flavor: flavor(LARGE),
+    id: "55555555-5555-4555-8555-555555555555",
+    internal_ips: [ip("198.51.100.10")],
+    metadata: {
+      kube_version: "1.34.9",
+      magnum_cluster_id: "dddd1111-0000-4000-8000-000000000001",
+      magnum_role: "worker",
+    },
+    name: "k8s-worker-1",
+    status: "ERROR",
+  },
+  // A node of an older cluster, whose image names no Kubernetes version.
+  {
+    ageMs: 90 * DAY_MS,
+    external_ips: [],
+    flavor: flavor(LARGE),
+    id: "66666666-6666-4666-8666-666666666666",
+    internal_ips: [ip("198.51.100.20")],
+    metadata: { magnum_cluster_id: "dddd2222-0000-4000-8000-000000000002" },
+    name: "legacy-node-1",
+    status: "SHUTOFF",
+  },
 ];
 
 const primary = (input: {
@@ -188,6 +213,98 @@ export const FAKE_IPS = [
   },
 ];
 
+/** The volumes, oldest first. web-1-vol-0 is web-1's boot disk. */
+export const FAKE_VOLUMES = [
+  {
+    ageMs: 10 * DAY_MS,
+    attachments: [],
+    availability_zone: "NCP-BKK",
+    bootable: "false",
+    id: "vvvv2222-0000-4000-8000-000000000002",
+    name: "backups",
+    size: 100,
+    status: "available",
+    volume_type: "Standard_SSD",
+  },
+  {
+    ageMs: 3 * DAY_MS,
+    attachments: [
+      { device: "/dev/vda", serverId: "22222222-2222-4222-8222-222222222222" },
+    ],
+    availability_zone: "NCP-BKK",
+    bootable: "true",
+    id: "vvvv1111-0000-4000-8000-000000000001",
+    name: "web-1-vol-0",
+    size: 10,
+    status: "in-use",
+    volume_type: "Standard_SSD",
+  },
+  {
+    ageMs: MINUTE_MS,
+    attachments: [],
+    availability_zone: "NCP-BKK",
+    bootable: "false",
+    id: "vvvv3333-0000-4000-8000-000000000003",
+    name: "",
+    size: 20,
+    status: "creating",
+    volume_type: null,
+  },
+];
+
+const DEFAULT_SG_ID = "ssss1111-0000-4000-8000-000000000001";
+
+const sgRule = (input: {
+  id: string;
+  direction: "ingress" | "egress";
+  ethertype?: string;
+  protocol?: string;
+  port?: number;
+  remoteIp?: string;
+  remoteGroup?: string;
+}) => ({
+  description: null,
+  direction: input.direction,
+  ethertype: input.ethertype ?? "IPv4",
+  id: input.id,
+  port_range_max: input.port ?? null,
+  port_range_min: input.port ?? null,
+  protocol: input.protocol ?? "any",
+  remote_group_id: input.remoteGroup ?? null,
+  remote_ip_prefix: input.remoteIp ?? null,
+  security_group_id: "",
+});
+
+/** The security groups, oldest first. Neutron sends their times without a zone. */
+export const FAKE_SECURITY_GROUPS = [
+  {
+    ageMs: 30 * DAY_MS,
+    description: "Default security group",
+    id: DEFAULT_SG_ID,
+    name: "default",
+    security_group_rules: [
+      sgRule({ direction: "ingress", id: "r1", remoteGroup: DEFAULT_SG_ID }),
+      sgRule({ direction: "egress", id: "r2" }),
+      sgRule({ direction: "egress", ethertype: "IPv6", id: "r3" }),
+    ],
+  },
+  {
+    ageMs: 2 * DAY_MS,
+    description: "",
+    id: "ssss2222-0000-4000-8000-000000000002",
+    name: "web",
+    security_group_rules: [
+      sgRule({
+        direction: "ingress",
+        id: "r4",
+        port: 443,
+        protocol: "tcp",
+        remoteIp: "0.0.0.0/0",
+      }),
+    ],
+  },
+];
+
 const createdAt = <T extends { ageMs: number }>({ ageMs, ...rest }: T) => ({
   ...rest,
   created_at: ago(ageMs),
@@ -239,26 +356,94 @@ const routes = new Map<string, (ask: Ask) => object>([
     }),
   ],
   [
+    "/api/v4/volumes",
+    ({ mine }) => ({ volumes: mine ? FAKE_VOLUMES.map(createdAt) : [] }),
+  ],
+  [
+    "/api/v4/security_groups",
+    ({ mine }) => ({
+      security_groups: mine
+        ? FAKE_SECURITY_GROUPS.map(({ ageMs, ...group }) => ({
+            ...group,
+            created_at: ago(ageMs).replace("Z", ""),
+          }))
+        : [],
+    }),
+  ],
+  [
     "/api/v4/external_ips",
     ({ mine }) => ({ external_ips: mine ? FAKE_IPS : [], price: 0.18 }),
   ],
 ]);
 
-export const FAKE_FLAVORS = [LARGE, XLARGE, "dsa.large.v2"];
+const machineType = (input: {
+  name: string;
+  vcpus: number;
+  ram: number;
+  type: string;
+  resource?: string;
+}) => ({
+  cpu_policy: "shared",
+  disk: 0,
+  id: `mt-${input.name}`,
+  ...input,
+});
+
+/** The machine types, in no order, like the Space API. dsa is for databases. */
+export const FAKE_MACHINE_TYPES = [
+  machineType({ name: LARGE, ram: 4096, type: "Shared-Core", vcpus: 2 }),
+  machineType({ name: XLARGE, ram: 8192, type: "Shared-Core", vcpus: 4 }),
+  machineType({
+    name: "dsa.large.v2",
+    ram: 4096,
+    resource: "dbaas",
+    type: "Shared-core",
+    vcpus: 2,
+  }),
+  machineType({
+    name: "nsa.small.v2",
+    ram: 1536,
+    type: "Shared-core",
+    vcpus: 1,
+  }),
+];
+export const FAKE_FLAVORS = FAKE_MACHINE_TYPES.map((type) => type.name);
 export const FAKE_PUBLIC_IMAGES = [
   "prd-ubuntu-24-v260612",
   "prd-ubuntu-22-v260610",
 ];
 export const FAKE_OWNED_IMAGES = ["web-golden"];
-export const FAKE_NETWORKS = ["default", "Standard_Public_IP_Pool_BKK"];
+/** The networks: the project's VPC network, then a shared pool of external IPs. */
+export const FAKE_NETWORK_LIST = [
+  {
+    availability_zone: "NCP-BKK",
+    created_at: ago(20 * DAY_MS),
+    external_network: false,
+    id: "nnnn1111-0000-4000-8000-000000000001",
+    name: "default",
+    shared: false,
+    status: "ACTIVE",
+  },
+  // Neutron sends this one without a zone, and its time without one too.
+  {
+    created_at: ago(400 * DAY_MS).replace("Z", ""),
+    external_network: true,
+    id: "nnnn2222-0000-4000-8000-000000000002",
+    name: "Standard_Public_IP_Pool_BKK",
+    shared: true,
+    status: "ACTIVE",
+  },
+];
+export const FAKE_NETWORKS = FAKE_NETWORK_LIST.map((network) => network.name);
 
 const named = (list: readonly string[]) => list.map((name) => ({ name }));
 
 routes.set("/api/v4/machine_types", () => ({
-  machine_types: named(FAKE_FLAVORS),
+  machine_types: FAKE_MACHINE_TYPES,
 }));
+// Every project sees the shared pool.
 routes.set("/api/v4/networks", ({ mine }) => ({
-  networks: named(mine ? FAKE_NETWORKS : FAKE_NETWORKS.slice(1)),
+  networks: mine ? FAKE_NETWORK_LIST : FAKE_NETWORK_LIST.slice(1),
 }));
 routes.set("/api/v4/public_images", () => ({
   public_images: [{ images: named(FAKE_PUBLIC_IMAGES), name: "Ubuntu" }],

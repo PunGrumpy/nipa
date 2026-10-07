@@ -49,6 +49,14 @@ export const formatAge = (ms: number): string => {
   return `${Math.round(age)}ms`;
 };
 
+/** 4096 MB reads as 4 GB, and 1536 MB as 1.5 GB. */
+export const gigabytes = (mb: number): string =>
+  `${Number((mb / 1024).toFixed(1))} GB`;
+
+/** 1 profile, 2 profiles. */
+export const plural = (count: number, noun: string): string =>
+  `${count} ${noun}${count === 1 ? "" : "s"}`;
+
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
   const hours = Math.floor(minutes / 60);
