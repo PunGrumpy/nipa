@@ -38,6 +38,14 @@ export const inspectSubcommand = defineCommand({
   summary: "Show a server's flavor, addresses, volumes and security groups",
 });
 
+export const historySubcommand = defineCommand({
+  aliases: ["events"],
+  args: [serverArg],
+  flags: [jsonFlag],
+  name: "history",
+  summary: "List what was done to a server, newest first",
+});
+
 export const startSubcommand = defineCommand({
   args: [serverArg],
   flags: [...waitFlags],
@@ -64,7 +72,7 @@ export const serverCommand = defineGroup({
   aliases: ["servers"],
   default: "ls",
   description:
-    "Lists, inspects, starts, stops and restarts the servers in your project. Name a server by its name or ID. nipa calls the Space API, the one the Nipa Cloud Space portal uses, so you don't need the OpenStack client. start, stop and restart wait until the server finishes, for 5 minutes or `--timeout`. `--no-wait` returns once the Space API takes the action.",
+    "Lists, inspects, starts, stops and restarts the servers in your project, and shows what was done to a server. Name a server by its name or ID. nipa calls the Space API, the one the Nipa Cloud Space portal uses, so you don't need the OpenStack client. start, stop and restart wait until the server finishes, for 5 minutes or `--timeout`. `--no-wait` returns once the Space API takes the action.",
   examples: [
     {
       command: "nipa server ls",
@@ -73,6 +81,10 @@ export const serverCommand = defineGroup({
     {
       command: "nipa server inspect web-1",
       description: "Show web-1's addresses, volumes and security groups",
+    },
+    {
+      command: "nipa server history web-1",
+      description: "List web-1's actions, such as a create that failed",
     },
     {
       command: "nipa server stop web-1 --yes",
@@ -91,9 +103,11 @@ export const serverCommand = defineGroup({
   subcommands: [
     lsSubcommand,
     inspectSubcommand,
+    historySubcommand,
     startSubcommand,
     stopSubcommand,
     restartSubcommand,
   ],
-  summary: "List, inspect, start, stop and restart your servers",
+  summary:
+    "List, inspect, start, stop and restart your servers, and read their history",
 });

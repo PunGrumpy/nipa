@@ -18,6 +18,7 @@ nipa has 23 commands. Without a command, it prints help.
 | `nipa unlink` | Deletes the closest `.nipa/project.json`, at or above this folder |
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. A server that a Kubernetes cluster made shows its role after its name, such as `(Kubernetes master)`. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
 | `nipa server inspect <server> [--json]` | Shows one server's ID, status, flavor with its vCPUs and RAM, zone, addresses, volumes, security groups and age, by name or ID. In a pipe, it prints the server's ID |
+| `nipa server history <server> [--json]` | Lists the actions on a server, newest first, with their age, the user who asked, the result and the request ID. A failed action's result is `Error`. In a pipe, it prints one request ID per line. `nipa server events` is the same command |
 | `nipa server start <server> [options]` | Starts a stopped server, then waits until it's active |
 | `nipa server stop <server> [options]` | Stops a server after you confirm, then waits until it's shut off |
 | `nipa server restart <server> [options]` | Restarts a running server after you confirm, then waits until it's active again. `nipa server reboot` is the same command |
@@ -51,7 +52,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `server history`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -183,6 +184,41 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 ```
 
 `ramMb`, `vcpus`, `zone`, `attachedAs`, a volume's `name` and its `type` are `null` when the Space API doesn't send them. `nipa server inspect --json` prints the same fields for one server, under `server` instead of `servers`.
+
+`nipa server history --json` prints, or `null` when the server has none:
+
+```json
+{
+  "lastAction": {
+    "action": "create",
+    "remark": "Error",
+    "requestId": "req-1ab8…",
+    "startedAt": "2030-01-01T00:00:00.000000Z",
+    "user": "Ann Example"
+  },
+  "locked": false,
+  "taskState": null
+}
+```
+
+`nipa server history --json` prints the profile, the project, the server's ID and name, and its actions, newest first. `action` is Nova's action, such as `create`, `stop` or `reboot`. `remark` is `Error` when the action failed, and `null` otherwise. `requestId` is the ID that Nova logs the action under. `user` is `null` when the Space API doesn't send it:
+
+```json
+{
+  "actions": [
+    {
+      "action": "create",
+      "remark": "Error",
+      "requestId": "req-1ab8…",
+      "startedAt": "2030-01-01T00:00:00.000000Z",
+      "user": "Ann Example"
+    }
+  ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "server": { "id": "9abc…", "name": "web-1" }
+}
+```
 
 `nipa flavor ls --json` prints the profile, the project and the flavors a server can have, smallest first. `type` is the portal's category, such as `Shared-core` or `Memory Intensive`, and `cpuPolicy` is `shared` or `dedicated`. Both are `null` when the Space API doesn't send them:
 

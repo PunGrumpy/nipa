@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { z } from "zod";
 
+import { utcTime } from "./api";
 import type { Space } from "./api";
 
 const IpSchema = z.object({ address: z.string() });
@@ -198,4 +199,53 @@ export const waitForServer = (input: {
     return poll();
   };
   return poll();
+};
+
+// Nova's instance actions. remark is "Error" when the action failed, and
+// null otherwise. started_at is UTC without a zone.
+const ActionSchema = z.object({
+  action: z.string(),
+  id: z.string(),
+  remark: z.string().nullish(),
+  started_at: z.string(),
+  user_name: z.string().nullish(),
+});
+
+const ActionsSchema = z.object({ action_histories: z.array(ActionSchema) });
+
+/** Something done to a server, such as create, stop or reboot. */
+export interface ServerAction {
+  /** Nova's action, such as create, start, stop or reboot. */
+  action: string;
+  /** Nova's result, "Error" when the action failed, or null. */
+  remark: string | null;
+  /** The request ID that Nova logs the action under, such as req-1ab8…. */
+  requestId: string;
+  startedAt: string;
+  /** The name of the person who asked for it. */
+  user: string | null;
+}
+
+export const actionFailed = (action: ServerAction): boolean =>
+  action.remark === "Error";
+
+/** What was done to the server, newest first. */
+export const listServerActions = async (
+  space: Space,
+  id: string
+): Promise<ServerAction[]> => {
+  const body = await space.get(
+    `/v4/instances/${id}/action_histories`,
+    ActionsSchema
+  );
+  const actions = body.action_histories.map((action) => ({
+    action: action.action,
+    remark: action.remark ?? null,
+    requestId: action.id,
+    startedAt: utcTime(action.started_at),
+    user: action.user_name ?? null,
+  }));
+  return actions.toSorted(
+    (a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)
+  );
 };

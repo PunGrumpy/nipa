@@ -33,7 +33,7 @@ nipa os volume list
 nipa tf plan
 ```
 
-`nipa server` lists, inspects, starts, stops and restarts your servers. `nipa flavor`, `volume`, `network`, `sg`, `ip`, `lb`, `k8s` and `db` list the rest of your project through the API the Space portal calls, which works where `openstack` can't reach a service, such as Kubernetes on production. `nipa quota` shows how much of each quota your project uses. `nipa open server web-1` opens a server's page in the Space portal. `nipa os` runs `openstack` and `nipa tf` runs `terraform`. Run `nipa --help` for every command.
+`nipa server` lists, inspects, starts, stops and restarts your servers, and shows a server's history. `nipa flavor`, `volume`, `network`, `sg`, `ip`, `lb`, `k8s` and `db` list the rest of your project through the API the Space portal calls, which works where `openstack` can't reach a service, such as Kubernetes on production. `nipa quota` shows how much of each quota your project uses. `nipa open server web-1` opens a server's page in the Space portal. `nipa os` runs `openstack` and `nipa tf` runs `terraform`. Run `nipa --help` for every command.
 
 To use one profile and project in a folder, such as your Terraform code, run `nipa -P staging link my-project` there.
 

@@ -751,6 +751,55 @@ describe("server inspect", () => {
   });
 });
 
+describe("server history", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("lists the actions newest first, and their request IDs to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["server", "history", "web-1"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Actions on web-1 in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(
+      /Age\s+Action\s+User\s+Result\s+Request ID\n\s+1d\s+start\s+Ann Example\s+-\s+req-web1-start\n\s+2d\s+stop\s+Ann Example\s+-\s+req-web1-stop\n\s+3d\s+create\s+Ann Example\s+-\s+req-22222222-create\n/u
+    );
+    expect(stdout).toBe("req-web1-start\nreq-web1-stop\nreq-22222222-create\n");
+  });
+
+  test("events is the same command, and a failed action says Error", async () => {
+    const { stderr } = await run(["server", "events", "k8s-worker-1"]);
+    expect(stderr).toMatch(
+      /create\s+Ann Example\s+Error\s+req-55555555-create/u
+    );
+  });
+
+  test("--json prints the server and its actions", async () => {
+    const { code, stdout } = await run([
+      "server",
+      "history",
+      "k8s-worker-1",
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    const { actions, profile, server } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(server).toEqual({
+      id: "55555555-5555-4555-8555-555555555555",
+      name: "k8s-worker-1",
+    });
+    expect(actions).toEqual([
+      {
+        action: "create",
+        remark: "Error",
+        requestId: "req-55555555-create",
+        startedAt: expect.stringMatching(/Z$/u),
+        user: "Ann Example",
+      },
+    ]);
+  });
+});
+
 describe("server start, stop and restart", () => {
   beforeAll(async () => {
     await freshDir();
