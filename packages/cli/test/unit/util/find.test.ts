@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import type { Space } from "../../../src/util/api";
 import { findServer } from "../../../src/util/find";
+import { fakeSpace } from "../../helpers";
 
 const instance = (id: string, name: string) => ({
   created: "2030-01-01T00:00:00Z",
@@ -13,7 +13,7 @@ const instance = (id: string, name: string) => ({
   status: "ACTIVE",
 });
 
-const space: Space = {
+const space = fakeSpace({
   get: (_path, schema) =>
     Promise.resolve(
       schema.parse({
@@ -24,9 +24,7 @@ const space: Space = {
         ],
       })
     ),
-  getLines: () => Promise.resolve([]),
-  post: () => Promise.resolve(),
-};
+});
 
 const find = (ref: string) => findServer({ projectName: "Alpha", ref, space });
 

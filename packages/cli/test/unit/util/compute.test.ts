@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import type { Space } from "../../../src/util/api";
 import { waitForServer } from "../../../src/util/compute";
 import type { ServerState } from "../../../src/util/compute";
+import { fakeSpace } from "../../helpers";
 
 const statesSpace = (states: readonly ServerState[]) => {
   const asked: string[] = [];
-  const space: Space = {
+  const space = fakeSpace({
     get: (path, schema) => {
       asked.push(path);
       const state = states[Math.min(asked.length, states.length) - 1];
@@ -16,9 +16,7 @@ const statesSpace = (states: readonly ServerState[]) => {
         })
       );
     },
-    getLines: () => Promise.resolve([]),
-    post: () => Promise.resolve(),
-  };
+  });
   return { asked, space };
 };
 
