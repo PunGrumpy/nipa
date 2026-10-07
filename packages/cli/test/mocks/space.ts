@@ -252,6 +252,59 @@ export const FAKE_VOLUMES = [
   },
 ];
 
+const DEFAULT_SG_ID = "ssss1111-0000-4000-8000-000000000001";
+
+const sgRule = (input: {
+  id: string;
+  direction: "ingress" | "egress";
+  ethertype?: string;
+  protocol?: string;
+  port?: number;
+  remoteIp?: string;
+  remoteGroup?: string;
+}) => ({
+  description: null,
+  direction: input.direction,
+  ethertype: input.ethertype ?? "IPv4",
+  id: input.id,
+  port_range_max: input.port ?? null,
+  port_range_min: input.port ?? null,
+  protocol: input.protocol ?? "any",
+  remote_group_id: input.remoteGroup ?? null,
+  remote_ip_prefix: input.remoteIp ?? null,
+  security_group_id: "",
+});
+
+/** The security groups, oldest first. Neutron sends their times without a zone. */
+export const FAKE_SECURITY_GROUPS = [
+  {
+    ageMs: 30 * DAY_MS,
+    description: "Default security group",
+    id: DEFAULT_SG_ID,
+    name: "default",
+    security_group_rules: [
+      sgRule({ direction: "ingress", id: "r1", remoteGroup: DEFAULT_SG_ID }),
+      sgRule({ direction: "egress", id: "r2" }),
+      sgRule({ direction: "egress", ethertype: "IPv6", id: "r3" }),
+    ],
+  },
+  {
+    ageMs: 2 * DAY_MS,
+    description: "",
+    id: "ssss2222-0000-4000-8000-000000000002",
+    name: "web",
+    security_group_rules: [
+      sgRule({
+        direction: "ingress",
+        id: "r4",
+        port: 443,
+        protocol: "tcp",
+        remoteIp: "0.0.0.0/0",
+      }),
+    ],
+  },
+];
+
 const createdAt = <T extends { ageMs: number }>({ ageMs, ...rest }: T) => ({
   ...rest,
   created_at: ago(ageMs),
@@ -305,6 +358,17 @@ const routes = new Map<string, (ask: Ask) => object>([
   [
     "/api/v4/volumes",
     ({ mine }) => ({ volumes: mine ? FAKE_VOLUMES.map(createdAt) : [] }),
+  ],
+  [
+    "/api/v4/security_groups",
+    ({ mine }) => ({
+      security_groups: mine
+        ? FAKE_SECURITY_GROUPS.map(({ ageMs, ...group }) => ({
+            ...group,
+            created_at: ago(ageMs).replace("Z", ""),
+          }))
+        : [],
+    }),
   ],
   [
     "/api/v4/external_ips",

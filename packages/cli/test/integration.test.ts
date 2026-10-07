@@ -1172,6 +1172,58 @@ describe("network ls", () => {
   });
 });
 
+describe("sg ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's security groups with their rules", async () => {
+    const { code, stdout } = await run(["sg", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { project, securityGroups } = JSON.parse(stdout);
+    expect(project.name).toBe("Alpha");
+    expect(securityGroups.map((g: { name: string }) => g.name)).toEqual([
+      "web",
+      "default",
+    ]);
+    expect(securityGroups[0]).toMatchObject({
+      description: null,
+      rules: [
+        {
+          direction: "ingress",
+          portMax: 443,
+          portMin: 443,
+          protocol: "tcp",
+          remoteGroupId: null,
+          remoteIpPrefix: "0.0.0.0/0",
+        },
+      ],
+    });
+  });
+
+  test("prints a table on stderr and one ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["security-groups"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Security groups in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Name\s+Inbound\s+Outbound\s+Age\s+Description/u);
+    expect(stderr).toMatch(/web\s+1\s+0\s+2d\s+-/u);
+    expect(stderr).toMatch(/default\s+1\s+2\s+30d\s+Default security group/u);
+    expect(stdout.trim().split("\n")).toEqual([
+      "ssss2222-0000-4000-8000-000000000002",
+      "ssss1111-0000-4000-8000-000000000001",
+    ]);
+  });
+
+  test("a project without security groups says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["sg"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No security groups in Beta");
+    expect(stdout).toBe("");
+  });
+});
+
 describe("k8s ls", () => {
   beforeAll(async () => {
     await freshDir();
