@@ -15,4 +15,6 @@ export const doctorCommand = defineCommand({
   flags: [jsonFlag],
   name: "doctor",
   summary: "Check your setup and say what to fix",
+  // The Update check already reports a new version.
+  updateNotice: false,
 });

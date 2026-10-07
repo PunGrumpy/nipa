@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { doctorCommand } from "../../../src/commands/doctor/command";
 import { fail, pass, runChecks, tally, warn } from "../../../src/util/doctor";
 import type { Check, CheckReport } from "../../../src/util/doctor";
 import { NetworkError } from "../../../src/util/http";
@@ -155,5 +156,11 @@ describe("tally", () => {
     expect(tally(["fail", "warn", "warn", "pass"])).toBe(
       "1 passed, 2 warnings, 1 failed"
     );
+  });
+});
+
+describe("doctorCommand", () => {
+  test("skips the update notice, which would repeat the Update check", () => {
+    expect(doctorCommand.updateNotice).toBe(false);
   });
 });
