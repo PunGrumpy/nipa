@@ -295,7 +295,7 @@ describe("bash", () => {
       "web-2",
       "web-1",
     ]);
-    expect(await bashComplete("nipa", "server", "history", "web")).toEqual([
+    expect(await bashComplete("nipa", "server", "logs", "web")).toEqual([
       "web-2",
       "web-1",
     ]);
@@ -329,6 +329,7 @@ describe("bash", () => {
       "ls",
       "inspect",
       "history",
+      "logs",
       "start",
       "stop",
       "restart",
@@ -336,6 +337,9 @@ describe("bash", () => {
     expect(
       await bashComplete("nipa", "server", "stop", "web-1", "--y")
     ).toEqual(["--yes"]);
+    expect(
+      await bashComplete("nipa", "server", "logs", "web-1", "--t")
+    ).toEqual(["--tail"]);
     expect(await bashComplete("nipa", "servers", "ls", "--j")).toEqual([
       "--json",
     ]);

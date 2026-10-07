@@ -538,7 +538,18 @@ const ACTIONS = new Map([
 const DB_1_ID = "11111111-1111-4111-8111-111111111111";
 
 const INSTANCE =
-  /^\/api\/v4\/instances\/(?<id>[^/]+)(?:\/action\/(?<action>[a-z_]+)|\/(?<view>action_histories))?$/u;
+  /^\/api\/v4\/instances\/(?<id>[^/]+)(?:\/action\/(?<action>[a-z_]+)|\/(?<view>logs|action_histories))?$/u;
+
+/** web-1's console log. Every server that booted has this one. */
+export const FAKE_CONSOLE_LOG = [
+  "[    0.000000] Linux version 6.8.0-45-generic",
+  "[    4.120511] cloud-init[812]: Cloud-init v. 24.1 running 'init'",
+  "[   12.400233] cloud-init[812]: ci-info: no authorized SSH keys fingerprints found",
+  "[  OK  ] Reached target cloud-init.target - Cloud-init target.",
+  "web-1 login: ",
+]
+  .map((line) => `${line}\n`)
+  .join("");
 
 const action = (input: {
   action: string;
@@ -573,8 +584,20 @@ const actionsOf = (id: string) => {
   ];
 };
 
-const handleView = (input: { id: string }): Response =>
-  Response.json({ action_histories: actionsOf(input.id) });
+const handleView = (input: {
+  id: string;
+  status: string;
+  view: string;
+}): Response => {
+  if (input.view === "action_histories") {
+    return Response.json({ action_histories: actionsOf(input.id) });
+  }
+  // A server that never booted has no VM to read a console log from.
+  if (input.status === "ERROR") {
+    return spaceFault(406, "Something went wrong, please try again later.");
+  }
+  return Response.json({ logs: FAKE_CONSOLE_LOG });
+};
 
 const handleInstance = (input: {
   req: Request;
@@ -589,7 +612,7 @@ const handleInstance = (input: {
     return spaceFault(404, `Instance ${id} could not be found.`);
   }
   if (view !== undefined && input.req.method === "GET") {
-    return handleView({ id });
+    return handleView({ id, status, view });
   }
   if (verb === undefined && input.req.method === "GET") {
     if (id === DB_1_ID && status !== "SHUTOFF") {

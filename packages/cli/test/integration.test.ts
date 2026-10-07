@@ -35,6 +35,7 @@ import {
 import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import {
+  FAKE_CONSOLE_LOG,
   FAKE_DATABASES,
   FAKE_IPS,
   FAKE_LOAD_BALANCERS,
@@ -748,6 +749,75 @@ describe("server inspect", () => {
   test("a missing server argument exits 2", async () => {
     const { code } = await run(["server", "inspect"]);
     expect(code).toBe(2);
+  });
+});
+
+describe("server logs", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("prints the console log on stdout as it is", async () => {
+    const { code, stderr, stdout } = await run(["server", "logs", "web-1"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(FAKE_CONSOLE_LOG);
+    expect(stderr).toMatch(/> Console log of web-1 in Alpha \[\d+(?:ms|s)\]/u);
+  });
+
+  test("--tail keeps the last lines, and -n is the same", async () => {
+    const last2 =
+      "[  OK  ] Reached target cloud-init.target - Cloud-init target.\nweb-1 login: \n";
+    const long = await run(["server", "logs", "web-1", "--tail", "2"]);
+    const short = await run(["server", "logs", "web-1", "-n", "2"]);
+    expect(long.stdout).toBe(last2);
+    expect(short.stdout).toBe(last2);
+  });
+
+  test("--json prints the server and its log", async () => {
+    const { code, stdout } = await run([
+      "server",
+      "logs",
+      "web-1",
+      "-n",
+      "1",
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      logs: "web-1 login: \n",
+      profile: "prod",
+      project: expect.objectContaining({ name: "Alpha" }),
+      server: { id: "22222222-2222-4222-8222-222222222222", name: "web-1" },
+    });
+  });
+
+  test("a server that never booted has none, and points to history", async () => {
+    const { code, stderr, stdout } = await run([
+      "server",
+      "logs",
+      "k8s-worker-1",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toContain("Error: k8s-worker-1 has no console log yet");
+    expect(stderr).toContain(
+      "A server has one once it boots, so this one most likely never booted. Run `nipa server history k8s-worker-1` to see what failed."
+    );
+    expect(stderr).not.toContain("Something went wrong");
+  });
+
+  test("--tail takes a whole number above 0", async () => {
+    const { code, stderr } = await run(["server", "logs", "web-1", "-n", "0"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain('"0" isn\'t a number of lines');
+    expect(stderr).toContain("such as `--tail 50`");
+  });
+
+  test("an unknown server points to server ls", async () => {
+    const { code, stderr } = await run(["server", "logs", "nope"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain('no server named or with ID "nope" in Alpha');
   });
 });
 

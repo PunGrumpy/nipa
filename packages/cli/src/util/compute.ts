@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { z } from "zod";
 
-import { utcTime } from "./api";
+import { ApiError, utcTime } from "./api";
 import type { Space } from "./api";
 
 const IpSchema = z.object({ address: z.string() });
@@ -199,6 +199,28 @@ export const waitForServer = (input: {
     return poll();
   };
   return poll();
+};
+
+const ConsoleLogSchema = z.object({ logs: z.string() });
+
+/** A server's console log, or none when the server has no VM to read it from. */
+export type ConsoleLog = { kind: "log"; text: string } | { kind: "none" };
+
+// The Space API sends the last 100 lines of Nova's console log, and answers
+// 406 for a server whose VM never started, such as one that failed to build.
+export const getConsoleLog = async (
+  space: Space,
+  id: string
+): Promise<ConsoleLog> => {
+  try {
+    const body = await space.get(`/v4/instances/${id}/logs`, ConsoleLogSchema);
+    return { kind: "log", text: body.logs };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 406) {
+      return { kind: "none" };
+    }
+    throw error;
+  }
 };
 
 // Nova's instance actions. remark is "Error" when the action failed, and

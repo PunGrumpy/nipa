@@ -383,9 +383,10 @@ describe("help and version, on the real table", () => {
   test("groups and subcommands", async () => {
     const server = await text(["help", "server"]);
     expect(server).toContain(
-      "Usage: nipa server [ls|inspect|history|start|stop|restart]"
+      "Usage: nipa server [ls|inspect|history|logs|start|stop|restart]"
     );
     expect(server).toContain("stop <server> [options]");
+    expect(server).toContain("-n, --tail <n>");
     expect(server).toContain("--timeout <duration>");
     expect(await text(["server", "--help"])).toBe(server);
     expect(await text(["server", "nope", "--help"])).toBe(server);

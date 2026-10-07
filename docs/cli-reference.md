@@ -19,6 +19,7 @@ nipa has 23 commands. Without a command, it prints help.
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. A server that a Kubernetes cluster made shows its role after its name, such as `(Kubernetes master)`. In a pipe, it prints one server ID per line. `nipa server`, `nipa servers` and `nipa server list` do the same |
 | `nipa server inspect <server> [--json]` | Shows one server's ID, status, flavor with its vCPUs and RAM, zone, addresses, volumes, security groups and age, by name or ID. In a pipe, it prints the server's ID |
 | `nipa server history <server> [--json]` | Lists the actions on a server, newest first, with their age, the user who asked, the result and the request ID. A failed action's result is `Error`. In a pipe, it prints one request ID per line. `nipa server events` is the same command |
+| `nipa server logs <server> [options]` | Prints a server's console log on stdout as it is, cloud-init output included. The Space API sends the last 100 lines, and `--tail` keeps fewer. A server that never booted has no console log, so nipa exits with code `1` and names `nipa server history` |
 | `nipa server start <server> [options]` | Starts a stopped server, then waits until it's active |
 | `nipa server stop <server> [options]` | Stops a server after you confirm, then waits until it's shut off |
 | `nipa server restart <server> [options]` | Restarts a running server after you confirm, then waits until it's active again. `nipa server reboot` is the same command |
@@ -52,7 +53,11 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
+<<<<<<< HEAD
 | `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `server history`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
+=======
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
+>>>>>>> aa8bc8e (feat: print a server's console log with nipa server logs)
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -63,6 +68,7 @@ These options belong to one command:
 | `--install` | `completion` | Saves the script where the shell loads it, instead of printing it |
 | `-y, --yes` | `profile rm`, `server stop`, `server restart` | Skips the confirmation. Without a terminal, these commands need it |
 | `--no-wait` | `server start`, `server stop`, `server restart` | Returns once the Space API takes the action, without waiting for the server |
+| `-n, --tail <n>` | `server logs` | Prints only the last `n` lines. Without it, nipa prints every line the Space API sends |
 | `--timeout <duration>` | `server start`, `server stop`, `server restart` | How long to wait for the server, as a number and `s`, `m` or `h`, such as `90s` or `10m`. The default is `5m`. It can't go with `--no-wait` |
 
 ## Global options
@@ -214,6 +220,17 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "user": "Ann Example"
     }
   ],
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "server": { "id": "9abc…", "name": "web-1" }
+}
+```
+
+`nipa server logs --json` prints the profile, the project, the server's ID and name, and `logs`, the console log as one string, after `--tail`:
+
+```json
+{
+  "logs": "[  OK  ] Reached target cloud-init.target - Cloud-init target.\nweb-1 login: \n",
   "profile": "prod",
   "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
   "server": { "id": "9abc…", "name": "web-1" }
