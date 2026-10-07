@@ -1257,12 +1257,12 @@ describe("quota ls", () => {
       "> NOTE: 1 quota is at the limit, and 2 are near it."
     );
     expect(stdout.trim().split("\n")).toEqual([
-      "compute/instances\t10\t10",
-      "compute/cores\t18\t20",
-      "compute/ram\t45056\t51200",
-      "network/port\t11\tunlimited",
-      "objectStorage/storage_size\t1755585\tunlimited",
-      "fileStorage/shares\t1\t5",
+      "compute/instances\t10\t10\t-",
+      "compute/cores\t18\t20\t-",
+      "compute/ram\t45056\t51200\tMB",
+      "network/port\t11\tunlimited\t-",
+      "objectStorage/storage_size\t1755585\tunlimited\tBytes",
+      "fileStorage/shares\t1\t5\t-",
     ]);
   });
 

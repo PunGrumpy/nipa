@@ -226,8 +226,15 @@ export const summarize = (quotas: readonly Quota[]): string | null => {
   return null;
 };
 
-/** What a pipe gets: group/name, used and limit, tab-separated. */
+/**
+ * What a pipe gets: group/name, used, limit and unit, tab-separated. The unit
+ * is the Space API's, such as MB, and - for a count, so a script can tell
+ * 45056 MB of RAM from 45056 bytes of object storage.
+ */
 export const pipeLine = (quota: Quota): string =>
-  [`${quota.group}/${quota.name}`, quota.used, quota.limit ?? "unlimited"].join(
-    "\t"
-  );
+  [
+    `${quota.group}/${quota.name}`,
+    quota.used,
+    quota.limit ?? "unlimited",
+    quota.unit ?? "-",
+  ].join("\t");
