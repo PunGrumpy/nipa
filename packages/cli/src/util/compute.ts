@@ -7,8 +7,10 @@ import type { Space } from "./api";
 const IpSchema = z.object({ address: z.string() });
 
 // Magnum tags each server it makes for a cluster with the cluster and the
-// node's role. The portal marks those servers the same way.
+// node's role. The portal marks those servers the same way. kube_version
+// comes from the node's image.
 const MetadataSchema = z.object({
+  kube_version: z.string().optional(),
   magnum_cluster_id: z.string().optional(),
   magnum_role: z.string().optional(),
 });
@@ -55,6 +57,8 @@ export interface KubernetesNode {
   clusterId: string;
   /** Magnum's role for the node, such as master or worker. */
   role: string | null;
+  /** The Kubernetes version of the node's image, such as 1.34.9. */
+  version: string | null;
 }
 
 export interface Volume {
@@ -99,6 +103,7 @@ const toKubernetesNode = (
     : {
         clusterId: metadata.magnum_cluster_id,
         role: metadata.magnum_role ?? null,
+        version: metadata.kube_version ?? null,
       };
 
 const toVolume = (volume: z.infer<typeof VolumeSchema>): Volume => ({

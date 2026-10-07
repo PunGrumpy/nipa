@@ -77,6 +77,31 @@ export const FAKE_SERVERS = [
     name: "k8s-control-plane-1",
     status: "ACTIVE",
   },
+  {
+    ageMs: 61 * DAY_MS,
+    external_ips: [],
+    flavor: flavor(LARGE),
+    id: "55555555-5555-4555-8555-555555555555",
+    internal_ips: [ip("198.51.100.10")],
+    metadata: {
+      kube_version: "1.34.9",
+      magnum_cluster_id: "dddd1111-0000-4000-8000-000000000001",
+      magnum_role: "worker",
+    },
+    name: "k8s-worker-1",
+    status: "ERROR",
+  },
+  // A node of an older cluster, whose image names no Kubernetes version.
+  {
+    ageMs: 90 * DAY_MS,
+    external_ips: [],
+    flavor: flavor(LARGE),
+    id: "66666666-6666-4666-8666-666666666666",
+    internal_ips: [ip("198.51.100.20")],
+    metadata: { magnum_cluster_id: "dddd2222-0000-4000-8000-000000000002" },
+    name: "legacy-node-1",
+    status: "SHUTOFF",
+  },
 ];
 
 const primary = (input: {

@@ -553,6 +553,7 @@ describe("server ls", () => {
     expect(servers[3].kubernetes).toEqual({
       clusterId: "dddd1111-0000-4000-8000-000000000001",
       role: "master",
+      version: "1.34.9",
     });
     expect(serverLists()).toBe(before + 1);
   });
@@ -1061,6 +1062,55 @@ describe("saved passwords and session expiry", () => {
   test("a session with more time left gets no note", async () => {
     const { stderr } = await run(["env"]);
     expect(stderr).not.toContain("session expires");
+  });
+});
+
+describe("k8s ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists the project's clusters with their nodes", async () => {
+    const { code, stdout } = await run(["k8s", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { clusters, profile, project } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(clusters).toHaveLength(2);
+    expect(clusters[0]).toMatchObject({
+      id: "dddd1111-0000-4000-8000-000000000001",
+      nodes: [
+        { name: "k8s-control-plane-1", role: "master", status: "ACTIVE" },
+        { name: "k8s-worker-1", role: "worker", status: "ERROR" },
+      ],
+      version: "1.34.9",
+    });
+  });
+
+  test("prints a table on stderr and one cluster ID per line to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["coe"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Kubernetes clusters in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Cluster\s+Version\s+Nodes\s+Active\s+Age/u);
+    expect(stderr).toMatch(
+      /dddd1111-0000-4000-8000-000000000001\s+1\.34\.9\s+1 master, 1 worker\s+1 of 2\s+61d/u
+    );
+    expect(stderr).toMatch(
+      /dddd2222-0000-4000-8000-000000000002\s+-\s+1 node\s+0 of 1\s+90d/u
+    );
+    expect(stdout.trim().split("\n")).toEqual([
+      "dddd1111-0000-4000-8000-000000000001",
+      "dddd2222-0000-4000-8000-000000000002",
+    ]);
+  });
+
+  test("a project without clusters says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["kubernetes", "ls"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No Kubernetes clusters in Beta");
+    expect(stdout).toBe("");
   });
 });
 

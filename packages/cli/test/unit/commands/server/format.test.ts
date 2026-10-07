@@ -65,10 +65,13 @@ describe("nameCell", () => {
   test("a Kubernetes node names its role, or node without one", () => {
     const master = {
       ...server,
-      kubernetes: { clusterId: "c1", role: "master" },
+      kubernetes: { clusterId: "c1", role: "master", version: null },
     };
     expect(nameCell(master).text).toBe("web-1 (Kubernetes master)");
-    const node = { ...server, kubernetes: { clusterId: "c1", role: null } };
+    const node = {
+      ...server,
+      kubernetes: { clusterId: "c1", role: null, version: null },
+    };
     expect(nameCell(node).text).toBe("web-1 (Kubernetes node)");
   });
 });

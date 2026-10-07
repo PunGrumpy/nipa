@@ -71,7 +71,7 @@ nipa looked for `openstack` on your `PATH` and in `~/.local/bin` and didn't find
 - `load-balancer` and `key-manager`
 - `identity`
 
-So `nipa os coe`, `nipa os database`, `nipa os stack` and `nipa os object` fail on production. nipa can't add a service that the catalog leaves out. Use the [Nipa Cloud Space](https://space.nipa.cloud) portal for those services, or a profile whose Keystone lists them, such as staging. To find the servers of a Kubernetes cluster, run `nipa server ls`, which marks them with `(Kubernetes master)` or another role.
+So `nipa os coe`, `nipa os database`, `nipa os stack` and `nipa os object` fail on production. nipa can't add a service that the catalog leaves out. Use the [Nipa Cloud Space](https://space.nipa.cloud) portal for those services, or a profile whose Keystone lists them, such as staging. To list your Kubernetes clusters, run `nipa k8s ls`, which finds them through the servers Magnum made. `nipa server ls` marks those servers with `(Kubernetes master)` or another role.
 
 ## "…/auth.json: …" or "…/config.json: …"
 

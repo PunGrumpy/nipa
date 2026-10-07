@@ -157,6 +157,7 @@ describe("listServers", () => {
     expect(servers[3]?.kubernetes).toEqual({
       clusterId: "dddd1111-0000-4000-8000-000000000001",
       role: "master",
+      version: "1.34.9",
     });
     expect(servers[1]?.addresses).toEqual([
       { address: "192.0.2.5", type: "fixed", version: 4 },
