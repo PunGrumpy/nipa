@@ -247,6 +247,8 @@ export const FAKE_DATABASE_BACKUPS = Array.from({ length: 6 }, (_, index) => ({
 export const FAKE_LOAD_BALANCERS = [
   {
     ageMs: 7 * DAY_MS,
+    external_ip_id: "cccc4444-0000-4000-8000-000000000004",
+    flavor_id: "lbf-1",
     id: "bbbb1111-0000-4000-8000-000000000001",
     listeners: [{ id: "listener-1" }, { id: "listener-2" }],
     name: "web-lb",
@@ -257,6 +259,8 @@ export const FAKE_LOAD_BALANCERS = [
   },
   {
     ageMs: MINUTE_MS,
+    external_ip_id: null,
+    flavor_id: null,
     id: "bbbb2222-0000-4000-8000-000000000002",
     listeners: [],
     name: "api-lb",
@@ -293,7 +297,101 @@ export const FAKE_IPS = [
     name: "spare",
     status: "DOWN",
   },
+  {
+    availability_zone: "NCP-BKK",
+    external_ip_address: "203.0.113.30",
+    id: "cccc4444-0000-4000-8000-000000000004",
+    internal_ip_address: "192.0.2.30",
+    name: "web-lb's Public IP",
+    status: "ACTIVE",
+  },
 ];
+
+const lbPart = (id: string, provisioning: string, operating: string) => ({
+  id,
+  operating_status: operating,
+  provisioning_status: provisioning,
+});
+
+const member = (input: {
+  id: string;
+  address: string;
+  operating: string;
+  backup?: boolean;
+}) => ({
+  ...lbPart(input.id, "ACTIVE", input.operating),
+  address: input.address,
+  backup: input.backup ?? false,
+  name: input.id,
+  protocol_port: 80,
+  weight: 1,
+});
+
+/**
+ * web-lb's listeners and backend groups. Like the listener staging showed,
+ * web-https is in ERROR while web-lb itself is ACTIVE and ONLINE. api-lb has
+ * none yet.
+ */
+export const FAKE_LB_PARTS = new Map([
+  [
+    "bbbb1111-0000-4000-8000-000000000001",
+    {
+      backend_groups: [
+        {
+          ...lbPart("pool-1", "ACTIVE", "DEGRADED"),
+          healthcheck: {
+            ...lbPart("hm-1", "ACTIVE", "ONLINE"),
+            delay: 5,
+            max_retries: 3,
+            timeout: 3,
+            type: "HTTP",
+          },
+          lb_algorithm: "ROUND_ROBIN",
+          members: [{ id: "web-1" }, { id: "web-2" }, { id: "web-3" }],
+          name: "web-pool",
+          protocol: "HTTP",
+        },
+      ],
+      listeners: [
+        {
+          ...lbPart("listener-1", "ACTIVE", "ONLINE"),
+          allowed_cidrs: null,
+          backend_group_id: "pool-1",
+          name: "web-http",
+          protocol: "HTTP",
+          protocol_port: 80,
+        },
+        {
+          ...lbPart("listener-2", "ERROR", "ONLINE"),
+          allowed_cidrs: ["198.51.100.0/24", "192.0.2.0/24"],
+          backend_group_id: null,
+          name: "web-https",
+          protocol: "TCP",
+          protocol_port: 443,
+        },
+      ],
+      members: new Map([
+        [
+          "pool-1",
+          [
+            member({ address: "192.0.2.5", id: "web-1", operating: "ONLINE" }),
+            member({ address: "192.0.2.7", id: "web-2", operating: "ERROR" }),
+            member({
+              address: "192.0.2.8",
+              backup: true,
+              id: "web-3",
+              operating: "OFFLINE",
+            }),
+          ],
+        ],
+      ]),
+    },
+  ],
+  [
+    "bbbb2222-0000-4000-8000-000000000002",
+    { backend_groups: [], listeners: [], members: new Map() },
+  ],
+]);
 
 /** The volumes, oldest first. web-1-vol-0 is web-1's boot disk. */
 export const FAKE_VOLUMES = [
@@ -580,6 +678,9 @@ export const FAKE_NETWORKS = FAKE_NETWORK_LIST.map((network) => network.name);
 
 const named = (list: readonly string[]) => list.map((name) => ({ name }));
 
+routes.set("/api/v4/loadbalancerflavors", () => ({
+  loadbalancer_flavors: [{ id: "lbf-1", name: "lss.large.v2" }],
+}));
 routes.set("/api/v4/machine_types", () => ({
   machine_types: FAKE_MACHINE_TYPES,
 }));
@@ -793,6 +894,30 @@ const FAULT_MESSAGES = new Map([
   [503, "Service Unavailable"],
 ]);
 const DATABASE_LOGS = /^\/api\/v4\/database\/(?<id>[^/]+)\/logs$/u;
+const LOAD_BALANCER =
+  /^\/api\/v4\/loadbalancers\/(?<id>[^/]+)(?<rest>\/listeners|\/backend_groups(?:\/(?<group>[^/]+)\/members)?)?$/u;
+
+const handleLoadBalancer = (
+  match: RegExpExecArray,
+  mine: boolean
+): Response => {
+  const { group, id = "", rest } = match.groups ?? {};
+  const lb = FAKE_LOAD_BALANCERS.find((candidate) => candidate.id === id);
+  const parts = FAKE_LB_PARTS.get(id);
+  if (!(mine && lb && parts)) {
+    return spaceFault(404, `Load Balancer ${id} could not be found.`);
+  }
+  if (rest === "/listeners") {
+    return Response.json({ listeners: parts.listeners });
+  }
+  if (rest === "/backend_groups") {
+    return Response.json({ backend_groups: parts.backend_groups });
+  }
+  if (group !== undefined) {
+    return Response.json({ members: parts.members.get(group) ?? [] });
+  }
+  return Response.json({ loadbalancer: createdAt(lb) });
+};
 
 /** Answers a Space API request whose token is valid, as `owner`'s resources. */
 export const handleSpace = (input: {
@@ -842,6 +967,10 @@ export const handleSpace = (input: {
         slow_query: dbLog("slow_query", "Disabled", 0),
       }
     );
+  }
+  const loadBalancer = LOAD_BALANCER.exec(url.pathname);
+  if (loadBalancer) {
+    return handleLoadBalancer(loadBalancer, mine);
   }
   const route = routes.get(url.pathname);
   if (!route) {
