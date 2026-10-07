@@ -41,10 +41,14 @@ import {
 } from "./ui";
 import type { Prompts } from "./ui";
 
+/** Where a run's profile came from, in the order nipa looks. */
+export type ProfileSource = "flag" | "env" | "link" | "config";
+
 export interface ActiveProfile {
   readonly config: Config;
   readonly name: string;
   readonly profile: Profile;
+  readonly source: ProfileSource;
   /** The folder's link, when it names this profile. Its project wins. */
   readonly link: FoundLink | undefined;
 }
@@ -68,11 +72,15 @@ export const resolveProfile = async (input: {
   override: string | undefined;
 }): Promise<ActiveProfile> => {
   const [config, found] = await Promise.all([loadConfig(), findLink()]);
-  const name =
-    input.override ??
-    process.env.NIPA_PROFILE ??
-    found?.link.profile ??
-    config.currentProfile;
+  const candidates: readonly [ProfileSource, string | undefined][] = [
+    ["flag", input.override],
+    ["env", process.env.NIPA_PROFILE],
+    ["link", found?.link.profile],
+  ];
+  const [source, name] = candidates.find(
+    (candidate): candidate is [ProfileSource, string] =>
+      candidate[1] !== undefined
+  ) ?? ["config", config.currentProfile];
   const profile = config.profiles[name];
   if (!profile) {
     const known = Object.keys(config.profiles).join(", ");
@@ -83,7 +91,7 @@ export const resolveProfile = async (input: {
     });
   }
   const link = found?.link.profile === name ? found : undefined;
-  return { config, link, name, profile };
+  return { config, link, name, profile, source };
 };
 
 /** `nipa login`, or `nipa login -P staging`, for hints. */
