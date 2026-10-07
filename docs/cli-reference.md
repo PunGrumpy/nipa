@@ -27,6 +27,7 @@ nipa has 23 commands. Without a command, it prints help.
 | `nipa volume ls [--json]` | Lists the block storage volumes in your project with their status, size, type, the server each one is attached to, and age. In a pipe, it prints one volume ID per line. `nipa volume` and `nipa volumes` do the same |
 | `nipa network ls [--json]` | Lists the networks your project can use with their status, type, zone and age. `VPC` marks one of your project's private networks, and `external` a shared pool of external IPs. In a pipe, it prints one network ID per line. `nipa network` and `nipa networks` do the same |
 | `nipa sg ls [--json]` | Lists the security groups in your project with their inbound and outbound rule counts, age and description. In a pipe, it prints one security group ID per line. `nipa sg`, `nipa security-group` and `nipa security-groups` do the same |
+| `nipa sg inspect <group> [--json]` | Shows one security group's ID, description, the servers that use it with their addresses, and its inbound and outbound rules, by name or ID. Each rule shows its protocol, ports, the CIDR or security group it allows, and its ethertype. `any` means every protocol, port or address. A `!` marks an inbound rule that opens SSH, RDP or a database port to any address, and a note below the table names the ports. In a pipe, it prints the group's ID |
 | `nipa k8s ls [--json]` | Lists the Kubernetes clusters in your project with their Kubernetes version, nodes, active node count and age. The Space API has no Kubernetes endpoint, so nipa finds each cluster through the servers Magnum made for it, and a cluster without servers doesn't show. In a pipe, it prints one cluster ID per line. `nipa k8s`, `nipa kubernetes` and `nipa coe` do the same |
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
@@ -54,7 +55,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -321,6 +322,41 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       ]
     }
   ]
+}
+```
+
+`nipa sg inspect --json` prints the profile, the project and the security group in the same shape as `sg ls`. Each rule adds `remoteGroupName`, the name of the group `remoteGroupId` names, or `null` without one or when the group isn't in the project. `servers` lists the servers with a network port in the group, newest first, with the addresses of those ports:
+
+```json
+{
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "securityGroup": {
+    "createdAt": "2030-01-01T00:00:00.000000Z",
+    "description": "Default security group",
+    "id": "9abc…",
+    "name": "default",
+    "rules": [
+      {
+        "direction": "ingress",
+        "ethertype": "IPv4",
+        "id": "def0…",
+        "portMax": null,
+        "portMin": null,
+        "protocol": "any",
+        "remoteGroupId": "9abc…",
+        "remoteGroupName": "default",
+        "remoteIpPrefix": null
+      }
+    ],
+    "servers": [
+      {
+        "addresses": ["192.0.2.5"],
+        "id": "2222…",
+        "name": "web-1"
+      }
+    ]
+  }
 }
 ```
 

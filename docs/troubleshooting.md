@@ -99,6 +99,12 @@ Nova couldn't finish an action on the server, most often its create. Look at it 
 2. Run `nipa server history <server>` to see every action on the server, newest first, with the request ID that Nova logged each one under. Give that ID to Nipa Cloud support when you ask them why it failed
 3. Run `nipa server logs <server>` to read the console log, where cloud-init writes what it did at boot. If nipa says the server has no console log yet, the server never booted, so the cause is in the create, not inside the server
 
+## You can't connect to a port on your server
+
+A security group blocks every connection that none of its rules allows. Find the server's security groups with `nipa server inspect <server>`, then show each group's rules with `nipa sg inspect <group>`. Look for an inbound rule whose protocol and ports cover the port, such as `tcp` and `22` for SSH, and whose source covers your address. `any` means every protocol, port or address. A server gets traffic that any one of its groups allows. If no rule matches, add one in the [Nipa Cloud Space](https://space.nipa.cloud) portal, or with `nipa os security group rule create`.
+
+If a rule matches and the connection still fails, check that the server is `ACTIVE` with `nipa server inspect`, that you connect to its external IP, and that a firewall on the server itself, such as `ufw`, allows the port.
+
 ## Tab completion does nothing
 
 The completion script isn't loaded in your current shell. Open a new terminal after you add it to your startup file, or load it now with `eval "$(nipa completion bash)"`. In bash, completion after `nipa tf` and `nipa exec` also needs the `bash-completion` package.

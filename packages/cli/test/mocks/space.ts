@@ -309,6 +309,33 @@ export const FAKE_SECURITY_GROUPS = [
   },
 ];
 
+const WEB_SG_ID = FAKE_SECURITY_GROUPS[1]?.id ?? "";
+
+const serverId = (name: string): string =>
+  FAKE_SERVERS.find((server) => server.name === name)?.id ?? "";
+
+const port = (deviceId: string, groups: string[], ...addresses: string[]) => ({
+  device_id: deviceId,
+  fixed_ips: addresses.map((address) => ({ ip_address: address })),
+  security_groups: groups,
+});
+
+/**
+ * Each port names its groups by ID. web-1 is in default and web, and db-1 in
+ * default. A load balancer's port and a free one carry web too.
+ */
+export const FAKE_PORTS = [
+  port(
+    serverId("web-1"),
+    [DEFAULT_SG_ID, WEB_SG_ID],
+    "192.0.2.5",
+    "2001:db8::5"
+  ),
+  port(serverId("db-1"), [DEFAULT_SG_ID], "198.51.100.4"),
+  port("lb-0000", [WEB_SG_ID], "192.0.2.40"),
+  port("", [WEB_SG_ID], "192.0.2.41"),
+];
+
 const createdAt = <T extends { ageMs: number }>({ ageMs, ...rest }: T) => ({
   ...rest,
   created_at: ago(ageMs),
@@ -374,6 +401,7 @@ const routes = new Map<string, (ask: Ask) => object>([
         : [],
     }),
   ],
+  ["/api/v2/ports", ({ mine }) => ({ ports: mine ? FAKE_PORTS : [] })],
   [
     "/api/v4/external_ips",
     ({ mine }) => ({ external_ips: mine ? FAKE_IPS : [], price: 0.18 }),
