@@ -178,7 +178,11 @@ export const LEVEL_PAINT: Readonly<Partial<Record<Level, Paint>>> = {
   near: yellow,
 };
 
-/** Rounds down, so 99.6% reads as 99% and only a full quota reads 100%. */
+/**
+ * Rounds down, so 99.6% reads as 99% and only a full quota reads 100%. It
+ * multiplies before it divides, because 29 / 50 * 100 is 57.99999… in
+ * floating point, and would read as 57%.
+ */
 export const formatPercent = (quota: Quota): string => {
   if (quota.limit === null) {
     return "-";
@@ -186,7 +190,7 @@ export const formatPercent = (quota: Quota): string => {
   if (quota.limit === 0) {
     return "100%";
   }
-  return `${Math.floor((quota.used / quota.limit) * 100)}%`;
+  return `${Math.floor((quota.used * 100) / quota.limit)}%`;
 };
 
 const is = (count: number): string => (count === 1 ? "is" : "are");
