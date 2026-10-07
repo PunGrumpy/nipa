@@ -10,11 +10,7 @@ import { listFlavors } from "../../util/flavor";
 import { NetworkError } from "../../util/http";
 import { KeystoneError, listProjects, probe } from "../../util/keystone";
 import { displayPath, findLink } from "../../util/link";
-import {
-  EXPIRY_WARNING_MS,
-  loginLine,
-  requireSpaceUrl,
-} from "../../util/session";
+import { EXPIRY_WARNING_MS, loginLine, noSpaceUrl } from "../../util/session";
 import type { ActiveProfile, ProfileSource } from "../../util/session";
 import {
   configFiles,
@@ -118,8 +114,14 @@ const checkKeystone = async (context: DoctorContext): Promise<CheckResult> => {
   }
 };
 
+// A profile without a Space API URL still runs `nipa os` and `nipa tf`.
 const checkSpace = async (context: DoctorContext): Promise<CheckResult> => {
-  const url = requireSpaceUrl(await context.profile());
+  const active = await context.profile();
+  const url = active.profile.spaceUrl;
+  if (!url) {
+    const { hint, message } = noSpaceUrl(active);
+    return warn(capitalize(message), hint);
+  }
   try {
     const { elapsed } = await timed(() => probeSpace(url));
     return pass(`${hostOf(url)} answers as the Space API [${elapsed}]`);

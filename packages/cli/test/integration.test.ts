@@ -1244,6 +1244,22 @@ describe("doctor", () => {
     );
   });
 
+  test("a profile without a Space API URL warns, and the token check uses Keystone alone", async () => {
+    await seedHealthy();
+    const config = await readJsonFile("config.json");
+    delete config.profiles.prod.spaceUrl;
+    await writeFile(inDir("config.json"), JSON.stringify(config));
+    const { code, stderr } = await run(["doctor"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain(
+      "! Space API       The prod profile has no Space API URL\n                  > Remove it with `nipa profile rm prod`, then add it again with `--space-url` and its Space portal URL. `nipa -P prod os server list` works without one.\n"
+    );
+    expect(stderr).toMatch(
+      /^✔ Token {11}Keystone accepts the token \[\d+m?s\]$/mu
+    );
+    expect(stderr).toContain("> 8 passed, 1 warning\n");
+  });
+
   test("missing tools and a known update warn without failing", async () => {
     await freshDir();
     await seedSession(dir, keystone.url);

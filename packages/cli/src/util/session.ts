@@ -522,6 +522,12 @@ const guardSession =
     }
   };
 
+/** The error for a profile without a Space API URL, which `nipa os` and `nipa tf` don't need. */
+export const noSpaceUrl = (active: ActiveProfile): CliError =>
+  new CliError(`the ${active.name} profile has no Space API URL`, {
+    hint: `Remove it with \`nipa profile rm ${active.name}\`, then add it again with \`--space-url\` and its Space portal URL. \`nipa -P ${active.name} os server list\` works without one.`,
+  });
+
 /**
  * The profile's Space API URL. Throws when it has none, before nipa asks for
  * a password it couldn't use.
@@ -529,9 +535,7 @@ const guardSession =
 export const requireSpaceUrl = (active: ActiveProfile): string => {
   const { spaceUrl } = active.profile;
   if (!spaceUrl) {
-    throw new CliError(`the ${active.name} profile has no Space API URL`, {
-      hint: `Remove it with \`nipa profile rm ${active.name}\`, then add it again with \`--space-url\` and its Space portal URL. \`nipa -P ${active.name} os server list\` works without one.`,
-    });
+    throw noSpaceUrl(active);
   }
   return spaceUrl;
 };
