@@ -6,6 +6,23 @@
 /** The words a value may be. Never empty. */
 export type Choices = readonly [string, ...string[]];
 
+/**
+ * The resources a Tab press can name, by the word `nipa __complete` takes.
+ * The completion scripts ship these words, so they only ever grow.
+ */
+export const RESOURCE_KINDS = [
+  "servers",
+  "flavors",
+  "images",
+  "networks",
+  "volumes",
+  "security-groups",
+  "load-balancers",
+  "databases",
+] as const;
+
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
 /** What a flag takes after it. */
 export type FlagValue =
   | { readonly kind: "none" }
@@ -32,8 +49,8 @@ export type ArgValue =
   | { readonly kind: "choice"; readonly choices: Choices }
   | { readonly kind: "project" }
   | { readonly kind: "profile" }
-  /** A server name. Completes from the Space API. */
-  | { readonly kind: "server" };
+  /** A resource name. Completes from the Space API. */
+  | { readonly kind: "resource"; readonly resource: ResourceKind };
 
 export interface ArgSpec {
   /**

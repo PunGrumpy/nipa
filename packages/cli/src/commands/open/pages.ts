@@ -3,13 +3,16 @@
 // has is never linked to, so a volume opens the volume list filtered to it.
 
 import type { Space } from "../../util/api";
-import { listDatabases } from "../../util/database";
-import { findResource, SERVERS } from "../../util/find";
+import {
+  DATABASES,
+  findResource,
+  LOAD_BALANCERS,
+  NETWORKS,
+  SECURITY_GROUPS,
+  SERVERS,
+  VOLUMES,
+} from "../../util/find";
 import type { Findable } from "../../util/find";
-import { listLoadBalancers } from "../../util/load-balancer";
-import { listNetworks } from "../../util/network";
-import { listSecurityGroups } from "../../util/security-group";
-import { listVolumes } from "../../util/volume";
 import type { Resource } from "./command";
 
 export interface Found {
@@ -41,34 +44,15 @@ const pages = <T extends { id: string; name: string }>(
 export const PAGES: Record<Resource, PortalPages> = {
   db: pages(
     "/sql_databases",
-    {
-      list: listDatabases,
-      lsCommand: "nipa db ls",
-      noun: "database",
-      plural: "databases",
-    },
+    DATABASES,
     (db) => `/sql_databases/${db.id}/overview`
   ),
   lb: pages(
     "/load_balancers",
-    {
-      list: listLoadBalancers,
-      lsCommand: "nipa lb ls",
-      noun: "load balancer",
-      plural: "load balancers",
-    },
+    LOAD_BALANCERS,
     (lb) => `/load_balancers/${lb.id}/details`
   ),
-  network: pages(
-    "/networks",
-    {
-      list: listNetworks,
-      lsCommand: "nipa network ls",
-      noun: "network",
-      plural: "networks",
-    },
-    (network) => `/networks/${network.id}`
-  ),
+  network: pages("/networks", NETWORKS, (network) => `/networks/${network.id}`),
   server: pages(
     "/compute_instances",
     SERVERS,
@@ -76,22 +60,12 @@ export const PAGES: Record<Resource, PortalPages> = {
   ),
   sg: pages(
     "/security_group",
-    {
-      list: listSecurityGroups,
-      lsCommand: "nipa sg ls",
-      noun: "security group",
-      plural: "security groups",
-    },
+    SECURITY_GROUPS,
     (group) => `/security_group/${group.id}`
   ),
   volume: pages(
     "/volumes",
-    {
-      list: listVolumes,
-      lsCommand: "nipa volume ls",
-      noun: "volume",
-      plural: "volumes",
-    },
+    VOLUMES,
     (volume) =>
       `/volumes?search=${encodeURIComponent(volume.name || volume.id)}`
   ),

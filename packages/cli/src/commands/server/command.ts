@@ -7,7 +7,7 @@ const LIST_SERVERS = "List the servers in your project";
 const serverArg = {
   arity: "one",
   name: "server",
-  value: { kind: "server" },
+  value: { kind: "resource", resource: "servers" },
 } as const satisfies ArgSpec;
 
 const waitFlags = [

@@ -6,6 +6,7 @@ import { text as readText } from "node:stream/consumers";
 import { z } from "zod";
 
 import { findCommand } from "./env";
+import type { ResourceKind } from "./spec";
 import { readCache, writeCache } from "./store";
 
 const CACHE_FILE = "openstack.json";
@@ -96,8 +97,6 @@ export const openstackCompletions = async (
   const table = await loadTable(bin);
   return table ? candidates(table, words) : [];
 };
-
-export type ResourceKind = "servers" | "flavors" | "images" | "networks";
 
 // The commands whose every argument is a server, such as `server stop a b`.
 const SERVER_COMMANDS = [
