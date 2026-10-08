@@ -404,7 +404,6 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
         "health": "HEALTHY",
         "healthCheckedAt": "2030-01-02T03:30:08.000Z",
         "id": "def0…",
-        "port": 3306,
         "ramMb": 4096,
         "status": "ACTIVE",
         "storageGb": 10,
@@ -419,10 +418,11 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 }
 ```
 
-`healthCheckedAt` is when Trove last checked `health`, or `null` when the Space API doesn't send it. `port` is the engine's default, such as `3306` for MySQL and MariaDB or `5432` for PostgreSQL, and `null` for an engine nipa doesn't know. `allowedCidrs` is `[]` when the cluster has none set. `ramMb`, `vcpus` and `zone` are `null` when the Space API doesn't send them.
+`healthCheckedAt` is when Trove last checked `health`, or `null` when the Space API doesn't send it. `allowedCidrs` is `[]` when the cluster has none set. `ramMb`, `vcpus` and `zone` are `null` when the Space API doesn't send them.
 
 `nipa db inspect --json` prints one cluster under `database`, with the same fields as `db ls` and these:
 
+- **`defaultPort`**: the port the engine listens on by default, such as `3306` for MySQL and MariaDB or `5432` for PostgreSQL. The Space API doesn't send the real port, so this is a guess from the engine. `null` for an engine nipa doesn't know, or a cluster without a primary
 - **`replicas`**: the cluster's other instances, with their `id`, `name`, `status`, `health` and `address`. `address` is `null` while Trove is still building the replica
 - **`logs`**: each log Trove keeps, such as `general` and `slow_query`, with its `status`, such as `Disabled` or `Published`, `enabled`, and `publishedBytes`, the bytes sent to object storage
 - **`backups`**: every backup of the primary, newest first, with its `status`, such as `COMPLETED` or `FAILED`, `sizeGb` and `createdAt`
@@ -443,6 +443,7 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
       }
     ],
     "createdAt": "2030-01-01T00:00:00.000Z",
+    "defaultPort": 3306,
     "id": "9abc…",
     "logs": [
       {
@@ -463,7 +464,6 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
       "address": "192.0.2.20",
       "engine": "mysql",
       "health": "HEALTHY",
-      "port": 3306,
       "status": "ACTIVE"
     },
     "problems": [

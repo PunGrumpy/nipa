@@ -19,7 +19,6 @@ const PRIMARY: DatabaseInstance = {
   health: "HEALTHY",
   healthCheckedAt: null,
   id: "p1",
-  port: 3306,
   ramMb: 4096,
   status: "ACTIVE",
   storageGb: 10,
@@ -39,6 +38,7 @@ const backup = (name: string, status: string): DatabaseBackup => ({
 const database = (detail: Partial<DatabaseDetail>): DatabaseDetail => ({
   backups: [],
   createdAt: "2026-10-05T10:00:29.000Z",
+  defaultPort: 3306,
   id: "c1",
   logs: [],
   name: "orders",

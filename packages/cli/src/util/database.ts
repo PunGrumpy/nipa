@@ -89,8 +89,6 @@ export interface DatabaseInstance {
   zone: string | null;
   address: string;
   externalAddress: string | null;
-  /** The engine's default port. The Space API doesn't send one. */
-  port: number | null;
   /** The ranges allowed to connect. Empty when none are set. */
   allowedCidrs: string[];
 }
@@ -137,6 +135,12 @@ export interface DatabaseBackup {
  * endpoint doesn't hide the rest.
  */
 export interface DatabaseDetail extends Database {
+  /**
+   * The port the engine listens on by default, such as 3306 for MySQL. The
+   * Space API doesn't send the real one. `null` for an engine nipa doesn't
+   * know, or a cluster without a primary.
+   */
+  defaultPort: number | null;
   replicas: DatabaseReplica[] | null;
   logs: DatabaseLog[] | null;
   /** The primary's backups, newest first. */
@@ -164,7 +168,6 @@ const toInstance = (
   health: primary.operating_status,
   healthCheckedAt: primary.service_status_updated ?? null,
   id: primary.id,
-  port: DEFAULT_PORTS.get(primary.datastore_type.toLowerCase()) ?? null,
   ramMb: primary.machine_type.ram ?? null,
   status: primary.instance_status,
   storageGb: primary.volume_size,
@@ -269,7 +272,13 @@ export const inspectDatabase = async (
 ): Promise<DatabaseDetail> => {
   const { primary } = database;
   if (!primary) {
-    return { ...database, backups: [], logs: [], replicas: [] };
+    return {
+      ...database,
+      backups: [],
+      defaultPort: null,
+      logs: [],
+      replicas: [],
+    };
   }
   const [replicas, logs, backups] = await Promise.allSettled([
     listReplicas(space, database, primary.id),
@@ -279,6 +288,7 @@ export const inspectDatabase = async (
   return {
     ...database,
     backups: settled(backups),
+    defaultPort: DEFAULT_PORTS.get(primary.engine.toLowerCase()) ?? null,
     logs: settled(logs),
     replicas: settled(replicas),
   };

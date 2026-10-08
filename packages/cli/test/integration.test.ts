@@ -2044,6 +2044,8 @@ describe("db ls", () => {
       "analytics",
       "orders",
     ]);
+    // The Space API sends no port, so ls doesn't guess one.
+    expect(databases[2].primary).not.toHaveProperty("port");
     expect(databases[2]).toMatchObject({
       id: FAKE_DATABASES[0]?.id,
       primary: { engine: "mysql", externalAddress: "203.0.113.20" },
@@ -2087,12 +2089,10 @@ describe("db inspect", () => {
     expect(profile).toBe("prod");
     expect(project.name).toBe("Alpha");
     expect(database).toMatchObject({
+      defaultPort: 3306,
       id: FAKE_DATABASES[0]?.id,
       name: "orders",
-      primary: {
-        allowedCidrs: ["203.0.113.0/24", "198.51.100.7/32"],
-        port: 3306,
-      },
+      primary: { allowedCidrs: ["203.0.113.0/24", "198.51.100.7/32"] },
       problems: [],
       replicas: [{ name: "orders-replica-1", status: "ACTIVE" }],
     });

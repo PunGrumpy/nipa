@@ -57,12 +57,15 @@ const healthCell = (primary: DatabaseInstance, now: number): Cell =>
       )
     : statusCell(primary.health);
 
-const addressCells = (primary: DatabaseInstance): Cell[] => {
-  const internal = { text: withPort(primary.address, primary.port) };
+const addressCells = (
+  primary: DatabaseInstance,
+  port: number | null
+): Cell[] => {
+  const internal = { text: withPort(primary.address, port) };
   if (!primary.externalAddress) {
     return [internal];
   }
-  const external = withPort(primary.externalAddress, primary.port);
+  const external = withPort(primary.externalAddress, port);
   return [withDetail(external, " (external)"), internal];
 };
 
@@ -124,7 +127,7 @@ const primaryFields = (
   { label: "Flavor", lines: [flavorCell(primary)] },
   { label: "Storage", lines: [{ text: `${primary.storageGb} GB` }] },
   { label: "Zone", lines: primary.zone ? [{ text: primary.zone }] : [] },
-  { label: "Address", lines: addressCells(primary) },
+  { label: "Address", lines: addressCells(primary, database.defaultPort) },
   {
     label: "Allowed CIDRs",
     lines:
@@ -181,7 +184,7 @@ const printVerdict = (
   if (primary) {
     const address = withPort(
       primary.externalAddress ?? primary.address,
-      primary.port
+      database.defaultPort
     );
     log(`${name} is healthy. Connect to it at ${bold(address)}.`);
   }

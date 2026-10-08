@@ -32,7 +32,6 @@ describe("listDatabases", () => {
       health: "HEALTHY",
       healthCheckedAt: expect.any(String),
       id: "eeee1111-0000-4000-8000-000000000001",
-      port: 3306,
       ramMb: 4096,
       status: "ACTIVE",
       storageGb: 10,
@@ -42,13 +41,12 @@ describe("listDatabases", () => {
     });
   });
 
-  test("an empty external IP reads as none, and postgresql listens on 5432", async () => {
+  test("an empty external IP reads as none", async () => {
     const databases = await listDatabases(await alphaSpace(keystone.url));
     expect(databases[1]?.primary).toMatchObject({
       allowedCidrs: [],
       externalAddress: null,
       healthCheckedAt: null,
-      port: 5432,
     });
   });
 
@@ -121,11 +119,13 @@ describe("inspectDatabase", () => {
     ]);
     expect(detail.backups?.[0]?.createdAt).toMatch(/Z$/u);
     expect(detail.backups?.[0]).toMatchObject({ sizeGb: 0.19 });
+    expect(detail.defaultPort).toBe(3306);
   });
 
-  test("a replica that's still building has no address", async () => {
+  test("a replica that's still building has no address, and postgresql listens on 5432", async () => {
     const { database: analytics, space } = await load("analytics");
     const detail = await inspectDatabase(space, analytics);
+    expect(detail.defaultPort).toBe(5432);
     expect(detail.replicas).toEqual([
       {
         address: null,
@@ -154,7 +154,12 @@ describe("inspectDatabase", () => {
     const { database: cache, space } = await load("cache");
     const before = keystone.requests.length;
     const detail = await inspectDatabase(space, cache);
-    expect(detail).toMatchObject({ backups: [], logs: [], replicas: [] });
+    expect(detail).toMatchObject({
+      backups: [],
+      defaultPort: null,
+      logs: [],
+      replicas: [],
+    });
     expect(keystone.requests.slice(before)).toEqual([]);
   });
 });
