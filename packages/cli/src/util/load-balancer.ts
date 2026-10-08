@@ -207,30 +207,53 @@ const loadExternalAddress = async (
   return ips.find((ip) => ip.id === id)?.address ?? null;
 };
 
-/** One load balancer with its listeners, backend groups and members. */
+const loadFlavorName = async (
+  space: Space,
+  id: string | null | undefined
+): Promise<string | null> => {
+  if (!id) {
+    return null;
+  }
+  const { loadbalancer_flavors: flavors } = await space.get(
+    "/v4/loadbalancerflavors",
+    FlavorsSchema
+  );
+  return flavors.find((flavor) => flavor.id === id)?.name ?? id;
+};
+
+/** The value, or null when the call failed: the labels it feeds can go blank. */
+const orNull = <T>(result: PromiseSettledResult<T>): T | null =>
+  result.status === "fulfilled" ? result.value : null;
+
+/**
+ * One load balancer with its listeners, backend groups and members. The
+ * flavor and external IP come from other lists, and only name what the
+ * parts already show, so a failure there leaves them null instead of
+ * failing the whole command.
+ */
 export const inspectLoadBalancer = async (
   space: Space,
   id: string
 ): Promise<LoadBalancerDetail> => {
   const path = `/v4/loadbalancers/${encodeURIComponent(id)}`;
-  const [detail, listeners, groups, flavors] = await Promise.all([
+  const [detail, listeners, groups] = await Promise.all([
     space.get(path, DetailSchema),
     space.get(`${path}/listeners`, ListenersSchema),
     space.get(`${path}/backend_groups`, BackendGroupsSchema),
-    space.get("/v4/loadbalancerflavors", FlavorsSchema),
   ]);
   const lb = detail.loadbalancer;
-  const [externalAddress, members] = await Promise.all([
-    loadExternalAddress(space, lb.external_ip_id),
+  const [members, labels] = await Promise.all([
     Promise.all(
       groups.backend_groups.map((group) =>
         loadMembers(space, `${path}/backend_groups/${group.id}`)
       )
     ),
+    Promise.allSettled([
+      loadFlavorName(space, lb.flavor_id),
+      loadExternalAddress(space, lb.external_ip_id),
+    ]),
   ]);
-  const flavor = flavors.loadbalancer_flavors.find(
-    (f) => f.id === lb.flavor_id
-  );
+  const [flavor, externalAddress] = labels;
   return {
     ...toPart(lb),
     address: lb.vip_address,
@@ -251,8 +274,8 @@ export const inspectLoadBalancer = async (
       protocol: group.protocol,
     })),
     createdAt: lb.created_at,
-    externalAddress,
-    flavor: flavor?.name ?? lb.flavor_id ?? null,
+    externalAddress: orNull(externalAddress),
+    flavor: orNull(flavor),
     listeners: listeners.listeners.map((listener) => ({
       ...toPart(listener),
       allowedCidrs: listener.allowed_cidrs ?? [],

@@ -2381,6 +2381,21 @@ describe("lb inspect", () => {
     expect(stdout).toBe(`${WEB_LB_ID}\n`);
   });
 
+  test("still prints the load balancer when the flavor list fails", async () => {
+    keystone.faults.set("GET /api/v4/loadbalancerflavors", 500);
+    try {
+      const { code, stderr } = await run(["lb", "inspect", "web-lb"]);
+      expect(code).toBe(0);
+      expect(stderr).toMatch(/External IP\s+203\.0\.113\.30\n\s+Flavor\s+-\n/u);
+      expect(stderr).toContain("> 2 listeners");
+      const json = await run(["lb", "inspect", "web-lb", "--json"]);
+      expect(json.code).toBe(0);
+      expect(JSON.parse(json.stdout).loadBalancer.flavor).toBeNull();
+    } finally {
+      keystone.faults.clear();
+    }
+  });
+
   test("a load balancer still being made, by its ID, has no listeners", async () => {
     const id = "bbbb2222-0000-4000-8000-000000000002";
     const { code, stderr } = await run(["lb", "inspect", id]);
