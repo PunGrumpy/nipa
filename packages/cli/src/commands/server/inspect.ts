@@ -10,6 +10,7 @@ import { statusCell } from "../../util/status";
 import {
   bold,
   dim,
+  flavorCell,
   formatAge,
   formatElapsed,
   gray,
@@ -21,7 +22,7 @@ import {
 } from "../../util/ui";
 import type { Cell, Field } from "../../util/ui";
 import { inspectSubcommand } from "./command";
-import { addressCells, flavorCell, volumeCells } from "./format";
+import { addressCells, volumeCells } from "./format";
 
 /** "create failed 26m ago by Ann", with "create failed" in red. */
 const actionCell = (action: ServerAction, now: number): Cell => {

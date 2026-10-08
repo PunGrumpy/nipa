@@ -250,6 +250,24 @@ export const withDetail = (text: string, detail: string): Cell => ({
   text: `${text}${detail}`,
 });
 
+/** A flavor and its dim size, such as "m1.small (2 vCPUs, 4 GB RAM)". */
+export const flavorCell = (sized: {
+  flavor: string;
+  vcpus: number | null;
+  ramMb: number | null;
+}): Cell => {
+  const size: string[] = [];
+  if (sized.vcpus !== null) {
+    size.push(plural(sized.vcpus, "vCPU"));
+  }
+  if (sized.ramMb !== null) {
+    size.push(`${gigabytes(sized.ramMb)} RAM`);
+  }
+  return size.length === 0
+    ? { text: sized.flavor }
+    : withDetail(sized.flavor, ` (${size.join(", ")})`);
+};
+
 const COLUMN_GAP = " ".repeat(5);
 
 const heading: Paint = (text) => bold(cyan(text));

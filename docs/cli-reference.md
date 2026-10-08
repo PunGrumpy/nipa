@@ -30,6 +30,7 @@ nipa has 24 commands. Without a command, it prints help.
 | `nipa sg inspect <group> [--json]` | Shows one security group's ID, description, the servers that use it with their addresses, and its inbound and outbound rules, by name or ID. nipa finds the servers through the network ports in your project, so a server in another project that uses the group doesn't show. Each rule shows its protocol, ports, the CIDR or security group it allows, and its ethertype. `any` means every protocol, port or address, and a protocol number such as `6` shows as its name, `tcp`. A `!` marks an inbound rule that opens SSH, RDP or a database port to any address, and a note below the table names the ports. In a pipe, it prints the group's ID |
 | `nipa k8s ls [--json]` | Lists the Kubernetes clusters in your project with their Kubernetes version, nodes, active node count and age. The Space API has no Kubernetes endpoint, so nipa finds each cluster through the servers Magnum made for it, and a cluster without servers doesn't show. In a pipe, it prints one cluster ID per line. `nipa k8s`, `nipa kubernetes` and `nipa coe` do the same |
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
+| `nipa db inspect <database> [--json]` | Shows one database cluster by name or ID: its engine and version, status, health and when Trove last checked it, flavor, storage, zone, address and port, allowed CIDRs, replicas, general and slow query logs, and the 5 newest backups. It ends with a line that says whether the database is healthy and where to connect, or what needs attention. The port is the engine's default, because the Space API doesn't send one. In a pipe, it prints the cluster's ID |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
 | `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
@@ -55,7 +56,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -396,13 +397,19 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "name": "orders",
       "primary": {
         "address": "192.0.2.20",
+        "allowedCidrs": ["203.0.113.0/24"],
         "engine": "mysql",
         "externalAddress": "203.0.113.20",
         "flavor": "dsa.large.v1",
         "health": "HEALTHY",
+        "healthCheckedAt": "2030-01-02T03:30:08.000Z",
+        "id": "def0…",
+        "ramMb": 4096,
         "status": "ACTIVE",
         "storageGb": 10,
-        "version": "8.0.34"
+        "vcpus": 2,
+        "version": "8.0.34",
+        "zone": "NCP-BKK"
       }
     }
   ],
@@ -410,6 +417,79 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
   "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
 }
 ```
+
+`healthCheckedAt` is when Trove last checked `health`, or `null` when the Space API doesn't send it. `allowedCidrs` is `[]` when the cluster has none set. `ramMb`, `vcpus` and `zone` are `null` when the Space API doesn't send them.
+
+`nipa db inspect --json` prints one cluster under `database`, with the same fields as `db ls` and these:
+
+- **`defaultPort`**: the port the engine listens on by default, such as `3306` for MySQL and MariaDB or `5432` for PostgreSQL. The Space API doesn't send the real port, so this is a guess from the engine. `null` for an engine nipa doesn't know, or a cluster without a primary
+- **`replicas`**: the cluster's other instances, with their `id`, `name`, `status`, `health` and `address`. `address` is `null` while Trove is still building the replica
+- **`logs`**: each log Trove keeps, such as `general` and `slow_query`, with its `status`, such as `Disabled` or `Published`, `enabled`, and `publishedBytes`, the bytes sent to object storage
+- **`backups`**: every backup of the primary, newest first, with its `status`, such as `COMPLETED` or `FAILED`, `sizeGb` and `createdAt`
+- **`problems`**: what isn't healthy, or `[]` when nothing is wrong. Each entry has a `part`, which is `cluster`, `primary`, `replica` or `backup`, the `name` of the replica or backup, or `null` for the cluster or primary, the `field` that's wrong, which is `status`, `health`, or `primary` for a cluster without one yet, and that field's `value`, such as `BUILD`, or `null` for a missing primary. The last line in a terminal says the same in words
+
+A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of the three comes from its own Space API endpoint, and one that fails leaves its field `null` while the others and `problems` still fill in:
+
+```json
+{
+  "database": {
+    "backups": [
+      {
+        "createdAt": "2030-01-01T09:16:23Z",
+        "id": "7757…",
+        "name": "nightly",
+        "sizeGb": 0.19,
+        "status": "FAILED"
+      }
+    ],
+    "createdAt": "2030-01-01T00:00:00.000Z",
+    "defaultPort": 3306,
+    "id": "9abc…",
+    "logs": [
+      {
+        "enabled": false,
+        "name": "general",
+        "publishedBytes": 0,
+        "status": "Disabled"
+      },
+      {
+        "enabled": true,
+        "name": "slow_query",
+        "publishedBytes": 2097152,
+        "status": "Published"
+      }
+    ],
+    "name": "orders",
+    "primary": {
+      "address": "192.0.2.20",
+      "engine": "mysql",
+      "health": "HEALTHY",
+      "status": "ACTIVE"
+    },
+    "problems": [
+      {
+        "field": "status",
+        "name": "nightly",
+        "part": "backup",
+        "value": "FAILED"
+      }
+    ],
+    "replicas": [
+      {
+        "address": "192.0.2.22",
+        "health": "HEALTHY",
+        "id": "def1…",
+        "name": "orders-replica-1",
+        "status": "ACTIVE"
+      }
+    ]
+  },
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
+
+`primary` holds every field from `db ls`. This example shortens it.
 
 `nipa lb ls --json` prints the profile, the project and its load balancers, newest first. `status` is Octavia's provisioning status, such as `ACTIVE` or `PENDING_CREATE`, `health` its operating status, such as `ONLINE` or `OFFLINE`, and `address` the virtual IP:
 

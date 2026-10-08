@@ -367,7 +367,7 @@ describe("completion", () => {
     expect(stderr).toContain("Add `fpath=(~/.zfunc $fpath)` to ~/.zshrc");
     const script = await readFile(inDir(".zfunc", "_nipa"), "utf-8");
     expect(script).toStartWith("#compdef nipa");
-    expect(script).toContain("'db:List the databases in your project'");
+    expect(script).toContain("'db:List and inspect your databases'");
   });
 
   test("skips the fpath line when ~/.zshrc already has it", async () => {
@@ -2044,6 +2044,8 @@ describe("db ls", () => {
       "analytics",
       "orders",
     ]);
+    // The Space API sends no port, so ls doesn't guess one.
+    expect(databases[2].primary).not.toHaveProperty("port");
     expect(databases[2]).toMatchObject({
       id: FAKE_DATABASES[0]?.id,
       primary: { engine: "mysql", externalAddress: "203.0.113.20" },
@@ -2071,6 +2073,167 @@ describe("db ls", () => {
     expect(code).toBe(0);
     expect(stderr).toContain("No databases in Beta");
     expect(stdout).toBe("");
+  });
+});
+
+describe("db inspect", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json prints the database with its replicas, logs, backups and problems", async () => {
+    const { code, stdout } = await run(["db", "inspect", "orders", "--json"]);
+    expect(code).toBe(0);
+    const { database, profile, project } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(database).toMatchObject({
+      defaultPort: 3306,
+      id: FAKE_DATABASES[0]?.id,
+      name: "orders",
+      primary: { allowedCidrs: ["203.0.113.0/24", "198.51.100.7/32"] },
+      problems: [],
+      replicas: [{ name: "orders-replica-1", status: "ACTIVE" }],
+    });
+    expect(database.logs.map((l: { name: string }) => l.name)).toEqual([
+      "general",
+      "slow_query",
+    ]);
+    expect(database.backups).toHaveLength(6);
+  });
+
+  test("prints the details and a verdict on stderr, and the ID to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["db", "inspect", "orders"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Database orders in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Engine\s+mysql 8\.0\.34\n/u);
+    expect(stderr).toMatch(/Health\s+● Healthy \(checked 2h ago\)\n/u);
+    expect(stderr).toMatch(/Flavor\s+dsa\.large\.v1 \(2 vCPUs, 4 GB RAM\)/u);
+    expect(stderr).toMatch(
+      /Address\s+203\.0\.113\.20:3306 \(external\)\n\s+192\.0\.2\.20:3306\n/u
+    );
+    expect(stderr).toMatch(
+      /Allowed CIDRs\s+203\.0\.113\.0\/24\n\s+198\.51\.100\.7\/32\n/u
+    );
+    expect(stderr).toMatch(
+      /Replicas\s+● Active {2}orders-replica-1 \(192\.0\.2\.22\)\n/u
+    );
+    expect(stderr).toMatch(
+      /Logs\s+General \(disabled\)\n\s+Slow query \(published, 2 MB\)\n/u
+    );
+    expect(stderr).toMatch(
+      /Backups\s+● Completed {2}orders-nightly-6 \(0\.19 GB, 1d ago\)\n/u
+    );
+    expect(stderr).toContain("orders-nightly-2 (0.19 GB, 5d ago)");
+    expect(stderr).not.toContain("orders-nightly-1 ");
+    expect(stderr).toContain("and 1 more in --json");
+    expect(stderr).toContain(
+      "> orders is healthy. Connect to it at 203.0.113.20:3306."
+    );
+    expect(stdout).toBe(`${FAKE_DATABASES[0]?.id}\n`);
+  });
+
+  test("a database that isn't healthy says what's wrong, and a building replica has no address", async () => {
+    const { code, stderr } = await run(["db", "inspect", "analytics"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/Health\s+● Unknown\n/u);
+    expect(stderr).toMatch(/Address\s+192\.0\.2\.21:5432\n/u);
+    expect(stderr).toMatch(/Allowed CIDRs\s+None set\n/u);
+    expect(stderr).toMatch(/Replicas\s+● Build {2}analytics-replica-1\n/u);
+    expect(stderr).toMatch(/Backups\s+None\n/u);
+    expect(stderr).toContain(
+      "> NOTE: analytics needs attention: the primary's status is Build, the primary's health is Unknown and analytics-replica-1's status is Build."
+    );
+    expect(stderr).not.toContain("is healthy");
+    const { stdout } = await run(["db", "inspect", "analytics", "--json"]);
+    const { database } = JSON.parse(stdout);
+    expect(database.replicas).toEqual([
+      {
+        address: null,
+        health: "UNKNOWN",
+        id: "eeee2222-0000-4000-8000-000000000003",
+        name: "analytics-replica-1",
+        status: "BUILD",
+      },
+    ]);
+    expect(database.problems).toEqual([
+      { field: "status", name: null, part: "primary", value: "BUILD" },
+      { field: "health", name: null, part: "primary", value: "UNKNOWN" },
+      {
+        field: "status",
+        name: "analytics-replica-1",
+        part: "replica",
+        value: "BUILD",
+      },
+    ]);
+  });
+
+  describe.each([
+    ["replicas", "/api/v4/databases", /Replicas\s+Unavailable\n/u],
+    [
+      "logs",
+      `/api/v4/database/${FAKE_DATABASES[0]?.primary?.id}/logs`,
+      /Logs\s+Unavailable\n/u,
+    ],
+    ["backups", "/api/v4/database/backups", /Backups\s+Unavailable\n/u],
+  ])("when the Space API fails for the %s", (part, pathname, line) => {
+    beforeAll(() => {
+      keystone.faults.set(`GET ${pathname}`, 500);
+    });
+
+    afterAll(() => {
+      keystone.faults.delete(`GET ${pathname}`);
+    });
+
+    test("still prints the database, and the verdict covers what loaded", async () => {
+      const { code, stderr, stdout } = await run(["db", "inspect", "orders"]);
+      expect(code).toBe(0);
+      expect(stderr).toMatch(/Engine\s+mysql 8\.0\.34\n/u);
+      expect(stderr).toMatch(line);
+      expect(stderr).toContain(
+        `> NOTE: The Space API didn't answer for the ${part} of orders, so the verdict leaves them out.`
+      );
+      expect(stderr).toContain(
+        "> orders is healthy. Connect to it at 203.0.113.20:3306."
+      );
+      expect(stdout).toBe(`${FAKE_DATABASES[0]?.id}\n`);
+    });
+
+    test(`--json has null for the ${part}`, async () => {
+      const { code, stdout } = await run(["db", "inspect", "orders", "--json"]);
+      expect(code).toBe(0);
+      const { database } = JSON.parse(stdout);
+      expect(database[part]).toBeNull();
+      expect(database.problems).toEqual([]);
+      const others = ["replicas", "logs", "backups"].filter((p) => p !== part);
+      for (const other of others) {
+        expect(Array.isArray(database[other])).toBe(true);
+      }
+    });
+  });
+
+  test("a cluster without a primary yet", async () => {
+    const { code, stderr } = await run(["db", "inspect", "cache"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/Status\s+-\n/u);
+    expect(stderr).not.toContain("Engine");
+    expect(stderr).toContain(
+      "> NOTE: cache needs attention: the cluster has no primary yet."
+    );
+  });
+
+  test("an unknown database points to db ls", async () => {
+    const { code, stderr, stdout } = await run(["db", "inspect", "nope"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain('no database named or with ID "nope" in Alpha');
+    expect(stderr).toContain("Run `nipa db ls` to see your databases.");
+    expect(stdout).toBe("");
+  });
+
+  test("a missing database argument exits 2", async () => {
+    const { code } = await run(["db", "inspect"]);
+    expect(code).toBe(2);
   });
 });
 

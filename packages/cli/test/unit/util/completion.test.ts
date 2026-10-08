@@ -304,6 +304,12 @@ describe("bash", () => {
     ]);
   });
 
+  test("db inspect lists database names", async () => {
+    expect(await bashComplete("nipa", "db", "inspect", "or")).toEqual([
+      "orders",
+    ]);
+  });
+
   test("global options before the command", async () => {
     expect(await bashComplete("nipa", "-P", "")).toEqual(["prod"]);
     expect(await bashComplete("nipa", "-P", "prod", "sw")).toEqual(["switch"]);

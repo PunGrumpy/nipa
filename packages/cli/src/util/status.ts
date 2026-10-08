@@ -3,15 +3,23 @@
 import { gray, green, red, yellow } from "./ui";
 import type { Cell, Paint } from "./ui";
 
-// OpenStack's statuses: these run or answer, these fail, and these are on
-// their way somewhere. The rest, such as SHUTOFF, SHELVED or DOWN, are gray.
+// OpenStack's statuses: these run, answer or finished, these fail, and these
+// are on their way somewhere. The rest, such as SHUTOFF, SHELVED or DOWN, are gray.
 // Cinder writes its statuses in lowercase, such as in-use or error_deleting.
-const RUNNING = new Set(["ACTIVE", "AVAILABLE", "HEALTHY", "IN-USE", "ONLINE"]);
-const FAILING = new Set(["DEGRADED", "OFFLINE", "UNKNOWN"]);
+const RUNNING = new Set([
+  "ACTIVE",
+  "AVAILABLE",
+  "COMPLETED",
+  "HEALTHY",
+  "IN-USE",
+  "ONLINE",
+]);
+const FAILING = new Set(["DEGRADED", "FAILED", "OFFLINE", "UNKNOWN"]);
 const CHANGING = new Set([
   "ATTACHING",
   "BACKING-UP",
   "BUILD",
+  "BUILDING",
   "CREATING",
   "DELETING",
   "DETACHING",
@@ -19,6 +27,7 @@ const CHANGING = new Set([
   "EXTENDING",
   "HARD_REBOOT",
   "MIGRATING",
+  "NEW",
   "PASSWORD",
   "REBOOT",
   "REBUILD",
@@ -32,12 +41,25 @@ const CHANGING = new Set([
   "VERIFY_RESIZE",
 ]);
 
+/**
+ * Whether `status` says something went wrong: FAILED, ERROR and the statuses
+ * built on them, such as Trove's DELETE_FAILED or Cinder's error_deleting,
+ * and the ones that mean a resource stopped answering. Everything red here
+ * counts as a problem for `nipa db inspect`.
+ */
+export const isFailing = (status: string): boolean => {
+  const upper = status.toUpperCase();
+  return (
+    FAILING.has(upper) || upper.startsWith("ERROR") || upper.endsWith("FAILED")
+  );
+};
+
 const paintFor = (status: string): Paint => {
   const upper = status.toUpperCase();
   if (RUNNING.has(upper)) {
     return green;
   }
-  if (FAILING.has(upper) || upper.startsWith("ERROR")) {
+  if (isFailing(status)) {
     return red;
   }
   if (CHANGING.has(upper) || upper.startsWith("PENDING_")) {
