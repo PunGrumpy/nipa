@@ -2304,7 +2304,8 @@ describe("lb inspect", () => {
       name: "web-lb",
       status: "ACTIVE",
     });
-    expect(loadBalancer.listeners).toEqual([
+    expect(loadBalancer.listenerDetails).toEqual([
+      // Not listeners: lb ls --json gives that name to the count.
       {
         allowedCidrs: [],
         backendGroupId: "pool-1",

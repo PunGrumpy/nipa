@@ -174,7 +174,11 @@ export interface LoadBalancerDetail extends Part {
   externalAddress: string | null;
   flavor: string | null;
   createdAt: string;
-  listeners: Listener[];
+  /**
+   * `listenerDetails`, not `listeners`, because `nipa lb ls --json` shipped
+   * `listeners` as a count, and one name shouldn't mean two shapes.
+   */
+  listenerDetails: Listener[];
   backendGroups: BackendGroup[];
 }
 
@@ -276,7 +280,7 @@ export const inspectLoadBalancer = async (
     createdAt: lb.created_at,
     externalAddress: orNull(externalAddress),
     flavor: orNull(flavor),
-    listeners: listeners.listeners.map((listener) => ({
+    listenerDetails: listeners.listeners.map((listener) => ({
       ...toPart(listener),
       allowedCidrs: listener.allowed_cidrs ?? [],
       backendGroupId: listener.backend_group_id ?? null,
@@ -362,7 +366,7 @@ const standbyDetail = (member: Member): string =>
  * of them: the load balancer itself only when nothing below explains it.
  */
 export const diagnose = (lb: LoadBalancerDetail): Diagnosis => {
-  const { backendGroups, listeners } = lb;
+  const { backendGroups, listenerDetails: listeners } = lb;
   const sizes = new Map(backendGroups.map((g) => [g.id, g.members.length]));
   const empty = listeners.filter((l) => !sizes.get(l.backendGroupId ?? ""));
   const healthChecks = backendGroups.flatMap((g) => g.healthCheck ?? []);

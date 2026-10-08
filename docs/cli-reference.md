@@ -512,7 +512,7 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 }
 ```
 
-`nipa lb inspect --json` prints the profile, the project and one load balancer under `loadBalancer`, with its listeners, backend groups and their members. Every part has an `id`, a `status` and a `health`, which are Octavia's provisioning and operating statuses. A listener with an empty `allowedCidrs` lets every source in. `externalAddress`, `flavor`, a listener's `backendGroupId`, a group's `healthCheck` and a member's `weight` are `null` when the load balancer doesn't have them:
+`nipa lb inspect --json` prints the profile, the project and one load balancer under `loadBalancer`, with its listeners under `listenerDetails`, and its backend groups and their members under `backendGroups`. The listeners aren't under `listeners`, because `nipa lb ls --json` gives that name to their count. Every part has an `id`, a `status` and a `health`, which are Octavia's provisioning and operating statuses. A listener with an empty `allowedCidrs` lets every source in. `externalAddress`, `flavor`, a listener's `backendGroupId`, a group's `healthCheck` and a member's `weight` are `null` when the load balancer doesn't have them. `flavor` and `externalAddress` are also `null` when the list that names them failed, since the rest of the load balancer still answers:
 
 ```json
 {
@@ -554,7 +554,7 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
     "flavor": "lss.large.v2",
     "health": "ONLINE",
     "id": "9abc…",
-    "listeners": [
+    "listenerDetails": [
       {
         "allowedCidrs": [],
         "backendGroupId": "cdef…",

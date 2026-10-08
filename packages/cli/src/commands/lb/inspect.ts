@@ -170,8 +170,8 @@ export const inspect = handle(
     const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
     log(`Load balancer ${bold(name)} in ${bold(project.name)} ${elapsed}`);
     printFields(fieldsOf(loadBalancer, Date.now()));
-    if (loadBalancer.listeners.length > 0) {
-      printListeners(loadBalancer.listeners, loadBalancer.backendGroups);
+    if (loadBalancer.listenerDetails.length > 0) {
+      printListeners(loadBalancer.listenerDetails, loadBalancer.backendGroups);
     }
     const groups = loadBalancer.backendGroups;
     if (groups.length > 0) {

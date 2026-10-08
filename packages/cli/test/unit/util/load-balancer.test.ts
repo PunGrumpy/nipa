@@ -69,7 +69,7 @@ const loadBalancer = (
   flavor: null,
   health,
   id: "lb-1",
-  listeners: [
+  listenerDetails: [
     {
       allowedCidrs: [],
       backendGroupId: "pool-1",
@@ -138,7 +138,7 @@ describe("diagnose", () => {
   test("a load balancer without listeners has only that to say", () => {
     const lb: LoadBalancerDetail = {
       ...loadBalancer([], "ACTIVE", "OFFLINE"),
-      listeners: [],
+      listenerDetails: [],
       status: "PENDING_CREATE",
     };
     expect(diagnose(lb).verdict).toBe("The load balancer has no listeners");
