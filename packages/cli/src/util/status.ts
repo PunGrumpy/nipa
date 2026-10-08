@@ -41,12 +41,25 @@ const CHANGING = new Set([
   "VERIFY_RESIZE",
 ]);
 
+/**
+ * Whether `status` says something went wrong: FAILED, ERROR and the statuses
+ * built on them, such as Trove's DELETE_FAILED or Cinder's error_deleting,
+ * and the ones that mean a resource stopped answering. Everything red here
+ * counts as a problem for `nipa db inspect`.
+ */
+export const isFailing = (status: string): boolean => {
+  const upper = status.toUpperCase();
+  return (
+    FAILING.has(upper) || upper.startsWith("ERROR") || upper.endsWith("FAILED")
+  );
+};
+
 const paintFor = (status: string): Paint => {
   const upper = status.toUpperCase();
   if (RUNNING.has(upper)) {
     return green;
   }
-  if (FAILING.has(upper) || upper.startsWith("ERROR")) {
+  if (isFailing(status)) {
     return red;
   }
   if (CHANGING.has(upper) || upper.startsWith("PENDING_")) {

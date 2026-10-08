@@ -1,5 +1,5 @@
 import type { DatabaseDetail } from "../../util/database";
-import { statusLabel } from "../../util/status";
+import { isFailing, statusLabel } from "../../util/status";
 
 /** Where a problem is. `--json` prints these words, so they only ever grow. */
 const PARTS = ["cluster", "primary", "replica", "backup"] as const;
@@ -65,7 +65,7 @@ export const databaseProblems = (
     }
   }
   const [latest] = database.backups ?? [];
-  if (latest?.status.toUpperCase().includes("FAIL")) {
+  if (latest && isFailing(latest.status)) {
     problems.push({
       field: "status",
       name: latest.name,
@@ -85,7 +85,10 @@ export const describeProblem = (problem: DatabaseProblem): string => {
     return "the cluster has no primary yet";
   }
   if (problem.part === "backup") {
-    return `the latest backup, ${problem.name}, failed`;
+    const label = statusLabel(problem.value ?? "");
+    return label === "Failed"
+      ? `the latest backup, ${problem.name}, failed`
+      : `the latest backup, ${problem.name}, is ${label}`;
   }
   const owner = problem.part === "primary" ? "the primary" : problem.name;
   return `${owner}'s ${problem.field} is ${statusLabel(problem.value ?? "")}`;

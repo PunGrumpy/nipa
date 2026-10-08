@@ -118,6 +118,21 @@ describe("databaseProblems", () => {
     ).toEqual([]);
   });
 
+  test("a backup whose delete failed, like any status colored red", () => {
+    const problems = databaseProblems(
+      database({ backups: [backup("b3", "DELETE_FAILED")] })
+    );
+    expect(problems).toEqual([
+      { field: "status", name: "b3", part: "backup", value: "DELETE_FAILED" },
+    ]);
+    expect(problems.map(describeProblem)).toEqual([
+      "the latest backup, b3, is Delete failed",
+    ]);
+    expect(
+      databaseProblems(database({ backups: [backup("b4", "BUILDING")] }))
+    ).toEqual([]);
+  });
+
   test("a cluster without a primary", () => {
     const problems = databaseProblems(database({ primary: null }));
     expect(problems).toEqual([
