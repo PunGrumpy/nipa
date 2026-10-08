@@ -1833,7 +1833,7 @@ describe("sg ls", () => {
           remoteGroupId: null,
           remoteIpPrefix: "0.0.0.0/0",
         },
-        { portMax: 22, portMin: 22, protocol: "tcp" },
+        { portMax: 22, portMin: 22, protocol: "6" },
       ],
     });
   });

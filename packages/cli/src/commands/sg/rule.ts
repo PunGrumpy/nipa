@@ -26,6 +26,20 @@ export interface Rule {
 }
 
 const ICMP = new Set(["icmp", "icmpv6", "ipv6-icmp"]);
+
+/** Neutron accepts a protocol as its IANA number too. The table reads names. */
+const PROTOCOL_NAMES = new Map([
+  ["1", "icmp"],
+  ["6", "tcp"],
+  ["17", "udp"],
+  ["58", "ipv6-icmp"],
+]);
+
+/** null for every protocol, else the protocol's name, such as tcp for 6. */
+const protocolOf = (protocol: string | null): string | null =>
+  protocol === null || protocol === "any"
+    ? null
+    : (PROTOCOL_NAMES.get(protocol) ?? protocol);
 const WORLD = new Set(["0.0.0.0/0", "::/0"]);
 const LAST_PORT = 65_535;
 
@@ -61,8 +75,7 @@ export const toRule = (
   rule: SecurityGroupRule,
   groupNames: ReadonlyMap<string, string>
 ): Rule => {
-  const protocol =
-    rule.protocol === null || rule.protocol === "any" ? null : rule.protocol;
+  const protocol = protocolOf(rule.protocol);
   return {
     direction: rule.direction,
     ethertype: rule.ethertype,

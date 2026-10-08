@@ -30,6 +30,13 @@ const row = (rule: Partial<SecurityGroupRule>): string[] =>
 const tcp = (port: number, remoteIpPrefix = "0.0.0.0/0") =>
   toRule(raw({ portMax: port, portMin: port, remoteIpPrefix }), NAMES);
 
+/** Port 22 from anywhere, with the protocol as Neutron sent it. */
+const ssh = (protocol: string) =>
+  toRule(
+    raw({ portMax: 22, portMin: 22, protocol, remoteIpPrefix: "0.0.0.0/0" }),
+    NAMES
+  );
+
 describe("ruleCells", () => {
   test("one port, a range, and a CIDR", () => {
     expect(
@@ -57,6 +64,18 @@ describe("ruleCells", () => {
   test("a remote group shows its name, or its ID when it isn't in the project", () => {
     expect(row({ remoteGroupId: WEB_ID })[2]).toBe("group web");
     expect(row({ remoteGroupId: "elsewhere" })[2]).toBe("group elsewhere");
+  });
+
+  test("a protocol number reads as its name", () => {
+    expect(row({ portMax: 22, portMin: 22, protocol: "6" })[0]).toBe("tcp");
+    expect(row({ portMax: 53, portMin: 53, protocol: "17" })[0]).toBe("udp");
+    expect(row({ portMax: 0, portMin: 8, protocol: "1" })).toEqual([
+      "icmp",
+      "type 8 code 0",
+      "any",
+      "IPv4",
+    ]);
+    expect(row({ protocol: "47" })[0]).toBe("47");
   });
 
   test("an ICMP rule shows its type and code", () => {
@@ -110,6 +129,12 @@ describe("exposure", () => {
     expect(exposureNote([all, tcp(22)])).toBe(
       "Every port is open to the internet."
     );
+  });
+
+  test("protocol 6 is TCP, so it's exposed like tcp, and 17 is UDP", () => {
+    expect(isExposed(ssh("6"))).toBe(true);
+    expect(exposureNote([ssh("6")])).toBe("SSH (22) is open to the internet.");
+    expect(isExposed(ssh("17"))).toBe(false);
   });
 
   test("a private source, a web port, UDP or outbound traffic isn't exposed", () => {

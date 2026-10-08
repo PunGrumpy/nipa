@@ -305,11 +305,12 @@ export const FAKE_SECURITY_GROUPS = [
         protocol: "tcp",
         remoteIp: "0.0.0.0/0",
       }),
+      // Neutron accepts the IANA number too. nipa reads it as tcp.
       sgRule({
         direction: "ingress",
         id: "r5",
         port: 22,
-        protocol: "tcp",
+        protocol: "6",
         remoteIp: "0.0.0.0/0",
       }),
     ],
