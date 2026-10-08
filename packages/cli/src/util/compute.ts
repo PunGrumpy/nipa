@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { z } from "zod";
 
+import { ApiError, utcTime } from "./api";
 import type { Space } from "./api";
 
 const IpSchema = z.object({ address: z.string() });
@@ -138,23 +139,33 @@ export const listServers = async (space: Space): Promise<Server[]> => {
   return body.instances.map(toServer);
 };
 
-// v4 has Nova's task state, which v3 leaves out. A server is busy until
-// it's null, such as "powering-off" during a stop.
+// v4 has Nova's task state and lock, which v3 leaves out. A server is busy
+// until its task is null, such as "powering-off" during a stop.
 const StateSchema = z.object({
-  instance: z.object({ status: z.string(), task_state: z.string().nullable() }),
+  instance: z.object({
+    locked: z.boolean().nullish(),
+    status: z.string(),
+    task_state: z.string().nullable(),
+  }),
 });
 
 export interface ServerState {
   status: string;
   taskState: string | null;
+  /** True when the server is locked against changes, or null when unknown. */
+  locked: boolean | null;
 }
 
-const getServerState = async (
+export const getServerState = async (
   space: Space,
   id: string
 ): Promise<ServerState> => {
   const { instance } = await space.get(`/v4/instances/${id}`, StateSchema);
-  return { status: instance.status, taskState: instance.task_state };
+  return {
+    locked: instance.locked ?? null,
+    status: instance.status,
+    taskState: instance.task_state,
+  };
 };
 
 export type PowerAction = "start" | "stop" | "restart";
@@ -198,4 +209,75 @@ export const waitForServer = (input: {
     return poll();
   };
   return poll();
+};
+
+const ConsoleLogSchema = z.object({ logs: z.string() });
+
+/** A server's console log, or none when the server has no VM to read it from. */
+export type ConsoleLog = { kind: "log"; text: string } | { kind: "none" };
+
+// The Space API sends the last 100 lines of Nova's console log, and answers
+// 406 for a server whose VM never started, such as one that failed to build.
+export const getConsoleLog = async (
+  space: Space,
+  id: string
+): Promise<ConsoleLog> => {
+  try {
+    const body = await space.get(`/v4/instances/${id}/logs`, ConsoleLogSchema);
+    return { kind: "log", text: body.logs };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 406) {
+      return { kind: "none" };
+    }
+    throw error;
+  }
+};
+
+// Nova's instance actions. remark is "Error" when the action failed, and
+// null otherwise. started_at is UTC without a zone.
+const ActionSchema = z.object({
+  action: z.string(),
+  id: z.string(),
+  remark: z.string().nullish(),
+  started_at: z.string(),
+  user_name: z.string().nullish(),
+});
+
+const ActionsSchema = z.object({ action_histories: z.array(ActionSchema) });
+
+/** Something done to a server, such as create, stop or reboot. */
+export interface ServerAction {
+  /** Nova's action, such as create, start, stop or reboot. */
+  action: string;
+  /** Nova's result, "Error" when the action failed, or null. */
+  remark: string | null;
+  /** The request ID that Nova logs the action under, such as req-1ab8…. */
+  requestId: string;
+  startedAt: string;
+  /** The name of the person who asked for it. */
+  user: string | null;
+}
+
+export const actionFailed = (action: ServerAction): boolean =>
+  action.remark === "Error";
+
+/** What was done to the server, newest first. */
+export const listServerActions = async (
+  space: Space,
+  id: string
+): Promise<ServerAction[]> => {
+  const body = await space.get(
+    `/v4/instances/${id}/action_histories`,
+    ActionsSchema
+  );
+  const actions = body.action_histories.map((action) => ({
+    action: action.action,
+    remark: action.remark ?? null,
+    requestId: action.id,
+    startedAt: utcTime(action.started_at),
+    user: action.user_name ?? null,
+  }));
+  return actions.toSorted(
+    (a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)
+  );
 };

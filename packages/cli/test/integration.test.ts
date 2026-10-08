@@ -35,6 +35,7 @@ import {
 import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import {
+  FAKE_CONSOLE_LOG,
   FAKE_DATABASES,
   FAKE_IPS,
   FAKE_LOAD_BALANCERS,
@@ -709,6 +710,15 @@ describe("server inspect", () => {
       volumes: [{ name: "web-1-vol-0", sizeGb: 10 }],
       zone: "NCP-BKK",
     });
+    expect(server).toMatchObject({
+      lastAction: {
+        action: "start",
+        remark: null,
+        requestId: "req-web1-start",
+      },
+      locked: true,
+      taskState: null,
+    });
   });
 
   test("prints the details on stderr, and the ID to a pipe", async () => {
@@ -725,6 +735,10 @@ describe("server inspect", () => {
     );
     expect(stderr).toMatch(/Security groups\s+default\n\s+web\n/u);
     expect(stderr).toMatch(/Created\s+3d ago/u);
+    expect(stderr).toMatch(/Locked\s+yes\n/u);
+    expect(stderr).toMatch(/Last action\s+start 1d ago by Ann Example\n/u);
+    expect(stderr).not.toContain("Task");
+    expect(stderr).not.toContain("nipa server history");
     expect(stderr).not.toContain("Kubernetes");
     expect(stdout).toBe(`${id}\n`);
   });
@@ -735,6 +749,100 @@ describe("server inspect", () => {
       /Kubernetes\s+master \(cluster dddd1111-0000-4000-8000-000000000001\)/u
     );
     expect(stderr).toMatch(/Zone\s+-/u);
+  });
+
+  test("a server in Error shows its failed action and points to history and logs", async () => {
+    const { stderr } = await run(["server", "inspect", "k8s-worker-1"]);
+    expect(stderr).toMatch(
+      /Last action\s+create failed 61d ago by Ann Example\n/u
+    );
+    expect(stderr).toContain(
+      "> Run `nipa server history k8s-worker-1` to see what failed, and `nipa server logs k8s-worker-1` for its console log."
+    );
+  });
+
+  test("the hint repeats the ID when the server was named by ID", async () => {
+    const id = "55555555-5555-4555-8555-555555555555";
+    const { stderr } = await run(["server", "inspect", id]);
+    expect(stderr).toContain(
+      `> Run \`nipa server history ${id}\` to see what failed, and \`nipa server logs ${id}\` for its console log.`
+    );
+    expect(stderr).not.toContain("history k8s-worker-1");
+  });
+
+  test("a building server shows Nova's task", async () => {
+    const { stderr } = await run(["server", "inspect", "web-2"]);
+    expect(stderr).toMatch(/Task\s+spawning\n/u);
+    expect(stderr).not.toContain("Locked");
+  });
+
+  test("still prints the server when its actions can't be read", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    keystone.faults.set(`GET /api/v4/instances/${id}/action_histories`, 500);
+    try {
+      const { code, stderr, stdout } = await run(["server", "inspect", id]);
+      expect(code).toBe(0);
+      expect(stdout).toBe(`${id}\n`);
+      expect(stderr).toMatch(/> Server web-1 in Alpha/u);
+      expect(stderr).toMatch(/Locked\s+yes\n/u);
+      expect(stderr).toMatch(/Last action\s+unavailable\n/u);
+      expect(stderr).toContain(
+        "> Couldn't load web-1's actions: Internal Server Error. Run the command again, or add `--debug` to see the request."
+      );
+      const json = await run(["server", "inspect", id, "--json"]);
+      expect(json.code).toBe(0);
+      expect(JSON.parse(json.stdout).server).toMatchObject({
+        lastAction: null,
+        locked: true,
+        name: "web-1",
+        taskState: null,
+      });
+    } finally {
+      keystone.faults.clear();
+    }
+  });
+
+  test("still prints the server when its state can't be read", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    keystone.faults.set(`GET /api/v4/instances/${id}`, 503);
+    try {
+      const { code, stderr, stdout } = await run(["server", "inspect", id]);
+      expect(code).toBe(0);
+      expect(stdout).toBe(`${id}\n`);
+      expect(stderr).toMatch(/Status\s+● Active\n/u);
+      expect(stderr).toMatch(/Task\s+unavailable\n\s+Locked\s+unavailable\n/u);
+      expect(stderr).toMatch(/Last action\s+start 1d ago by Ann Example\n/u);
+      expect(stderr).toContain(
+        "> Couldn't load web-1's state: Service Unavailable."
+      );
+      const json = await run(["server", "inspect", id, "--json"]);
+      expect(json.code).toBe(0);
+      expect(JSON.parse(json.stdout).server).toMatchObject({
+        lastAction: { action: "start" },
+        locked: null,
+        name: "web-1",
+        taskState: null,
+      });
+    } finally {
+      keystone.faults.clear();
+    }
+  });
+
+  test("fails when the servers themselves can't be read", async () => {
+    keystone.faults.set("GET /api/v3/instances", 503);
+    try {
+      const { code, stderr, stdout } = await run([
+        "server",
+        "inspect",
+        "web-1",
+      ]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain("Error: Service Unavailable");
+      expect(stderr).not.toContain("Server web-1");
+    } finally {
+      keystone.faults.clear();
+    }
   });
 
   test("an unknown server points to server ls", async () => {
@@ -748,6 +856,137 @@ describe("server inspect", () => {
   test("a missing server argument exits 2", async () => {
     const { code } = await run(["server", "inspect"]);
     expect(code).toBe(2);
+  });
+});
+
+describe("server logs", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("prints the console log on stdout as it is", async () => {
+    const { code, stderr, stdout } = await run(["server", "logs", "web-1"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(FAKE_CONSOLE_LOG);
+    // No newline is added after the login prompt the log ends in.
+    expect(stdout.endsWith("login: ")).toBe(true);
+    expect(stderr).toMatch(/> Console log of web-1 in Alpha \[\d+(?:ms|s)\]/u);
+  });
+
+  test("--tail keeps the last lines, and -n is the same", async () => {
+    const last2 =
+      "[  OK  ] Reached target cloud-init.target - Cloud-init target.\nweb-1 login: \n";
+    const long = await run(["server", "logs", "web-1", "--tail", "2"]);
+    const short = await run(["server", "logs", "web-1", "-n", "2"]);
+    expect(long.stdout).toBe(last2);
+    expect(short.stdout).toBe(last2);
+  });
+
+  test("--json prints the server and its log", async () => {
+    const { code, stdout } = await run([
+      "server",
+      "logs",
+      "web-1",
+      "-n",
+      "1",
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      logs: "web-1 login: \n",
+      profile: "prod",
+      project: expect.objectContaining({ name: "Alpha" }),
+      server: { id: "22222222-2222-4222-8222-222222222222", name: "web-1" },
+    });
+  });
+
+  test("a server that never booted has none, and points to history", async () => {
+    const { code, stderr, stdout } = await run([
+      "server",
+      "logs",
+      "k8s-worker-1",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toContain("Error: k8s-worker-1 has no console log yet");
+    expect(stderr).toContain(
+      "A server has one once it boots, so this one most likely never booted. Run `nipa server history k8s-worker-1` to see what failed."
+    );
+    expect(stderr).not.toContain("Something went wrong");
+  });
+
+  test("the hint repeats the ID when the server was named by ID", async () => {
+    const id = "55555555-5555-4555-8555-555555555555";
+    const { code, stderr } = await run(["server", "logs", id]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("Error: k8s-worker-1 has no console log yet");
+    expect(stderr).toContain(
+      `Run \`nipa server history ${id}\` to see what failed.`
+    );
+    expect(stderr).not.toContain("history k8s-worker-1");
+  });
+
+  test("--tail takes a whole number above 0", async () => {
+    const { code, stderr } = await run(["server", "logs", "web-1", "-n", "0"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain('"0" isn\'t a number of lines');
+    expect(stderr).toContain("such as `--tail 50`");
+  });
+
+  test("an unknown server points to server ls", async () => {
+    const { code, stderr } = await run(["server", "logs", "nope"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain('no server named or with ID "nope" in Alpha');
+  });
+});
+
+describe("server history", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("lists the actions newest first, and their request IDs to a pipe", async () => {
+    const { code, stderr, stdout } = await run(["server", "history", "web-1"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Actions on web-1 in Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(
+      /Age\s+Action\s+User\s+Result\s+Request ID\n\s+1d\s+start\s+Ann Example\s+-\s+req-web1-start\n\s+2d\s+stop\s+Ann Example\s+-\s+req-web1-stop\n\s+3d\s+create\s+Ann Example\s+-\s+req-22222222-create\n/u
+    );
+    expect(stdout).toBe("req-web1-start\nreq-web1-stop\nreq-22222222-create\n");
+  });
+
+  test("events is the same command, and a failed action says Error", async () => {
+    const { stderr } = await run(["server", "events", "k8s-worker-1"]);
+    expect(stderr).toMatch(
+      /create\s+Ann Example\s+Error\s+req-55555555-create/u
+    );
+  });
+
+  test("--json prints the server and its actions", async () => {
+    const { code, stdout } = await run([
+      "server",
+      "history",
+      "k8s-worker-1",
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    const { actions, profile, server } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(server).toEqual({
+      id: "55555555-5555-4555-8555-555555555555",
+      name: "k8s-worker-1",
+    });
+    expect(actions).toEqual([
+      {
+        action: "create",
+        remark: "Error",
+        requestId: "req-55555555-create",
+        startedAt: expect.stringMatching(/Z$/u),
+        user: "Ann Example",
+      },
+    ]);
   });
 });
 

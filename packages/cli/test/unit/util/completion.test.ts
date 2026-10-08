@@ -295,6 +295,13 @@ describe("bash", () => {
       "web-2",
       "web-1",
     ]);
+    expect(await bashComplete("nipa", "server", "logs", "web")).toEqual([
+      "web-2",
+      "web-1",
+    ]);
+    expect(await bashComplete("nipa", "server", "events", "k8s-w")).toEqual([
+      "k8s-worker-1",
+    ]);
   });
 
   test("global options before the command", async () => {
@@ -321,6 +328,8 @@ describe("bash", () => {
     expect(await bashComplete("nipa", "server", "")).toEqual([
       "ls",
       "inspect",
+      "history",
+      "logs",
       "start",
       "stop",
       "restart",
@@ -328,6 +337,9 @@ describe("bash", () => {
     expect(
       await bashComplete("nipa", "server", "stop", "web-1", "--y")
     ).toEqual(["--yes"]);
+    expect(
+      await bashComplete("nipa", "server", "logs", "web-1", "--t")
+    ).toEqual(["--tail"]);
     expect(await bashComplete("nipa", "servers", "ls", "--j")).toEqual([
       "--json",
     ]);
