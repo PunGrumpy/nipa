@@ -11,23 +11,40 @@ export const lsSubcommand = defineCommand({
   summary: LIST_SECURITY_GROUPS,
 });
 
+export const inspectSubcommand = defineCommand({
+  args: [
+    {
+      arity: "one",
+      name: "group",
+      value: { kind: "resource", resource: "security-groups" },
+    },
+  ],
+  flags: [jsonFlag],
+  name: "inspect",
+  summary: "Show a security group's rules and the servers that use it",
+});
+
 export const sgCommand = defineGroup({
   aliases: ["security-group", "security-groups"],
   default: "ls",
   description:
-    "Lists the security groups in your project with their inbound and outbound rule counts, age and description. `--json` prints each rule's direction, protocol, ports and remote.",
+    "Lists and inspects the security groups in your project. Name a group by its name or ID. `nipa sg inspect` shows a group's inbound and outbound rules and the servers that use it, found through the network ports in your project, so a server in another project doesn't show. It notes when a rule opens SSH, RDP or a database port to the internet. `--json` prints each rule's direction, protocol, ports and remote, and `exposed`, true for such a rule.",
   examples: [
     {
       command: "nipa sg ls",
       description: LIST_SECURITY_GROUPS,
     },
     {
+      command: "nipa sg inspect web",
+      description: "Show the rules of the web security group and its servers",
+    },
+    {
       command:
-        "nipa sg ls --json | jq '.securityGroups[] | select(.name == \"web\") | .rules'",
-      description: "Print the rules of the web security group",
+        "nipa sg inspect web --json | jq -r '.securityGroup.servers[].name'",
+      description: "Print the name of each server that uses web",
     },
   ],
   name: "sg",
-  subcommands: [lsSubcommand],
-  summary: LIST_SECURITY_GROUPS,
+  subcommands: [lsSubcommand, inspectSubcommand],
+  summary: "List and inspect your security groups",
 });

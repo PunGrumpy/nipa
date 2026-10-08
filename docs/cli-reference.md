@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 23 commands. Without a command, it prints help.
+nipa has 24 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -27,6 +27,7 @@ nipa has 23 commands. Without a command, it prints help.
 | `nipa volume ls [--json]` | Lists the block storage volumes in your project with their status, size, type, the server each one is attached to, and age. In a pipe, it prints one volume ID per line. `nipa volume` and `nipa volumes` do the same |
 | `nipa network ls [--json]` | Lists the networks your project can use with their status, type, zone and age. `VPC` marks one of your project's private networks, and `external` a shared pool of external IPs. In a pipe, it prints one network ID per line. `nipa network` and `nipa networks` do the same |
 | `nipa sg ls [--json]` | Lists the security groups in your project with their inbound and outbound rule counts, age and description. In a pipe, it prints one security group ID per line. `nipa sg`, `nipa security-group` and `nipa security-groups` do the same |
+| `nipa sg inspect <group> [--json]` | Shows one security group's ID, description, the servers that use it with their addresses, and its inbound and outbound rules, by name or ID. nipa finds the servers through the network ports in your project, so a server in another project that uses the group doesn't show. Each rule shows its protocol, ports, the CIDR or security group it allows, and its ethertype. `any` means every protocol, port or address, and a protocol number such as `6` shows as its name, `tcp`. A `!` marks an inbound rule that opens SSH, RDP or a database port to any address, and a note below the table names the ports. In a pipe, it prints the group's ID |
 | `nipa k8s ls [--json]` | Lists the Kubernetes clusters in your project with their Kubernetes version, nodes, active node count and age. The Space API has no Kubernetes endpoint, so nipa finds each cluster through the servers Magnum made for it, and a cluster without servers doesn't show. In a pipe, it prints one cluster ID per line. `nipa k8s`, `nipa kubernetes` and `nipa coe` do the same |
 | `nipa db ls [--json]` | Lists the database clusters in your project with their engine, status, address, flavor and age. The address is the primary's external IP, or its internal IP without one. In a pipe, it prints one cluster ID per line. `nipa db`, `nipa database` and `nipa databases` do the same |
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
@@ -54,7 +55,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -105,7 +106,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 | `.nipa/project.json` | In a folder that `nipa link` linked: the `profile`, and the `project` with its `id`, `name` and `domainId`. It holds no token, so you can commit it to share the link with your team, or add `.nipa` to `.gitignore` |
 | `~/.cache/nipa/update.json` | The latest version on GitHub and when nipa checked |
 | `~/.cache/nipa/openstack.json` | openstack's commands and options, for tab completion after `nipa os` |
-| `~/.cache/nipa/names.json` | Server, flavor, image and network names from the Space API, for tab completion, kept for a minute per profile and project |
+| `~/.cache/nipa/names.json` | Server, security group, flavor, image and network names from the Space API, for tab completion, kept for a minute per profile and project |
 | `~/.cache/nipa/completion.json` | Where `nipa completion --install` saved each script, and the nipa version that wrote it. When the version changes, the next command rewrites the script |
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
@@ -321,6 +322,42 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       ]
     }
   ]
+}
+```
+
+`nipa sg inspect --json` prints the profile, the project and the security group in the same shape as `sg ls`. Each rule adds `remoteGroupName`, the name of the group `remoteGroupId` names, or `null` without one or when the group isn't in the project, and `exposed`, `true` for an inbound rule that opens SSH, RDP or a database port to any address, the rules the `!` marks. `servers` lists the servers in the project with a network port in the group, newest first, with the addresses of those ports, and `addresses` is empty for a port without a fixed IP:
+
+```json
+{
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "securityGroup": {
+    "createdAt": "2030-01-01T00:00:00.000000Z",
+    "description": "Default security group",
+    "id": "9abc…",
+    "name": "default",
+    "rules": [
+      {
+        "direction": "ingress",
+        "ethertype": "IPv4",
+        "exposed": false,
+        "id": "def0…",
+        "portMax": null,
+        "portMin": null,
+        "protocol": "any",
+        "remoteGroupId": "9abc…",
+        "remoteGroupName": "default",
+        "remoteIpPrefix": null
+      }
+    ],
+    "servers": [
+      {
+        "addresses": ["192.0.2.5"],
+        "id": "2222…",
+        "name": "web-1"
+      }
+    ]
+  }
 }
 ```
 

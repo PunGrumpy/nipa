@@ -46,3 +46,30 @@ export const listNetworks = async (space: Space): Promise<Network[]> => {
     .map(toNetwork)
     .toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 };
+
+// Neutron's ports: each network interface, with the security groups on it.
+// device_id is the server's ID on a server's port, and "" on a free one.
+const PortSchema = z.object({
+  device_id: z.string(),
+  fixed_ips: z.array(z.object({ ip_address: z.string() })),
+  security_groups: z.array(z.string()).nullish(),
+});
+
+const PortsSchema = z.object({ ports: z.array(PortSchema) });
+
+export interface Port {
+  /** The server or other device that owns the port, or "" for none. */
+  deviceId: string;
+  addresses: string[];
+  securityGroupIds: string[];
+}
+
+/** Every port in the project. */
+export const listPorts = async (space: Space): Promise<Port[]> => {
+  const body = await space.get("/v2/ports", PortsSchema);
+  return body.ports.map((port) => ({
+    addresses: port.fixed_ips.map((ip) => ip.ip_address),
+    deviceId: port.device_id,
+    securityGroupIds: port.security_groups ?? [],
+  }));
+};

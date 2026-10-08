@@ -1833,6 +1833,7 @@ describe("sg ls", () => {
           remoteGroupId: null,
           remoteIpPrefix: "0.0.0.0/0",
         },
+        { portMax: 22, portMin: 22, protocol: "6" },
       ],
     });
   });
@@ -1842,7 +1843,7 @@ describe("sg ls", () => {
     expect(code).toBe(0);
     expect(stderr).toMatch(/> Security groups in Alpha \[\d+(?:ms|s)\]/u);
     expect(stderr).toMatch(/Name\s+Inbound\s+Outbound\s+Age\s+Description/u);
-    expect(stderr).toMatch(/web\s+1\s+0\s+2d\s+-/u);
+    expect(stderr).toMatch(/web\s+2\s+0\s+2d\s+-/u);
     expect(stderr).toMatch(/default\s+1\s+2\s+30d\s+Default security group/u);
     expect(stdout.trim().split("\n")).toEqual([
       "ssss2222-0000-4000-8000-000000000002",
@@ -1856,6 +1857,124 @@ describe("sg ls", () => {
     expect(code).toBe(0);
     expect(stderr).toContain("No security groups in Beta");
     expect(stdout).toBe("");
+  });
+});
+
+describe("sg inspect", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json adds each rule's remote group name and the group's servers", async () => {
+    const { code, stdout } = await run(["sg", "inspect", "default", "--json"]);
+    expect(code).toBe(0);
+    const { profile, project, securityGroup } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(securityGroup).toMatchObject({
+      description: "Default security group",
+      id: "ssss1111-0000-4000-8000-000000000001",
+      name: "default",
+      servers: [
+        {
+          addresses: ["192.0.2.5", "2001:db8::5"],
+          id: "22222222-2222-4222-8222-222222222222",
+          name: "web-1",
+        },
+        {
+          addresses: ["198.51.100.4"],
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "db-1",
+        },
+      ],
+    });
+    expect(securityGroup.rules[0]).toEqual({
+      direction: "ingress",
+      ethertype: "IPv4",
+      exposed: false,
+      id: "r1",
+      portMax: null,
+      portMin: null,
+      protocol: "any",
+      remoteGroupId: "ssss1111-0000-4000-8000-000000000001",
+      remoteGroupName: "default",
+      remoteIpPrefix: null,
+    });
+  });
+
+  test("--json marks the exposed rules, and keeps a server whose port has no address", async () => {
+    const { code, stdout } = await run(["sg", "inspect", "web", "--json"]);
+    expect(code).toBe(0);
+    const { securityGroup } = JSON.parse(stdout);
+    expect(securityGroup.servers[0]).toEqual({
+      addresses: [],
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "web-2",
+    });
+    expect(
+      securityGroup.rules.map((rule: { id: string; exposed: boolean }) => [
+        rule.id,
+        rule.exposed,
+      ])
+    ).toEqual([
+      ["r4", false],
+      ["r5", true],
+    ]);
+  });
+
+  test("prints the rules on stderr, and the ID to a pipe", async () => {
+    const id = "ssss1111-0000-4000-8000-000000000001";
+    const { code, stderr, stdout } = await run(["sg", "inspect", id]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(
+      /> Security group default in Alpha \[\d+(?:ms|s)\]/u
+    );
+    expect(stderr).toMatch(/Description\s+Default security group\n/u);
+    expect(stderr).toMatch(
+      /Servers\s+web-1 \(192\.0\.2\.5, 2001:db8::5\)\n\s+db-1 \(198\.51\.100\.4\)\n/u
+    );
+    expect(stderr).toMatch(/Created\s+30d ago/u);
+    expect(stderr).toMatch(
+      /> Inbound rules\n\n\s+Protocol\s+Ports\s+Source\s+Ethertype\n\s+any\s+any\s+group default\s+IPv4\n/u
+    );
+    expect(stderr).toMatch(
+      /> Outbound rules\n\n\s+Protocol\s+Ports\s+Destination\s+Ethertype\n\s+any\s+any\s+any\s+IPv4\n\s+any\s+any\s+any\s+IPv6\n/u
+    );
+    expect(stderr).not.toContain("open to the internet");
+    expect(stdout).toBe(`${id}\n`);
+  });
+
+  test("a group without outbound rules says so, and only servers count", async () => {
+    const { code, stderr } = await run(["sg", "inspect", "web"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/Description\s+-\n/u);
+    expect(stderr).toMatch(
+      /Servers\s+web-2 \(-\)\n\s+web-1 \(192\.0\.2\.5, 2001:db8::5\)\n\s+Created/u
+    );
+    expect(stderr).toMatch(/\n! tcp {10}22 {8}0\.0\.0\.0\/0 {5}IPv4\n/u);
+    expect(stderr).toMatch(/\n {2}tcp {10}443 {7}0\.0\.0\.0\/0 {5}IPv4\n/u);
+    expect(stderr).toContain("> NOTE: SSH (22) is open to the internet.");
+    expect(stderr).toContain(
+      "> No outbound rules, so this group lets no traffic out."
+    );
+    expect(stderr).not.toContain("Outbound rules\n");
+  });
+
+  test("an unknown group points to sg ls", async () => {
+    const { code, stderr, stdout } = await run(["sg", "inspect", "nope"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      'no security group named or with ID "nope" in Alpha'
+    );
+    expect(stderr).toContain("Run `nipa sg ls` to see your security groups.");
+    expect(stdout).toBe("");
+  });
+
+  test("a missing group argument exits 2", async () => {
+    const { code, stderr } = await run(["sg", "inspect"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain("missing <group>");
   });
 });
 
