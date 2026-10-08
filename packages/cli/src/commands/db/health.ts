@@ -22,7 +22,7 @@ export const databaseProblems = (database: DatabaseDetail): string[] => {
   if (!isAnswering(primary.health)) {
     problems.push(`the primary's health is ${statusLabel(primary.health)}`);
   }
-  for (const replica of database.replicas) {
+  for (const replica of database.replicas ?? []) {
     if (!isRunning(replica.status)) {
       problems.push(
         `${replica.name}'s status is ${statusLabel(replica.status)}`
@@ -33,7 +33,7 @@ export const databaseProblems = (database: DatabaseDetail): string[] => {
       );
     }
   }
-  const [latest] = database.backups;
+  const [latest] = database.backups ?? [];
   if (latest?.status.toUpperCase().includes("FAIL")) {
     problems.push(`the latest backup, ${latest.name}, failed`);
   }

@@ -111,7 +111,7 @@ describe("inspectDatabase", () => {
         status: "Published",
       },
     ]);
-    expect(detail.backups.map((b) => b.name)).toEqual([
+    expect(detail.backups?.map((b) => b.name)).toEqual([
       "orders-nightly-6",
       "orders-nightly-5",
       "orders-nightly-4",
@@ -119,8 +119,35 @@ describe("inspectDatabase", () => {
       "orders-nightly-2",
       "orders-nightly-1",
     ]);
-    expect(detail.backups[0]?.createdAt).toMatch(/Z$/u);
-    expect(detail.backups[0]).toMatchObject({ sizeGb: 0.19 });
+    expect(detail.backups?.[0]?.createdAt).toMatch(/Z$/u);
+    expect(detail.backups?.[0]).toMatchObject({ sizeGb: 0.19 });
+  });
+
+  test("a replica that's still building has no address", async () => {
+    const { database: analytics, space } = await load("analytics");
+    const detail = await inspectDatabase(space, analytics);
+    expect(detail.replicas).toEqual([
+      {
+        address: null,
+        health: "UNKNOWN",
+        id: "eeee2222-0000-4000-8000-000000000003",
+        name: "analytics-replica-1",
+        status: "BUILD",
+      },
+    ]);
+  });
+
+  test("a part whose endpoint fails is null, and the rest still load", async () => {
+    const { database: orders, space } = await load("orders");
+    keystone.faults.set("GET /api/v4/database/backups", 503);
+    try {
+      const detail = await inspectDatabase(space, orders);
+      expect(detail.backups).toBeNull();
+      expect(detail.replicas).toHaveLength(1);
+      expect(detail.logs).toHaveLength(2);
+    } finally {
+      keystone.faults.delete("GET /api/v4/database/backups");
+    }
   });
 
   test("a cluster without a primary asks for nothing more", async () => {

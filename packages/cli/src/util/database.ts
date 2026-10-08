@@ -31,16 +31,17 @@ const ClusterSchema = z.object({
 
 const ClustersSchema = z.object({ database_clusters: z.array(ClusterSchema) });
 
-// /v4/databases lists the instances without their machine type.
+// /v4/databases lists the instances without their machine type. Staging has
+// never shown a replica, so this takes what a building one may lack.
 const InstancesSchema = z.object({
   database_instances: z.array(
     z.object({
       database_cluster_id: z.string().nullish(),
       id: z.string(),
       instance_status: z.string(),
-      ip_address: z.string(),
+      ip_address: z.string().nullish(),
       name: z.string(),
-      operating_status: z.string(),
+      operating_status: z.string().nullish(),
     })
   ),
 });
@@ -49,7 +50,11 @@ const InstancesSchema = z.object({
 // storage in published.
 const LogsSchema = z.record(
   z.string(),
-  z.object({ name: z.string(), published: z.number(), status: z.string() })
+  z.object({
+    name: z.string(),
+    published: z.number().nullish(),
+    status: z.string(),
+  })
 );
 
 // Trove sends backup times in UTC without a zone, and size in GB.
@@ -102,8 +107,10 @@ export interface DatabaseReplica {
   id: string;
   name: string;
   status: string;
+  /** HEALTHY when the replica answers. UNKNOWN until Trove checks it. */
   health: string;
-  address: string;
+  /** None while Trove is still building the replica. */
+  address: string | null;
 }
 
 export interface DatabaseLog {
@@ -124,12 +131,16 @@ export interface DatabaseBackup {
   createdAt: string;
 }
 
-/** One database with what `nipa db inspect` shows: replicas, logs and backups. */
+/**
+ * One database with what `nipa db inspect` shows: replicas, logs and backups.
+ * A part is `null` when the Space API didn't answer for it, so one failing
+ * endpoint doesn't hide the rest.
+ */
 export interface DatabaseDetail extends Database {
-  replicas: DatabaseReplica[];
-  logs: DatabaseLog[];
+  replicas: DatabaseReplica[] | null;
+  logs: DatabaseLog[] | null;
   /** The primary's backups, newest first. */
-  backups: DatabaseBackup[];
+  backups: DatabaseBackup[] | null;
 }
 
 const DEFAULT_PORTS = new Map([
@@ -197,8 +208,8 @@ const listReplicas = async (
         instance.id !== primaryId
     )
     .map((instance) => ({
-      address: instance.ip_address,
-      health: instance.operating_status,
+      address: instance.ip_address || null,
+      health: instance.operating_status ?? "UNKNOWN",
       id: instance.id,
       name: instance.name,
       status: instance.instance_status,
@@ -218,7 +229,7 @@ const listLogs = async (
   return Object.values(body).map((log) => ({
     enabled: !OFF_LOG_STATUSES.has(log.status.toUpperCase()),
     name: log.name,
-    publishedBytes: log.published,
+    publishedBytes: log.published ?? 0,
     status: log.status,
   }));
 };
@@ -243,7 +254,15 @@ const listBackups = async (
     .toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 };
 
-/** `database` with its replicas, logs and backups, which need a primary. */
+// The value, or null when the request failed.
+const settled = <T>(result: PromiseSettledResult<T>): T | null =>
+  result.status === "fulfilled" ? result.value : null;
+
+/**
+ * `database` with its replicas, logs and backups, which need a primary. Each
+ * part comes from its own endpoint, and one that fails leaves its part `null`
+ * instead of failing the whole.
+ */
 export const inspectDatabase = async (
   space: Space,
   database: Database
@@ -252,10 +271,15 @@ export const inspectDatabase = async (
   if (!primary) {
     return { ...database, backups: [], logs: [], replicas: [] };
   }
-  const [replicas, logs, backups] = await Promise.all([
+  const [replicas, logs, backups] = await Promise.allSettled([
     listReplicas(space, database, primary.id),
     listLogs(space, primary.id),
     listBackups(space, primary.id),
   ]);
-  return { ...database, backups, logs, replicas };
+  return {
+    ...database,
+    backups: settled(backups),
+    logs: settled(logs),
+    replicas: settled(replicas),
+  };
 };

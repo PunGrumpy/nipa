@@ -423,12 +423,12 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 
 `nipa db inspect --json` prints one cluster under `database`, with the same fields as `db ls` and these:
 
-- **`replicas`**: the cluster's other instances, with their `id`, `name`, `status`, `health` and `address`
+- **`replicas`**: the cluster's other instances, with their `id`, `name`, `status`, `health` and `address`. `address` is `null` while Trove is still building the replica
 - **`logs`**: each log Trove keeps, such as `general` and `slow_query`, with its `status`, such as `Disabled` or `Published`, `enabled`, and `publishedBytes`, the bytes sent to object storage
 - **`backups`**: every backup of the primary, newest first, with its `status`, such as `COMPLETED` or `FAILED`, `sizeGb` and `createdAt`
 - **`problems`**: what isn't healthy, as the sentence fragments the last line prints, or `[]` when nothing is wrong
 
-A cluster without a primary has empty `replicas`, `logs` and `backups`:
+A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of the three comes from its own Space API endpoint, and one that fails leaves its field `null` while the others and `problems` still fill in:
 
 ```json
 {

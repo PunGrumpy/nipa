@@ -137,6 +137,7 @@ const primary = (input: {
 const ORDERS_ID = "aaaa1111-0000-4000-8000-000000000001";
 const ORDERS_PRIMARY_ID = "eeee1111-0000-4000-8000-000000000001";
 const ANALYTICS_ID = "aaaa2222-0000-4000-8000-000000000002";
+const ANALYTICS_PRIMARY_ID = "eeee2222-0000-4000-8000-000000000002";
 
 /** The database clusters, oldest first, the way the Space API lists them. */
 export const FAKE_DATABASES = [
@@ -169,7 +170,7 @@ export const FAKE_DATABASES = [
       engine: "postgresql",
       externalAddress: "",
       health: "UNKNOWN",
-      id: "eeee2222-0000-4000-8000-000000000002",
+      id: ANALYTICS_PRIMARY_ID,
       status: "BUILD",
       version: "17.10",
     }),
@@ -197,6 +198,16 @@ const FAKE_DATABASE_INSTANCES = [
     name: "orders-replica-1",
     operating_status: "HEALTHY",
     replica_of: ORDERS_PRIMARY_ID,
+  },
+  // A replica Trove is still building has no address yet.
+  {
+    database_cluster_id: ANALYTICS_ID,
+    id: "eeee2222-0000-4000-8000-000000000003",
+    instance_status: "BUILD",
+    ip_address: null,
+    name: "analytics-replica-1",
+    operating_status: "UNKNOWN",
+    replica_of: ANALYTICS_PRIMARY_ID,
   },
 ];
 

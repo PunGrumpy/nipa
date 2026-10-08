@@ -2134,18 +2134,72 @@ describe("db inspect", () => {
     expect(stdout).toBe(`${FAKE_DATABASES[0]?.id}\n`);
   });
 
-  test("a database that isn't healthy says what's wrong", async () => {
+  test("a database that isn't healthy says what's wrong, and a building replica has no address", async () => {
     const { code, stderr } = await run(["db", "inspect", "analytics"]);
     expect(code).toBe(0);
     expect(stderr).toMatch(/Health\s+● Unknown\n/u);
     expect(stderr).toMatch(/Address\s+192\.0\.2\.21:5432\n/u);
     expect(stderr).toMatch(/Allowed CIDRs\s+None set\n/u);
-    expect(stderr).toMatch(/Replicas\s+None\n/u);
+    expect(stderr).toMatch(/Replicas\s+● Build {2}analytics-replica-1\n/u);
     expect(stderr).toMatch(/Backups\s+None\n/u);
     expect(stderr).toContain(
-      "> NOTE: analytics needs attention: the primary's status is Build and the primary's health is Unknown."
+      "> NOTE: analytics needs attention: the primary's status is Build, the primary's health is Unknown and analytics-replica-1's status is Build."
     );
     expect(stderr).not.toContain("is healthy");
+    const { stdout } = await run(["db", "inspect", "analytics", "--json"]);
+    expect(JSON.parse(stdout).database.replicas).toEqual([
+      {
+        address: null,
+        health: "UNKNOWN",
+        id: "eeee2222-0000-4000-8000-000000000003",
+        name: "analytics-replica-1",
+        status: "BUILD",
+      },
+    ]);
+  });
+
+  describe.each([
+    ["replicas", "/api/v4/databases", /Replicas\s+Unavailable\n/u],
+    [
+      "logs",
+      `/api/v4/database/${FAKE_DATABASES[0]?.primary?.id}/logs`,
+      /Logs\s+Unavailable\n/u,
+    ],
+    ["backups", "/api/v4/database/backups", /Backups\s+Unavailable\n/u],
+  ])("when the Space API fails for the %s", (part, pathname, line) => {
+    beforeAll(() => {
+      keystone.faults.set(`GET ${pathname}`, 500);
+    });
+
+    afterAll(() => {
+      keystone.faults.delete(`GET ${pathname}`);
+    });
+
+    test("still prints the database, and the verdict covers what loaded", async () => {
+      const { code, stderr, stdout } = await run(["db", "inspect", "orders"]);
+      expect(code).toBe(0);
+      expect(stderr).toMatch(/Engine\s+mysql 8\.0\.34\n/u);
+      expect(stderr).toMatch(line);
+      expect(stderr).toContain(
+        `> NOTE: The Space API didn't answer for the ${part} of orders, so the verdict leaves them out.`
+      );
+      expect(stderr).toContain(
+        "> orders is healthy. Connect to it at 203.0.113.20:3306."
+      );
+      expect(stdout).toBe(`${FAKE_DATABASES[0]?.id}\n`);
+    });
+
+    test(`--json has null for the ${part}`, async () => {
+      const { code, stdout } = await run(["db", "inspect", "orders", "--json"]);
+      expect(code).toBe(0);
+      const { database } = JSON.parse(stdout);
+      expect(database[part]).toBeNull();
+      expect(database.problems).toEqual([]);
+      const others = ["replicas", "logs", "backups"].filter((p) => p !== part);
+      for (const other of others) {
+        expect(Array.isArray(database[other])).toBe(true);
+      }
+    });
   });
 
   test("a cluster without a primary yet", async () => {

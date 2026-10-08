@@ -5,6 +5,7 @@ import type {
   DatabaseDetail,
   DatabaseInstance,
   DatabaseLog,
+  DatabaseReplica,
 } from "../../util/database";
 import { DATABASES, findResource } from "../../util/find";
 import { statusCell, statusLabel } from "../../util/status";
@@ -80,10 +81,26 @@ const backupCell = (backup: DatabaseBackup, now: number): Cell => {
   return statusLine(backup.status, backup.name, ` (${detail})`);
 };
 
+// What a part shows when the Space API didn't answer for it.
+const UNAVAILABLE: Cell = { paint: dim, text: "Unavailable" };
+
+const replicaCell = (replica: DatabaseReplica): Cell =>
+  statusLine(
+    replica.status,
+    replica.name,
+    replica.address ? ` (${replica.address})` : ""
+  );
+
+const replicaCells = (replicas: readonly DatabaseReplica[]): Cell[] =>
+  replicas.length === 0 ? [{ text: "None" }] : replicas.map(replicaCell);
+
 const backupCells = (
   backups: readonly DatabaseBackup[],
   now: number
 ): Cell[] => {
+  if (backups.length === 0) {
+    return [{ text: "None" }];
+  }
   const cells = backups.slice(0, RECENT_BACKUPS).map((b) => backupCell(b, now));
   const more = backups.length - RECENT_BACKUPS;
   if (more > 0) {
@@ -116,22 +133,22 @@ const primaryFields = (
   },
   {
     label: "Replicas",
-    lines:
-      database.replicas.length === 0
-        ? [{ text: "None" }]
-        : database.replicas.map((replica) =>
-            statusLine(replica.status, replica.name, ` (${replica.address})`)
-          ),
+    lines: database.replicas ? replicaCells(database.replicas) : [UNAVAILABLE],
   },
-  { label: "Logs", lines: database.logs.map(logCell) },
+  { label: "Logs", lines: database.logs?.map(logCell) ?? [UNAVAILABLE] },
   {
     label: "Backups",
-    lines:
-      database.backups.length === 0
-        ? [{ text: "None" }]
-        : backupCells(database.backups, now),
+    lines: database.backups
+      ? backupCells(database.backups, now)
+      : [UNAVAILABLE],
   },
 ];
+
+// The parts the Space API didn't answer for, as "replicas and backups".
+const unavailableParts = (database: DatabaseDetail): string[] =>
+  (["replicas", "logs", "backups"] as const).filter(
+    (part) => database[part] === null
+  );
 
 const fieldsOf = (database: DatabaseDetail, now: number): Field[] => [
   { label: "ID", lines: [{ text: database.id }] },
@@ -146,6 +163,12 @@ const fieldsOf = (database: DatabaseDetail, now: number): Field[] => [
 
 const printVerdict = (database: DatabaseDetail, problems: string[]): void => {
   const name = bold(database.name);
+  const missing = unavailableParts(database);
+  if (missing.length > 0) {
+    note(
+      `The Space API didn't answer for the ${andList(missing)} of ${name}, so the verdict leaves them out. Run the command again, or with --debug to see the requests.`
+    );
+  }
   if (problems.length > 0) {
     note(`${name} needs attention: ${andList(problems)}.`);
     return;
