@@ -2147,13 +2147,24 @@ describe("db inspect", () => {
     );
     expect(stderr).not.toContain("is healthy");
     const { stdout } = await run(["db", "inspect", "analytics", "--json"]);
-    expect(JSON.parse(stdout).database.replicas).toEqual([
+    const { database } = JSON.parse(stdout);
+    expect(database.replicas).toEqual([
       {
         address: null,
         health: "UNKNOWN",
         id: "eeee2222-0000-4000-8000-000000000003",
         name: "analytics-replica-1",
         status: "BUILD",
+      },
+    ]);
+    expect(database.problems).toEqual([
+      { field: "status", name: null, part: "primary", value: "BUILD" },
+      { field: "health", name: null, part: "primary", value: "UNKNOWN" },
+      {
+        field: "status",
+        name: "analytics-replica-1",
+        part: "replica",
+        value: "BUILD",
       },
     ]);
   });

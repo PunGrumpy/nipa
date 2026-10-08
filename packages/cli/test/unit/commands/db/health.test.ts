@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { databaseProblems } from "../../../../src/commands/db/health";
+import {
+  databaseProblems,
+  describeProblem,
+} from "../../../../src/commands/db/health";
 import type {
   DatabaseBackup,
   DatabaseDetail,
@@ -53,7 +56,12 @@ describe("databaseProblems", () => {
 
   test("names the primary's status and health", () => {
     const primary = { ...PRIMARY, health: "UNKNOWN", status: "BUILD" };
-    expect(databaseProblems(database({ primary }))).toEqual([
+    const problems = databaseProblems(database({ primary }));
+    expect(problems).toEqual([
+      { field: "status", name: null, part: "primary", value: "BUILD" },
+      { field: "health", name: null, part: "primary", value: "UNKNOWN" },
+    ]);
+    expect(problems.map(describeProblem)).toEqual([
       "the primary's status is Build",
       "the primary's health is Unknown",
     ]);
@@ -61,34 +69,46 @@ describe("databaseProblems", () => {
 
   test("names a replica that isn't running or healthy", () => {
     const replica = { address: "192.0.2.22", id: "r", name: "orders-r1" };
-    expect(
-      databaseProblems(
-        database({
-          replicas: [
-            { ...replica, health: "HEALTHY", status: "ERROR" },
-            {
-              ...replica,
-              health: "DEGRADED",
-              name: "orders-r2",
-              status: "ACTIVE",
-            },
-          ],
-        })
-      )
-    ).toEqual([
+    const problems = databaseProblems(
+      database({
+        replicas: [
+          { ...replica, health: "HEALTHY", status: "ERROR" },
+          {
+            ...replica,
+            health: "DEGRADED",
+            name: "orders-r2",
+            status: "ACTIVE",
+          },
+        ],
+      })
+    );
+    expect(problems).toEqual([
+      { field: "status", name: "orders-r1", part: "replica", value: "ERROR" },
+      {
+        field: "health",
+        name: "orders-r2",
+        part: "replica",
+        value: "DEGRADED",
+      },
+    ]);
+    expect(problems.map(describeProblem)).toEqual([
       "orders-r1's status is Error",
       "orders-r2's health is Degraded",
     ]);
   });
 
   test("flags only the latest backup's failure", () => {
-    expect(
-      databaseProblems(
-        database({
-          backups: [backup("b2", "FAILED"), backup("b1", "COMPLETED")],
-        })
-      )
-    ).toEqual(["the latest backup, b2, failed"]);
+    const problems = databaseProblems(
+      database({
+        backups: [backup("b2", "FAILED"), backup("b1", "COMPLETED")],
+      })
+    );
+    expect(problems).toEqual([
+      { field: "status", name: "b2", part: "backup", value: "FAILED" },
+    ]);
+    expect(problems.map(describeProblem)).toEqual([
+      "the latest backup, b2, failed",
+    ]);
     expect(
       databaseProblems(
         database({
@@ -99,8 +119,18 @@ describe("databaseProblems", () => {
   });
 
   test("a cluster without a primary", () => {
-    expect(databaseProblems(database({ primary: null }))).toEqual([
+    const problems = databaseProblems(database({ primary: null }));
+    expect(problems).toEqual([
+      { field: "primary", name: null, part: "cluster", value: null },
+    ]);
+    expect(problems.map(describeProblem)).toEqual([
       "the cluster has no primary yet",
     ]);
+  });
+
+  test("replicas and backups that didn't load count as none", () => {
+    expect(
+      databaseProblems(database({ backups: null, replicas: null }))
+    ).toEqual([]);
   });
 });

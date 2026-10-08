@@ -25,7 +25,8 @@ import {
 } from "../../util/ui";
 import type { Cell, Field } from "../../util/ui";
 import { inspectSubcommand } from "./command";
-import { databaseProblems } from "./health";
+import { databaseProblems, describeProblem } from "./health";
+import type { DatabaseProblem } from "./health";
 
 const RECENT_BACKUPS = 5;
 
@@ -161,7 +162,10 @@ const fieldsOf = (database: DatabaseDetail, now: number): Field[] => [
   },
 ];
 
-const printVerdict = (database: DatabaseDetail, problems: string[]): void => {
+const printVerdict = (
+  database: DatabaseDetail,
+  problems: readonly DatabaseProblem[]
+): void => {
   const name = bold(database.name);
   const missing = unavailableParts(database);
   if (missing.length > 0) {
@@ -170,7 +174,7 @@ const printVerdict = (database: DatabaseDetail, problems: string[]): void => {
     );
   }
   if (problems.length > 0) {
-    note(`${name} needs attention: ${andList(problems)}.`);
+    note(`${name} needs attention: ${andList(problems.map(describeProblem))}.`);
     return;
   }
   const { primary } = database;

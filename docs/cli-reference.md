@@ -426,7 +426,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 - **`replicas`**: the cluster's other instances, with their `id`, `name`, `status`, `health` and `address`. `address` is `null` while Trove is still building the replica
 - **`logs`**: each log Trove keeps, such as `general` and `slow_query`, with its `status`, such as `Disabled` or `Published`, `enabled`, and `publishedBytes`, the bytes sent to object storage
 - **`backups`**: every backup of the primary, newest first, with its `status`, such as `COMPLETED` or `FAILED`, `sizeGb` and `createdAt`
-- **`problems`**: what isn't healthy, as the sentence fragments the last line prints, or `[]` when nothing is wrong
+- **`problems`**: what isn't healthy, or `[]` when nothing is wrong. Each entry has a `part`, which is `cluster`, `primary`, `replica` or `backup`, the `name` of the replica or backup, or `null` for the cluster or primary, the `field` that's wrong, which is `status`, `health`, or `primary` for a cluster without one yet, and that field's `value`, such as `BUILD`, or `null` for a missing primary. The last line in a terminal says the same in words
 
 A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of the three comes from its own Space API endpoint, and one that fails leaves its field `null` while the others and `problems` still fill in:
 
@@ -439,7 +439,7 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
         "id": "7757…",
         "name": "nightly",
         "sizeGb": 0.19,
-        "status": "COMPLETED"
+        "status": "FAILED"
       }
     ],
     "createdAt": "2030-01-01T00:00:00.000Z",
@@ -466,7 +466,14 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
       "port": 3306,
       "status": "ACTIVE"
     },
-    "problems": [],
+    "problems": [
+      {
+        "field": "status",
+        "name": "nightly",
+        "part": "backup",
+        "value": "FAILED"
+      }
+    ],
     "replicas": [
       {
         "address": "192.0.2.22",
