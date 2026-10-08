@@ -296,6 +296,14 @@ const SERVING = new Set(["ONLINE", "NO_MONITOR"]);
 export const isServing = (part: Part): boolean =>
   part.status === "ACTIVE" && SERVING.has(part.health);
 
+// A backup member takes traffic only when every other member is down, so
+// Octavia leaves it OFFLINE or DRAINING while the others serve.
+const STANDBY = new Set(["OFFLINE", "DRAINING"]);
+
+/** Whether the member is a backup that waits, as it should, for the others to fail. */
+export const isStandby = (member: Member): boolean =>
+  member.backup && member.status === "ACTIVE" && STANDBY.has(member.health);
+
 /** What a check says of its failing parts, for one part and for several. */
 type Predicate = readonly [one: string, many: string];
 
@@ -306,7 +314,6 @@ interface Check {
   failing: number;
 }
 
-const LOAD_BALANCER = ["load balancer", "load balancers"] as const;
 const LISTENER = ["listener", "listeners"] as const;
 const UNHEALTHY: Predicate = ["is unhealthy", "are unhealthy"];
 
@@ -321,32 +328,47 @@ const finding = ({ failing: count, noun, predicate, total }: Check): string => {
   return `${count} of ${total} ${noun[1]} ${count === 1 ? one : many}`;
 };
 
+/**
+ * Octavia carries a fault upward: a member in ERROR makes its backend group
+ * and the load balancer DEGRADED. So a backend group counts as a fault of
+ * its own only when none of its members, nor its health check, explains it.
+ */
+const unexplained = (group: BackendGroup): boolean => {
+  if (isServing(group) || group.members.length === 0) {
+    return false;
+  }
+  if (group.healthCheck && !isServing(group.healthCheck)) {
+    return false;
+  }
+  return !group.members.some(
+    (member) => !(isServing(member) || isStandby(member))
+  );
+};
+
 export interface Diagnosis {
   healthy: boolean;
   /** One sentence without a final period, such as "2 of 3 members are down". */
   verdict: string;
+  /** Sentences without a final period on parts that look down but aren't. */
+  details: string[];
 }
 
-/** Whether the load balancer can serve, and if not, which parts stop it. */
+const standbyDetail = (member: Member): string =>
+  `Backup member ${member.name ?? member.id} is ${member.health.toLowerCase()} until the other members go down`;
+
+/**
+ * Whether the load balancer can serve, and if not, which parts stop it.
+ * The verdict names the parts at fault, not the parents that fail because
+ * of them: the load balancer itself only when nothing below explains it.
+ */
 export const diagnose = (lb: LoadBalancerDetail): Diagnosis => {
   const { backendGroups, listeners } = lb;
   const sizes = new Map(backendGroups.map((g) => [g.id, g.members.length]));
   const empty = listeners.filter((l) => !sizes.get(l.backendGroupId ?? ""));
   const healthChecks = backendGroups.flatMap((g) => g.healthCheck ?? []);
   const members = backendGroups.flatMap((g) => g.members);
+  const serving = members.filter((member) => !isStandby(member));
   const checks: Check[] = [
-    {
-      failing: failing([lb]),
-      noun: LOAD_BALANCER,
-      predicate: UNHEALTHY,
-      total: 1,
-    },
-    {
-      failing: listeners.length === 0 ? 1 : 0,
-      noun: LOAD_BALANCER,
-      predicate: ["has no listeners", "have no listeners"],
-      total: 1,
-    },
     {
       failing: failing(listeners),
       noun: LISTENER,
@@ -363,7 +385,7 @@ export const diagnose = (lb: LoadBalancerDetail): Diagnosis => {
       total: listeners.length,
     },
     {
-      failing: failing(backendGroups),
+      failing: backendGroups.filter(unexplained).length,
       noun: ["backend group", "backend groups"],
       predicate: UNHEALTHY,
       total: backendGroups.length,
@@ -375,15 +397,25 @@ export const diagnose = (lb: LoadBalancerDetail): Diagnosis => {
       total: healthChecks.length,
     },
     {
-      failing: failing(members),
+      failing: failing(serving),
       noun: ["member", "members"],
       predicate: ["is down", "are down"],
       total: members.length,
     },
   ];
   const findings = checks.filter((check) => check.failing > 0).map(finding);
-  if (findings.length === 0) {
-    return { healthy: true, verdict: "All listeners and members are healthy" };
+  if (listeners.length === 0) {
+    findings.unshift("the load balancer has no listeners");
+  } else if (findings.length === 0 && !isServing(lb)) {
+    findings.push("the load balancer is unhealthy");
   }
-  return { healthy: false, verdict: capitalize(andList(findings)) };
+  const details = members.filter(isStandby).map(standbyDetail);
+  if (findings.length === 0) {
+    return {
+      details,
+      healthy: true,
+      verdict: "All listeners and members are healthy",
+    };
+  }
+  return { details, healthy: false, verdict: capitalize(andList(findings)) };
 };

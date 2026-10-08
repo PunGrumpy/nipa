@@ -2376,8 +2376,9 @@ describe("lb inspect", () => {
       /web-3\s+192\.0\.2\.8:80\s+web-pool\s+1\s+Yes\s+● Active\s+● Offline\n/u
     );
     expect(stderr).toContain(
-      "> NOTE: 1 of 2 listeners is unhealthy, 1 of 2 listeners has no members to send traffic to, the backend group is unhealthy and 2 of 3 members are down."
+      "> NOTE: 1 of 2 listeners is unhealthy, 1 of 2 listeners has no members to send traffic to and 1 of 3 members is down.\n> Backup member web-3 is offline until the other members go down.\n"
     );
+    expect(stderr).not.toContain("backend group is unhealthy");
     expect(stdout).toBe(`${WEB_LB_ID}\n`);
   });
 
@@ -2403,9 +2404,8 @@ describe("lb inspect", () => {
     expect(stderr).toMatch(/Status\s+● Pending create\n/u);
     expect(stderr).toMatch(/External IP\s+-\n\s+Flavor\s+-\n/u);
     expect(stderr).not.toContain("listeners\n");
-    expect(stderr).toContain(
-      "> NOTE: The load balancer is unhealthy and the load balancer has no listeners."
-    );
+    expect(stderr).toContain("> NOTE: The load balancer has no listeners.\n");
+    expect(stderr).not.toContain("is unhealthy");
   });
 
   test("an unknown load balancer points to lb ls", async () => {

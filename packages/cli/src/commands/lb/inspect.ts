@@ -180,8 +180,11 @@ export const inspect = handle(
     if (groups.some((group) => group.members.length > 0)) {
       printMembers(groups);
     }
-    const { healthy, verdict } = diagnose(loadBalancer);
+    const { details, healthy, verdict } = diagnose(loadBalancer);
     (healthy ? log : note)(`${verdict}.`);
+    for (const detail of details) {
+      log(`${detail}.`);
+    }
     if (!client.stdout.isTTY) {
       client.stdout.line(id);
     }
