@@ -116,6 +116,16 @@ Run `nipa db inspect <database>`. Its last line says whether the database is hea
 
 If the database is healthy and you still can't connect, run `nipa db inspect <database> --json` and check `primary.allowedCidrs` and `primary.externalAddress` against where you connect from.
 
+## A load balancer shows ACTIVE but doesn't serve
+
+`nipa lb ls` shows only the load balancer's own status, and a listener or member can fail while it stays `ACTIVE` and `ONLINE`. Run `nipa lb inspect <lb>` to see each part. It prints in red the name of each listener, backend group or member that isn't `ACTIVE` and `ONLINE`, and its last line names what stops the load balancer from serving:
+
+- A listener in `ERROR` or `PENDING_*` doesn't take traffic on its port. Delete it and add it again in the Space portal
+- A listener with no members to send traffic to has no backend group, or one without members. Add a backend group or members to it
+- Members that are down fail their backend group's health check. Check that each one runs its service on the port that `nipa lb inspect` shows, and that its security group lets the load balancer's network in
+
+A fault shows once, on the part that has it. A member in `ERROR` makes its backend group and the load balancer `DEGRADED`, so the verdict names the member and not the two parts above it. A backup member that's `OFFLINE` or `DRAINING` isn't a fault, because it takes traffic only when the other members go down, and nipa says so in a line under the verdict.
+
 ## Tab completion does nothing
 
 The completion script isn't loaded in your current shell. Open a new terminal after you add it to your startup file, or load it now with `eval "$(nipa completion bash)"`. In bash, completion after `nipa tf` and `nipa exec` also needs the `bash-completion` package.
