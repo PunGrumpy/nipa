@@ -28,7 +28,7 @@ export const sgCommand = defineGroup({
   aliases: ["security-group", "security-groups"],
   default: "ls",
   description:
-    "Lists and inspects the security groups in your project. Name a group by its name or ID. `nipa sg inspect` shows a group's inbound and outbound rules and the servers that use it, and notes when a rule opens SSH, RDP or a database port to the internet. `--json` prints each rule's direction, protocol, ports and remote, and `exposed`, true for such a rule.",
+    "Lists and inspects the security groups in your project. Name a group by its name or ID. `nipa sg inspect` shows a group's inbound and outbound rules and the servers that use it, found through the network ports in your project, so a server in another project doesn't show. It notes when a rule opens SSH, RDP or a database port to the internet. `--json` prints each rule's direction, protocol, ports and remote, and `exposed`, true for such a rule.",
   examples: [
     {
       command: "nipa sg ls",
