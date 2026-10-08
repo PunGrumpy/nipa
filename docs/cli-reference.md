@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 23 commands. Without a command, it prints help.
+nipa has 24 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
