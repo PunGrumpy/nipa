@@ -305,6 +305,13 @@ export const FAKE_SECURITY_GROUPS = [
         protocol: "tcp",
         remoteIp: "0.0.0.0/0",
       }),
+      sgRule({
+        direction: "ingress",
+        id: "r5",
+        port: 22,
+        protocol: "tcp",
+        remoteIp: "0.0.0.0/0",
+      }),
     ],
   },
 ];

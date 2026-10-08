@@ -1833,6 +1833,7 @@ describe("sg ls", () => {
           remoteGroupId: null,
           remoteIpPrefix: "0.0.0.0/0",
         },
+        { portMax: 22, portMin: 22, protocol: "tcp" },
       ],
     });
   });
@@ -1842,7 +1843,7 @@ describe("sg ls", () => {
     expect(code).toBe(0);
     expect(stderr).toMatch(/> Security groups in Alpha \[\d+(?:ms|s)\]/u);
     expect(stderr).toMatch(/Name\s+Inbound\s+Outbound\s+Age\s+Description/u);
-    expect(stderr).toMatch(/web\s+1\s+0\s+2d\s+-/u);
+    expect(stderr).toMatch(/web\s+2\s+0\s+2d\s+-/u);
     expect(stderr).toMatch(/default\s+1\s+2\s+30d\s+Default security group/u);
     expect(stdout.trim().split("\n")).toEqual([
       "ssss2222-0000-4000-8000-000000000002",
@@ -1930,7 +1931,9 @@ describe("sg inspect", () => {
     expect(stderr).toMatch(
       /Servers\s+web-1 \(192\.0\.2\.5, 2001:db8::5\)\n\s+Created/u
     );
+    expect(stderr).toMatch(/\n! tcp {10}22 {8}0\.0\.0\.0\/0 {5}IPv4\n/u);
     expect(stderr).toMatch(/\n {2}tcp {10}443 {7}0\.0\.0\.0\/0 {5}IPv4\n/u);
+    expect(stderr).toContain("> NOTE: SSH (22) is open to the internet.");
     expect(stderr).toContain(
       "> No outbound rules, so this group lets no traffic out."
     );

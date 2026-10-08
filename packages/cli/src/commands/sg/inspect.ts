@@ -13,10 +13,12 @@ import {
   formatElapsed,
   gray,
   log,
+  note,
   printFields,
   printTable,
   withDetail,
   withSpinner,
+  yellow,
 } from "../../util/ui";
 import type { Cell } from "../../util/ui";
 import { inspectSubcommand } from "./command";
@@ -88,12 +90,12 @@ const printRules = (
     log(title);
     printTable({
       headings: ["Protocol", "Ports", remote, "Ethertype"],
-      marks: own.map((rule) => (isExposed(rule) ? "!" : " ")),
+      marks: own.map((rule) => (isExposed(rule) ? yellow("!") : " ")),
       rows: own.map(ruleCells),
     });
-    const note = exposureNote(own);
-    if (note) {
-      log(dim(note));
+    const exposure = exposureNote(own);
+    if (exposure) {
+      note(exposure);
     }
   }
 };
