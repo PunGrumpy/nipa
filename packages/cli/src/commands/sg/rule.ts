@@ -2,6 +2,7 @@
 // note about open ports read this model, never the Space API's fields.
 
 import type { SecurityGroupRule } from "../../util/security-group";
+import { andList } from "../../util/ui";
 import type { Cell } from "../../util/ui";
 
 export type Ports =
@@ -165,11 +166,6 @@ export const isExposed = (rule: Rule): boolean =>
   fromWorld(rule) &&
   SENSITIVE_PORTS.some(({ port }) => covers(rule.ports, port));
 
-const sentence = (items: readonly string[]): string =>
-  items.length < 2
-    ? items.join("")
-    : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
-
 /** What the exposed rules open to the internet, or undefined for nothing. */
 export const exposureNote = (rules: readonly Rule[]): string | undefined => {
   const exposed = rules.filter(isExposed);
@@ -183,5 +179,5 @@ export const exposureNote = (rules: readonly Rule[]): string | undefined => {
     return undefined;
   }
   const verb = services.length === 1 ? "is" : "are";
-  return `${sentence(services)} ${verb} open to the internet.`;
+  return `${andList(services)} ${verb} open to the internet.`;
 };

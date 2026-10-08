@@ -1,13 +1,13 @@
 import { handle } from "../../util/command";
 import { listServers } from "../../util/compute";
 import type { Server } from "../../util/compute";
+import { findResource, SECURITY_GROUPS } from "../../util/find";
 import { listPorts } from "../../util/network";
 import type { Port } from "../../util/network";
 import { listSecurityGroups } from "../../util/security-group";
 import type { SecurityGroup } from "../../util/security-group";
 import {
   bold,
-  CliError,
   dim,
   formatAge,
   formatElapsed,
@@ -15,6 +15,7 @@ import {
   log,
   printFields,
   printTable,
+  withDetail,
   withSpinner,
 } from "../../util/ui";
 import type { Cell } from "../../util/ui";
@@ -33,30 +34,6 @@ interface Member {
   /** The server's addresses on the ports that carry the group. */
   addresses: string[];
 }
-
-const findGroup = (
-  groups: readonly SecurityGroup[],
-  ref: string,
-  projectName: string
-): SecurityGroup => {
-  const byId = groups.filter((group) => group.id === ref);
-  const [match, ...others] =
-    byId.length > 0 ? byId : groups.filter((group) => group.name === ref);
-  if (!match) {
-    throw new CliError(
-      `no security group named or with ID "${ref}" in ${projectName}`,
-      { hint: "Run `nipa sg ls` to see your security groups." }
-    );
-  }
-  if (others.length > 0) {
-    const ids = [match, ...others].map((group) => group.id).join(", ");
-    throw new CliError(
-      `${others.length + 1} security groups in ${projectName} are named "${ref}"`,
-      { hint: `Name one by its ID instead: ${ids}.` }
-    );
-  }
-  return match;
-};
 
 // A server's security groups belong to its ports, which name them by ID.
 // The server list names them, and two groups can share a name.
@@ -77,13 +54,8 @@ const membersOf = (
       : [];
   });
 
-const memberCell = (member: Member): Cell => {
-  const detail = ` (${member.addresses.join(", ")})`;
-  return {
-    paint: () => `${member.name}${dim(detail)}`,
-    text: `${member.name}${detail}`,
-  };
-};
+const memberCell = (member: Member): Cell =>
+  withDetail(member.name, ` (${member.addresses.join(", ")})`);
 
 const DIRECTIONS = [
   {
@@ -132,17 +104,20 @@ export const inspect = handle(
     const { active, session, space } = await client.cloud();
     const { project } = session;
     const started = performance.now();
-    const [groups, ports, servers] = await withSpinner(
-      `Loading the security groups in ${project.name}…`,
-      () =>
-        Promise.all([
-          listSecurityGroups(space),
-          listPorts(space),
-          listServers(space),
-        ])
+    // The same list finds the group and names the remote groups in its rules.
+    const groups = listSecurityGroups(space);
+    const group = await findResource({
+      kind: { ...SECURITY_GROUPS, list: () => groups },
+      projectName: project.name,
+      ref: args.group,
+      space,
+    });
+    const [ports, servers] = await withSpinner(
+      `Loading the servers in ${project.name}…`,
+      () => Promise.all([listPorts(space), listServers(space)])
     );
-    const group = findGroup(groups, args.group, project.name);
-    const groupNames = new Map(groups.map((g) => [g.id, g.name]));
+    const allGroups = await groups;
+    const groupNames = new Map(allGroups.map((g) => [g.id, g.name]));
     const members = membersOf(group.id, ports, servers);
     if (flags.json) {
       const rules = group.rules.map((rule) => ({
