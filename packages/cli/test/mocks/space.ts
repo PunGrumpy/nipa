@@ -329,10 +329,12 @@ const port = (deviceId: string, groups: string[], ...addresses: string[]) => ({
 });
 
 /**
- * Each port names its groups by ID. web-1 is in default and web, and db-1 in
- * default. A load balancer's port and a free one carry web too.
+ * Each port names its groups by ID. web-1 is in default and web, db-1 in
+ * default, and web-2 in web on a port without a fixed IP yet. A load
+ * balancer's port and a free one carry web too.
  */
 export const FAKE_PORTS = [
+  port(serverId("web-2"), [WEB_SG_ID]),
   port(
     serverId("web-1"),
     [DEFAULT_SG_ID, WEB_SG_ID],

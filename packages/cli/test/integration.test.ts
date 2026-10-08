@@ -1903,10 +1903,15 @@ describe("sg inspect", () => {
     });
   });
 
-  test("--json marks the rules that open a sensitive port to the internet", async () => {
+  test("--json marks the exposed rules, and keeps a server whose port has no address", async () => {
     const { code, stdout } = await run(["sg", "inspect", "web", "--json"]);
     expect(code).toBe(0);
     const { securityGroup } = JSON.parse(stdout);
+    expect(securityGroup.servers[0]).toEqual({
+      addresses: [],
+      id: "33333333-3333-4333-8333-333333333333",
+      name: "web-2",
+    });
     expect(
       securityGroup.rules.map((rule: { id: string; exposed: boolean }) => [
         rule.id,
@@ -1945,7 +1950,7 @@ describe("sg inspect", () => {
     expect(code).toBe(0);
     expect(stderr).toMatch(/Description\s+-\n/u);
     expect(stderr).toMatch(
-      /Servers\s+web-1 \(192\.0\.2\.5, 2001:db8::5\)\n\s+Created/u
+      /Servers\s+web-2 \(-\)\n\s+web-1 \(192\.0\.2\.5, 2001:db8::5\)\n\s+Created/u
     );
     expect(stderr).toMatch(/\n! tcp {10}22 {8}0\.0\.0\.0\/0 {5}IPv4\n/u);
     expect(stderr).toMatch(/\n {2}tcp {10}443 {7}0\.0\.0\.0\/0 {5}IPv4\n/u);

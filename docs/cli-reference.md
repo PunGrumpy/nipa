@@ -325,7 +325,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 }
 ```
 
-`nipa sg inspect --json` prints the profile, the project and the security group in the same shape as `sg ls`. Each rule adds `remoteGroupName`, the name of the group `remoteGroupId` names, or `null` without one or when the group isn't in the project, and `exposed`, `true` for an inbound rule that opens SSH, RDP or a database port to any address, the rules the `!` marks. `servers` lists the servers with a network port in the group, newest first, with the addresses of those ports:
+`nipa sg inspect --json` prints the profile, the project and the security group in the same shape as `sg ls`. Each rule adds `remoteGroupName`, the name of the group `remoteGroupId` names, or `null` without one or when the group isn't in the project, and `exposed`, `true` for an inbound rule that opens SSH, RDP or a database port to any address, the rules the `!` marks. `servers` lists the servers with a network port in the group, newest first, with the addresses of those ports, and `addresses` is empty for a port without a fixed IP:
 
 ```json
 {

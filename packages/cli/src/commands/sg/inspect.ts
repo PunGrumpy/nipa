@@ -45,19 +45,27 @@ const membersOf = (
   servers: readonly Server[]
 ): Member[] =>
   servers.flatMap((server) => {
-    const addresses = ports
-      .filter(
-        (port) =>
-          port.deviceId === server.id && port.securityGroupIds.includes(groupId)
-      )
-      .flatMap((port) => port.addresses);
-    return addresses.length > 0
-      ? [{ addresses, id: server.id, name: server.name }]
+    const own = ports.filter(
+      (port) =>
+        port.deviceId === server.id && port.securityGroupIds.includes(groupId)
+    );
+    return own.length > 0
+      ? [
+          {
+            addresses: own.flatMap((port) => port.addresses),
+            id: server.id,
+            name: server.name,
+          },
+        ]
       : [];
   });
 
+/** The server's name, then its addresses, or - for a port without one. */
 const memberCell = (member: Member): Cell =>
-  withDetail(member.name, ` (${member.addresses.join(", ")})`);
+  withDetail(
+    member.name,
+    ` (${member.addresses.length > 0 ? member.addresses.join(", ") : "-"})`
+  );
 
 const DIRECTIONS = [
   {
