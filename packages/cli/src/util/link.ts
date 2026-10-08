@@ -22,10 +22,15 @@ export interface FoundLink {
 
 const linkFile = (dir: string): string => path.join(dir, LINK_DIR, LINK_FILE);
 
-const unreadable = (file: string, problem: string): CliError =>
-  new CliError(`${file} ${problem}`, {
-    hint: "Fix the file, or run `nipa unlink` and `nipa link` again.",
-  });
+/** A link file nipa can't read: not JSON, or not a link. */
+export class LinkError extends CliError {
+  constructor(file: string, problem: string) {
+    super(`${file} ${problem}`, {
+      hint: "Fix the file, or run `nipa unlink` and `nipa link` again.",
+    });
+    this.name = "LinkError";
+  }
+}
 
 const readLink = async (file: string): Promise<Link | undefined> => {
   let text: string;
@@ -41,11 +46,11 @@ const readLink = async (file: string): Promise<Link | undefined> => {
   try {
     json = JSON.parse(text);
   } catch {
-    throw unreadable(file, "isn't valid JSON");
+    throw new LinkError(file, "isn't valid JSON");
   }
   const parsed = LinkSchema.safeParse(json);
   if (!parsed.success) {
-    throw unreadable(
+    throw new LinkError(
       file,
       `isn't a nipa link: ${z.prettifyError(parsed.error)}`
     );

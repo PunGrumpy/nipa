@@ -17,7 +17,7 @@ import {
   rescope,
 } from "./keystone";
 import type { Account, Project, Token } from "./keystone";
-import { displayPath, findLink } from "./link";
+import { displayPath } from "./link";
 import type { FoundLink } from "./link";
 import {
   DEFAULT_PROFILE,
@@ -41,10 +41,14 @@ import {
 } from "./ui";
 import type { Prompts } from "./ui";
 
+/** Where a run's profile came from, in the order nipa looks. */
+export type ProfileSource = "flag" | "env" | "link" | "config";
+
 export interface ActiveProfile {
   readonly config: Config;
   readonly name: string;
   readonly profile: Profile;
+  readonly source: ProfileSource;
   /** The folder's link, when it names this profile. Its project wins. */
   readonly link: FoundLink | undefined;
 }
@@ -66,13 +70,20 @@ export interface Cloud extends SignedIn {
  */
 export const resolveProfile = async (input: {
   override: string | undefined;
+  /** The folder's link, from `findLink()`. Left out, no folder links to a profile. */
+  link?: FoundLink;
 }): Promise<ActiveProfile> => {
-  const [config, found] = await Promise.all([loadConfig(), findLink()]);
-  const name =
-    input.override ??
-    process.env.NIPA_PROFILE ??
-    found?.link.profile ??
-    config.currentProfile;
+  const { link: found } = input;
+  const config = await loadConfig();
+  const candidates: readonly [ProfileSource, string | undefined][] = [
+    ["flag", input.override],
+    ["env", process.env.NIPA_PROFILE],
+    ["link", found?.link.profile],
+  ];
+  const [source, name] = candidates.find(
+    (candidate): candidate is [ProfileSource, string] =>
+      candidate[1] !== undefined
+  ) ?? ["config", config.currentProfile];
   const profile = config.profiles[name];
   if (!profile) {
     const known = Object.keys(config.profiles).join(", ");
@@ -83,7 +94,7 @@ export const resolveProfile = async (input: {
     });
   }
   const link = found?.link.profile === name ? found : undefined;
-  return { config, link, name, profile };
+  return { config, link, name, profile, source };
 };
 
 /** `nipa login`, or `nipa login -P staging`, for hints. */
@@ -399,7 +410,8 @@ export const interactiveLogin = async (input: {
   return session;
 };
 
-const EXPIRY_WARNING_MS = 30 * 60_000;
+/** Commands warn when the session expires sooner than this. */
+export const EXPIRY_WARNING_MS = 30 * 60_000;
 
 // A terraform apply that outlives the token fails halfway, so say so first.
 const warnBeforeExpiry = (input: {
@@ -513,6 +525,12 @@ const guardSession =
     }
   };
 
+/** The error for a profile without a Space API URL, which `nipa os` and `nipa tf` don't need. */
+export const noSpaceUrl = (active: ActiveProfile): CliError =>
+  new CliError(`the ${active.name} profile has no Space API URL`, {
+    hint: `Remove it with \`nipa profile rm ${active.name}\`, then add it again with \`--space-url\` and its Space portal URL. \`nipa -P ${active.name} os server list\` works without one.`,
+  });
+
 /**
  * The profile's Space API URL. Throws when it has none, before nipa asks for
  * a password it couldn't use.
@@ -520,9 +538,7 @@ const guardSession =
 export const requireSpaceUrl = (active: ActiveProfile): string => {
   const { spaceUrl } = active.profile;
   if (!spaceUrl) {
-    throw new CliError(`the ${active.name} profile has no Space API URL`, {
-      hint: `Remove it with \`nipa profile rm ${active.name}\`, then add it again with \`--space-url\` and its Space portal URL. \`nipa -P ${active.name} os server list\` works without one.`,
-    });
+    throw noSpaceUrl(active);
   }
   return spaceUrl;
 };

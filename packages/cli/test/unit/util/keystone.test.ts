@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { NetworkError } from "../../../src/util/http";
 import {
   continueWithTotp,
   errorMessage,
@@ -244,6 +245,19 @@ describe("against a fake Keystone", () => {
       token,
     });
     expect(scoped.project?.name).toBe("Beta");
+  });
+
+  test("listProjects gives up when its signal aborts", async () => {
+    const first = await loginWithPassword(plain, FAKE_PASSWORD);
+    if (first.kind !== "token") {
+      throw new Error("expected a token");
+    }
+    const attempt = listProjects({
+      authUrl: keystone.url,
+      signal: AbortSignal.abort(),
+      token: first.token.value,
+    });
+    await expect(attempt).rejects.toThrow(NetworkError);
   });
 
   test("revoked tokens stop working, and revoking twice is fine", async () => {

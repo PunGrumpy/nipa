@@ -8,6 +8,7 @@ import {
 } from "bun:test";
 import {
   access,
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -1114,6 +1115,256 @@ describe("server start, stop and restart", () => {
     const { code, stderr } = await run(["server", "stop", "web-2", "--yes"]);
     expect(code).toBe(1);
     expect(stderr).toContain("Cannot 'stop' instance");
+  });
+});
+
+const installTool = async (tool: string) => {
+  await writeFile(inDir("bin", tool), "#!/bin/sh\n");
+  await chmod(inDir("bin", tool), 0o755);
+};
+
+const keystoneHost = () => new URL(keystone.url).host;
+
+const installTools = async () => {
+  await mkdir(inDir("bin"), { recursive: true });
+  await Promise.all(["openstack", "terraform"].map(installTool));
+};
+
+const seedHealthy = async () => {
+  await freshDir();
+  await seedSession(dir, keystone.url);
+  await installTools();
+};
+
+describe("doctor", () => {
+  test("a healthy profile passes every check", async () => {
+    await seedHealthy();
+    const { code, stderr, stdout } = await run(["doctor"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    const lines = stderr.trimEnd().split("\n");
+    expect(lines.map((line) => line.replaceAll(/\[\d+m?s\]/gu, "[t]"))).toEqual(
+      [
+        `✔ Config files    config.json and auth.json in ${dir} are valid`,
+        `✔ Profile         prod (${keystoneHost()}), the current profile`,
+        `✔ Keystone        ${keystoneHost()} answers as Keystone v3.14 [t]`,
+        `✔ Space API       ${keystoneHost()} answers as the Space API [t]`,
+        "✔ Session         Logged in as me@example.com to Alpha, expires in 59m",
+        "✔ Token           Keystone and the Space API accept the token [t]",
+        "✔ Linked folder   This folder isn't linked",
+        "✔ Tools           Found openstack and terraform",
+        `✔ Update          You have nipa ${pkg.version}`,
+        "",
+        "> 9 passed",
+      ]
+    );
+  });
+
+  test("--json prints only the checks on stdout, without the token", async () => {
+    await seedHealthy();
+    const auth = await readJsonFile("auth.json");
+    const { token } = auth.sessions.prod;
+    const { code, stderr, stdout } = await run(["doctor", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(stdout).not.toContain(token);
+    const report = JSON.parse(stdout);
+    expect(report.profile).toBe("prod");
+    expect(
+      report.checks.map(
+        (check: { id: string; status: string }) => `${check.id} ${check.status}`
+      )
+    ).toEqual([
+      "config pass",
+      "profile pass",
+      "keystone pass",
+      "space pass",
+      "session pass",
+      "token pass",
+      "link pass",
+      "tools pass",
+      "update pass",
+    ]);
+    expect(report.checks[6]).toEqual({
+      hint: null,
+      id: "link",
+      status: "pass",
+      summary: "This folder isn't linked",
+      title: "Linked folder",
+    });
+  });
+
+  test("a missing session fails with the login hint and skips the token", async () => {
+    await seedHealthy();
+    await rm(inDir("auth.json"));
+    const { code, stderr } = await run(["doctor"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      "✖ Session         You aren't logged in to prod\n                  > Run `nipa login`.\n"
+    );
+    expect(stderr).toContain(
+      "- Token           Skipped because Session didn't pass\n"
+    );
+    expect(stderr).toContain("> 7 passed, 1 failed, 1 skipped\n");
+  });
+
+  test("a revoked token fails without logging in", async () => {
+    await seedHealthy();
+    const auth = await readJsonFile("auth.json");
+    const { token } = auth.sessions.prod;
+    await fetch(`${keystone.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const before = keystone.requests.length;
+    const { code, stderr } = await run(["doctor"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      "✖ Token           Keystone refuses the token, so it was revoked\n                  > Run `nipa login`.\n"
+    );
+    expect(keystone.requests.slice(before)).not.toContain(
+      "POST /v3/auth/tokens"
+    );
+  });
+
+  test("an unreachable Keystone fails and skips the token", async () => {
+    await seedHealthy();
+    const config = await readJsonFile("config.json");
+    // Nothing listens on port 1, so the connection fails at once.
+    config.profiles.prod.authUrl = "http://127.0.0.1:1/v3";
+    await writeFile(inDir("config.json"), JSON.stringify(config));
+    const { code, stderr } = await run(["doctor"]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/^✖ Keystone {8}Can't reach 127\.0\.0\.1:1: /mu);
+    expect(stderr).toContain(
+      "> Check the Keystone URL with `nipa profile ls`, or your network connection."
+    );
+    expect(stderr).toContain(
+      "- Token           Skipped because Keystone didn't pass"
+    );
+  });
+
+  test("a profile without a Space API URL warns, and the token check uses Keystone alone", async () => {
+    await seedHealthy();
+    const config = await readJsonFile("config.json");
+    delete config.profiles.prod.spaceUrl;
+    await writeFile(inDir("config.json"), JSON.stringify(config));
+    const { code, stderr } = await run(["doctor"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain(
+      "! Space API       The prod profile has no Space API URL\n                  > Remove it with `nipa profile rm prod`, then add it again with `--space-url` and its Space portal URL. `nipa -P prod os server list` works without one.\n"
+    );
+    expect(stderr).toMatch(
+      /^✔ Token {11}Keystone accepts the token \[\d+m?s\]$/mu
+    );
+    expect(stderr).toContain("> 8 passed, 1 warning\n");
+  });
+
+  test("missing tools and a known update warn without failing", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    await mkdir(inDir(".cache", "nipa"), { recursive: true });
+    await writeFile(
+      inDir(".cache", "nipa", "update.json"),
+      JSON.stringify({ checkedAt: new Date().toISOString(), latest: "99.0.0" })
+    );
+    const { code, stderr, stdout } = await run(["doctor", "--json"], {
+      PATH: path.dirname(process.execPath),
+    });
+    expect(code).toBe(0);
+    const { checks } = JSON.parse(stdout);
+    expect(stderr).toBe("");
+    expect(checks.slice(-2)).toEqual([
+      {
+        hint: "Install it with `pipx install python-openstackclient`. Install it with `brew install hashicorp/tap/terraform`.",
+        id: "tools",
+        status: "warn",
+        summary:
+          "Can't find openstack and terraform, so `nipa os` and `nipa tf` won't run",
+        title: "Tools",
+      },
+      {
+        hint: "Run `npm install -g nipa-cli`, or download it from https://github.com/PunGrumpy/nipa/releases/tag/v99.0.0.",
+        id: "update",
+        status: "warn",
+        summary: `nipa 99.0.0 is out, and you have ${pkg.version}`,
+        title: "Update",
+      },
+    ]);
+  });
+
+  test("a broken config.json fails, names the file, and skips the profile", async () => {
+    await seedHealthy();
+    await writeFile(inDir("config.json"), "{");
+    const { code, stdout } = await run(["doctor", "--json"]);
+    expect(code).toBe(1);
+    const { checks, profile } = JSON.parse(stdout);
+    expect(profile).toBeNull();
+    expect(checks.slice(0, 2)).toEqual([
+      {
+        hint: "Fix the file, or delete it and run `nipa login` again.",
+        id: "config",
+        status: "fail",
+        summary: `${inDir("config.json")} isn't valid JSON`,
+        title: "Config files",
+      },
+      {
+        hint: null,
+        id: "profile",
+        status: "skip",
+        summary: "Skipped because Config files didn't pass",
+        title: "Profile",
+      },
+    ]);
+  });
+
+  test("a folder linked to another project says commands switch to it, unless the account can't use it", async () => {
+    await seedHealthy();
+    await mkdir(path.join(infra(), ".nipa"), { recursive: true });
+    await writeFile(
+      path.join(infra(), ".nipa", "project.json"),
+      JSON.stringify({
+        profile: "prod",
+        project: { id: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", name: "Beta" },
+      })
+    );
+    const { stderr } = await runIn(infra(), ["doctor"]);
+    expect(stderr).toContain(
+      `✔ Profile         prod (${keystoneHost()}), from .nipa/project.json`
+    );
+    expect(stderr).toContain(
+      "✔ Linked folder   .nipa/project.json links Beta, so commands here switch to it for each run"
+    );
+    await writeFile(
+      path.join(infra(), ".nipa", "project.json"),
+      JSON.stringify({
+        profile: "prod",
+        project: { id: "cccccccccccccccccccccccccccccccc", name: "Gone" },
+      })
+    );
+    const gone = await runIn(infra(), ["doctor"]);
+    expect(gone.code).toBe(1);
+    expect(gone.stderr).toContain(
+      "✖ Linked folder   .nipa/project.json links Gone, which your account can't use\n                  > Run `nipa link` to pick another project.\n"
+    );
+  });
+  test("a link file that isn't JSON fails the Linked folder check, and the other checks still run", async () => {
+    await seedHealthy();
+    await mkdir(path.join(infra(), ".nipa"), { recursive: true });
+    await writeFile(path.join(infra(), ".nipa", "project.json"), "{ nope");
+    const { code, stderr } = await runIn(infra(), ["doctor"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain(
+      `✔ Profile         prod (${keystoneHost()}), the current profile`
+    );
+    expect(stderr).toMatch(/^✔ Keystone {8}/mu);
+    expect(stderr).toMatch(/^✔ Space API {7}/mu);
+    expect(stderr).toMatch(/^✔ Token {11}/mu);
+    // The message names the file by its real path, which macOS prefixes with /private.
+    expect(stderr).toMatch(
+      /^✖ Linked folder {3}\S+\/infra\/\.nipa\/project\.json isn't valid JSON\n {18}> Fix the file, or run `nipa unlink` and `nipa link` again\.\n/mu
+    );
+    expect(stderr).toContain("> 8 passed, 1 failed\n");
   });
 });
 

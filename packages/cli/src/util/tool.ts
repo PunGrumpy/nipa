@@ -6,7 +6,7 @@ import { childEnv, findCommand, sessionEnv } from "./env";
 import type { SignedIn } from "./session";
 import { CliError } from "./ui";
 
-const INSTALL_HINTS = new Map([
+export const INSTALL_HINTS = new Map([
   ["openstack", "Install it with `pipx install python-openstackclient`."],
   ["terraform", "Install it with `brew install hashicorp/tap/terraform`."],
 ]);

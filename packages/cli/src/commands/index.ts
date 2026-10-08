@@ -6,6 +6,7 @@ import type { Program } from "../util/command";
 import { complete } from "./complete";
 import { completion } from "./completion";
 import { db } from "./db";
+import { doctor } from "./doctor";
 import { env } from "./env";
 import { exec } from "./exec";
 import { flavor } from "./flavor";
@@ -67,7 +68,7 @@ export const program: Program = {
       title: "Resources",
     },
     { commands: [os, tf, exec, env], title: "Run tools" },
-    { commands: [profile, completion], title: "Setup" },
+    { commands: [profile, doctor, completion], title: "Setup" },
   ],
   summary:
     "Log in to Nipa Cloud once, then list your servers, volumes, networks, security groups, external IPs, load balancers, Kubernetes clusters, databases and quotas, open them in the Space portal, or run openstack and terraform with the session.",

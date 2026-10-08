@@ -129,6 +129,9 @@ const configDir = (env: NodeJS.ProcessEnv = process.env): string =>
 const configPath = () => path.join(configDir(), "config.json");
 const authPath = () => path.join(configDir(), "auth.json");
 
+/** The files nipa keeps its profiles and sessions in. */
+export const configFiles = (): readonly string[] => [configPath(), authPath()];
+
 const cachePath = (name: string, env: NodeJS.ProcessEnv = process.env) =>
   path.join(env.XDG_CACHE_HOME ?? path.join(homedir(), ".cache"), "nipa", name);
 

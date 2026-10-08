@@ -4,41 +4,13 @@
 
 import pkg from "../package.json" with { type: "json" };
 import { program } from "./commands";
-import { ApiError } from "./util/api";
 import { createClient } from "./util/client";
 import { programSpec } from "./util/command";
 import { refreshCompletions } from "./util/completion-install";
 import { run } from "./util/dispatch";
-import { isDebug, NetworkError } from "./util/http";
-import { KeystoneError } from "./util/keystone";
-import { StoreError } from "./util/store";
-import { CliError, printError } from "./util/ui";
+import { toCliError } from "./util/errors";
+import { printError } from "./util/ui";
 import { checkForUpdate } from "./util/update";
-
-const DEBUG_HINT = "Run it again with --debug to see each request.";
-
-const toCliError = (error: Error): CliError | undefined => {
-  if (error instanceof CliError) {
-    return error;
-  }
-  if (error instanceof KeystoneError || error instanceof ApiError) {
-    const serverSide = error.status === 0 || error.status >= 500;
-    return new CliError(error.message, {
-      hint: serverSide && !isDebug() ? DEBUG_HINT : undefined,
-    });
-  }
-  if (error instanceof NetworkError) {
-    return new CliError(error.message, {
-      hint: "Check the Keystone URL with `nipa profile ls`, or your network connection.",
-    });
-  }
-  if (error instanceof StoreError) {
-    return new CliError(error.message, {
-      hint: "Fix the file, or delete it and run `nipa login` again.",
-    });
-  }
-  return undefined;
-};
 
 try {
   const outcome = await run({

@@ -4,6 +4,8 @@
 
 This page lists the errors nipa prints, what causes each one, and how to fix it. Find the message you see in the headings below. If a request fails in a way this page doesn't cover, run the command again with `--debug` to see each HTTP request.
 
+Run `nipa doctor` first. It checks the config files, the profile, Keystone, the Space API, the session and its token, and the folder's link in one go, and prints how to fix each problem. Add `-P <profile>` to check another profile. It changes nothing and never asks for a password, so it's safe to run in a script.
+
 ## "wrong email or password"
 
 Keystone refused the password, or the email doesn't match an account in the profile's user domain. Check the email, then the user domain with `nipa profile ls`. Nipa Cloud accounts are in the `nipacloud` domain.

@@ -278,10 +278,12 @@ const toProjects = (body: z.infer<typeof ProjectsSchema>): Project[] =>
 
 export const listProjects = async ({
   authUrl,
+  signal,
   token,
-}: TokenRequest): Promise<Project[]> => {
+}: TokenRequest & { signal?: AbortSignal }): Promise<Project[]> => {
   const res = await request(`${identityUrl(authUrl)}/auth/projects`, {
     headers: { "X-Auth-Token": token },
+    signal,
   });
   if (!res.ok) {
     return fail(res, SESSION_GONE);

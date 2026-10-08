@@ -37,6 +37,8 @@ nipa tf plan
 
 To use one profile and project in a folder, such as your Terraform code, run `nipa -P staging link my-project` there.
 
+When a command fails, run `nipa doctor`. It checks your profile, session and network in one go and says what to fix.
+
 ## Documentation
 
 Pick the page for what you want to do:
