@@ -3,8 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import type { Space } from "../../../src/util/api";
 import { resourceNames } from "../../../src/util/names";
+import { fakeSpace } from "../../helpers";
 
 let cache: string;
 const before = process.env.XDG_CACHE_HOME;
@@ -21,15 +21,14 @@ afterAll(async () => {
 
 const flavorSpace = () => {
   const asked: string[] = [];
-  const space: Space = {
+  const space = fakeSpace({
     get: (route, schema) => {
       asked.push(route);
       return Promise.resolve(
         schema.parse({ machine_types: [{ name: "a" }, { name: "b" }] })
       );
     },
-    post: () => Promise.resolve(),
-  };
+  });
   return { asked, space };
 };
 

@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 19 commands. Without a command, it prints help.
+nipa has 23 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -30,6 +30,7 @@ nipa has 19 commands. Without a command, it prints help.
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip` and `nipa ips` do the same |
 | `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
+| `nipa quota ls [--json]` | Shows each quota of your project, such as servers, vCPUs, RAM and volumes, by group, with how much it uses, its limit and the percent used. A quota at 80% or more shows in yellow, and one at 100% shows in red, because the next create of that resource fails. A note under the table counts them. It exits with code `0` either way. In a pipe, it prints one tab-separated line per quota: its group and name, such as `compute/ram`, the amount used, the limit or `unlimited`, and the unit of both, such as `MB`, `GB` or `Bytes`, or `-` for a count. `nipa quota`, `nipa quotas` and `nipa limits` do the same |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
@@ -50,7 +51,7 @@ These options belong to one command:
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `profile ls`, `server ls`, `server inspect`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -105,7 +106,7 @@ nipa keeps these files. It writes `config.json` and `auth.json` with mode `0600`
 
 nipa 0.1 kept one profile's fields and one session at the top level of these files. nipa reads that format as the `prod` profile and writes the new format the next time it saves.
 
-`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls` and `ip ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
+`prod` is always there. Its defaults are `https://identity-api.nipa.cloud/v3`, user domain `nipacloud`, region `NCP-TH` and Space API `https://space.nipa.cloud/api`. A profile on production's Keystone without `spaceUrl` uses that Space API. A profile on another Keystone without `spaceUrl` has none, so `server ls`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `k8s ls`, `db ls`, `lb ls`, `ip ls` and `quota ls` don't work with it. nipa 0.1.4 gave every new profile production's Space API, which takes only production's tokens, so nipa drops it from profiles on another Keystone.
 
 ## Exit codes
 
@@ -359,6 +360,38 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
   ],
   "profile": "prod",
   "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
+}
+```
+
+`nipa quota ls --json` prints the profile, the project and its quotas, by group. `group` and `name` are the Space API's, such as `compute` and `cores`. `used` and `limit` are in `unit`, such as `MB` for RAM, `GB` for volume size and `Bytes` for object storage, and `unit` is `null` for a count. `limit` is `null` when the quota has no limit:
+
+```json
+{
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "quotas": [
+    {
+      "group": "compute",
+      "limit": 20,
+      "name": "cores",
+      "unit": null,
+      "used": 18
+    },
+    {
+      "group": "compute",
+      "limit": 51200,
+      "name": "ram",
+      "unit": "MB",
+      "used": 45056
+    },
+    {
+      "group": "network",
+      "limit": null,
+      "name": "port",
+      "unit": null,
+      "used": 11
+    }
+  ]
 }
 ```
 

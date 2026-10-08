@@ -79,6 +79,12 @@ nipa looked for `openstack` on your `PATH` and in `~/.local/bin` and didn't find
 
 So `nipa os coe`, `nipa os database`, `nipa os stack` and `nipa os object` fail on production. nipa can't add a service that the catalog leaves out. Use the [Nipa Cloud Space](https://space.nipa.cloud) portal for those services, or a profile whose Keystone lists them, such as staging. To list your Kubernetes clusters, run `nipa k8s ls`, which finds them through the servers Magnum made. `nipa server ls` marks those servers with `(Kubernetes master)` or another role.
 
+## "Quota exceeded for …" or "… limit exceeded"
+
+`openstack`, `terraform` or the Space portal tried to create a server, volume, external IP or another resource, and your project already uses all of that quota. Run `nipa quota` to see each quota's use and limit. Red rows are at their limit, and yellow rows are at 80% or more. A server needs room in three quotas at once: servers, vCPUs and RAM.
+
+Delete what you no longer use, such as a stopped server or a volume no server uses (`nipa volume ls` shows `-` under Server for it), or ask Nipa Cloud to raise the limit.
+
 ## "…/auth.json: …" or "…/config.json: …"
 
 The file doesn't match the format nipa expects, for example after you edit it by hand. Fix the field the message names, or delete the file. Deleting `auth.json` logs you out of every profile. Deleting `config.json` removes your profiles except `prod`.

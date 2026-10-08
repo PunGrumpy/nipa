@@ -1176,6 +1176,99 @@ describe("volume ls", () => {
   });
 });
 
+describe("quota ls", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("--json lists each quota by group, with null for an unlimited limit", async () => {
+    const { code, stdout } = await run(["quota", "ls", "--json"]);
+    expect(code).toBe(0);
+    const { profile, project, quotas } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(quotas).toEqual([
+      {
+        group: "compute",
+        limit: 10,
+        name: "instances",
+        unit: null,
+        used: 10,
+      },
+      {
+        group: "compute",
+        limit: 20,
+        name: "cores",
+        unit: null,
+        used: 18,
+      },
+      {
+        group: "compute",
+        limit: 51_200,
+        name: "ram",
+        unit: "MB",
+        used: 45_056,
+      },
+      {
+        group: "network",
+        limit: null,
+        name: "port",
+        unit: null,
+        used: 11,
+      },
+      {
+        group: "objectStorage",
+        limit: null,
+        name: "storage_size",
+        unit: "Bytes",
+        used: 1_755_585,
+      },
+      {
+        group: "fileStorage",
+        limit: 5,
+        name: "shares",
+        unit: null,
+        used: 1,
+      },
+    ]);
+  });
+
+  test("prints a table by group, names the full and near quotas, and exits 0", async () => {
+    const { code, stderr, stdout } = await run(["limits"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/> Quotas of Alpha \[\d+(?:ms|s)\]/u);
+    expect(stderr).toMatch(/Group\s+Quota\s+Used\s+Limit\s+%/u);
+    expect(stderr).toMatch(/ {2}Compute\s+Servers\s+10\s+10\s+100%\n/u);
+    expect(stderr).toMatch(/\n {5,}vCPUs\s+18\s+20\s+90%\n/u);
+    expect(stderr).toMatch(/\n {5,}RAM\s+44 GB\s+50 GB\s+88%\n/u);
+    expect(stderr).toMatch(/Network\s+Ports\s+11\s+unlimited\s+-\n/u);
+    expect(stderr).toMatch(
+      /Object storage\s+Storage\s+1\.7 MB\s+unlimited\s+-\n/u
+    );
+    expect(stderr).toMatch(/File storage\s+Shares\s+1\s+5\s+20%\n/u);
+    expect(stderr).toContain(
+      "> NOTE: 1 quota is at the limit, and 2 are near it."
+    );
+    expect(stdout.trim().split("\n")).toEqual([
+      "compute/instances\t10\t10\t-",
+      "compute/cores\t18\t20\t-",
+      "compute/ram\t45056\t51200\tMB",
+      "network/port\t11\tunlimited\t-",
+      "objectStorage/storage_size\t1755585\tunlimited\tBytes",
+      "fileStorage/shares\t1\t5\t-",
+    ]);
+  });
+
+  test("a project without quotas says so", async () => {
+    await run(["switch", "Beta"]);
+    const { code, stderr, stdout } = await run(["quotas"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("No quotas for Beta");
+    expect(stdout).toBe("");
+  });
+});
+
 describe("network ls", () => {
   beforeAll(async () => {
     await freshDir();

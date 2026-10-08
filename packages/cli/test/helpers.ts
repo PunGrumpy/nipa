@@ -71,6 +71,17 @@ const issueToken = async (keystoneUrl: string): Promise<string> => {
   return res.headers.get("X-Subject-Token") ?? "";
 };
 
+/**
+ * A Space for a unit test, with only the methods it needs. The rest answer
+ * nothing, so a fake doesn't carry a stub for every method of Space.
+ */
+export const fakeSpace = (overrides: Partial<Space>): Space => ({
+  get: () => Promise.reject(new Error("the fake Space doesn't answer get")),
+  getLines: () => Promise.resolve([]),
+  post: () => Promise.resolve(),
+  ...overrides,
+});
+
 /** The Space API on the fake Keystone, as Alpha. */
 export const alphaSpace = async (keystoneUrl: string): Promise<Space> =>
   createSpace({
