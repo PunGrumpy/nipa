@@ -1892,6 +1892,7 @@ describe("sg inspect", () => {
     expect(securityGroup.rules[0]).toEqual({
       direction: "ingress",
       ethertype: "IPv4",
+      exposed: false,
       id: "r1",
       portMax: null,
       portMin: null,
@@ -1900,6 +1901,21 @@ describe("sg inspect", () => {
       remoteGroupName: "default",
       remoteIpPrefix: null,
     });
+  });
+
+  test("--json marks the rules that open a sensitive port to the internet", async () => {
+    const { code, stdout } = await run(["sg", "inspect", "web", "--json"]);
+    expect(code).toBe(0);
+    const { securityGroup } = JSON.parse(stdout);
+    expect(
+      securityGroup.rules.map((rule: { id: string; exposed: boolean }) => [
+        rule.id,
+        rule.exposed,
+      ])
+    ).toEqual([
+      ["r4", false],
+      ["r5", true],
+    ]);
   });
 
   test("prints the rules on stderr, and the ID to a pipe", async () => {

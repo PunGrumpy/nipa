@@ -124,6 +124,7 @@ export const inspect = handle(
     if (flags.json) {
       const rules = group.rules.map((rule) => ({
         ...rule,
+        exposed: isExposed(toRule(rule, groupNames)),
         remoteGroupName: rule.remoteGroupId
           ? (groupNames.get(rule.remoteGroupId) ?? null)
           : null,
