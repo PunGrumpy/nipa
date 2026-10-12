@@ -1,0 +1,22 @@
+name: Docs or site problem
+description: A page in the docs or on the site is wrong, unclear or missing
+labels: [documentation]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The URL or the file, such as `docs/quickstart.md`
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: Quote the text, or say what you looked for and didn't find.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What it should say
