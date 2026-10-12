@@ -2,11 +2,6 @@ import Image from "next/image";
 
 import type { Artwork } from "@/lib/art";
 
-/**
- * A painting that fills its parent, behind the content. The parent needs
- * `relative isolate overflow-hidden`, and `scheme-dark` so the Geist tokens
- * on top of the painting take their dark values in both themes.
- */
 export const Painting = ({
   artwork,
   className = "",
@@ -16,7 +11,7 @@ export const Painting = ({
   artwork: Artwork;
   className?: string;
   priority?: boolean;
-  /** The layer between the painting and the text on it. */
+
   scrim?: string;
 }) => (
   <div aria-hidden className="absolute inset-0 -z-10">
@@ -33,7 +28,6 @@ export const Painting = ({
   </div>
 );
 
-/** The museum label for a painting: title, painter and year. */
 export const ArtLabel = ({
   artwork,
   className = "",

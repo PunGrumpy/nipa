@@ -12,7 +12,6 @@ export const Code = ({ children }: { children: ReactNode }) => (
   </code>
 );
 
-/** A link in running text. */
 export const TextLink = ({
   children,
   href,

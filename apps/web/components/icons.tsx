@@ -14,7 +14,6 @@ const stroke = {
   width: 16,
 } as const;
 
-/** The nipa mark: two palm fronds on one stem. */
 export const LogoMark = (props: IconProps) => (
   <svg
     aria-hidden
@@ -31,7 +30,6 @@ export const LogoMark = (props: IconProps) => (
   </svg>
 );
 
-/** The mark and the name. The mark is as tall as the letters, so set the size with `text-*`. */
 export const Logo = ({ className = "" }: { className?: string }) => (
   <span
     className={`inline-flex items-baseline gap-[0.36em] font-semibold tracking-[-0.045em] ${className}`}

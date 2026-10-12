@@ -1,5 +1,3 @@
-// The groups and descriptions that `nipa --help` prints. Keep them in step
-// with packages/cli/src/commands when a command is added.
 export const COMMAND_GROUPS = [
   {
     commands: [

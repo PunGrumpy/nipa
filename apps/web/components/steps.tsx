@@ -10,15 +10,10 @@ export interface Step {
   panel: ReactNode;
 }
 
-// A panel is the active one while it crosses this band of the viewport.
 const ACTIVE_BAND = "-40% 0px -55% 0px";
 
 const number = (index: number): string => String(index + 1).padStart(2, "0");
 
-/**
- * Numbered steps beside the panels they describe. On a wide screen the list
- * stays in view and marks the step whose panel you're reading.
- */
 export const Steps = ({ steps }: { steps: readonly Step[] }) => {
   const [active, setActive] = useState(0);
   const panels = useRef<(HTMLDivElement | null)[]>([]);

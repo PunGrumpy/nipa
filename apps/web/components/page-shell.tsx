@@ -6,7 +6,6 @@ import { ArtLabel, Painting } from "./painting";
 import { SiteFooter } from "./site-footer";
 import { SiteNav } from "./site-nav";
 
-/** A page under the home page: a painted header, then the text. */
 export const PageShell = ({
   artwork,
   children,
@@ -19,7 +18,7 @@ export const PageShell = ({
   children: ReactNode;
   eyebrow: string;
   lede: ReactNode;
-  /** The part of the painting to keep in view, such as `object-[50%_30%]`. */
+
   position?: string;
   title: string;
 }) => (

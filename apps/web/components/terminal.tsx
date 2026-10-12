@@ -2,9 +2,6 @@ import type { CSSProperties, ReactNode } from "react";
 
 import type { Cell, Tone } from "@/lib/terminal";
 
-// What the CLI prints, drawn with the same rules as packages/cli/src/util/ui.ts:
-// log lines start with a dim ">", tables indent 2 spaces, and columns sit
-// 5 spaces apart under bold cyan headings.
 const COLUMN_GAP = " ".repeat(5);
 
 const DOT_TONES: Record<Tone, string> = {
@@ -15,7 +12,6 @@ const DOT_TONES: Record<Tone, string> = {
 };
 
 interface Timed {
-  /** Milliseconds before the line shows. Without it, the line doesn't animate. */
   at?: number;
 }
 
@@ -26,8 +22,7 @@ const timing = (
   if (at === undefined) {
     return;
   }
-  // SAFETY: CSSProperties doesn't list custom properties, and React writes
-  // them to the style attribute as they are.
+  // SAFETY: CSSProperties doesn't list custom properties.
   return { "--at": `${at}ms`, "--chars": chars } as CSSProperties;
 };
 
@@ -54,14 +49,12 @@ export const Line = ({ at, children }: Timed & { children?: ReactNode }) => (
   </span>
 );
 
-/** A log line, which the CLI starts with a dim ">". */
 export const Log = ({ at, children }: Timed & { children: ReactNode }) => (
   <Line at={at}>
     <Dim>&gt;</Dim> {children}
   </Line>
 );
 
-/** A command at the prompt. With `at`, it types itself. */
 export const Command = ({ at, children }: Timed & { children: string }) => (
   <Line at={at}>
     <Dim>$</Dim>{" "}
@@ -74,7 +67,6 @@ export const Command = ({ at, children }: Timed & { children: string }) => (
   </Line>
 );
 
-/** A prompt the user has answered. */
 export const Answer = ({
   at,
   label,
@@ -149,7 +141,6 @@ export const Table = ({
   );
 };
 
-/** One resource's details, as `nipa <resource> inspect` prints them. */
 export const Fields = ({
   fields,
 }: {
@@ -174,7 +165,6 @@ export const Fields = ({
   );
 };
 
-/** A terminal window. `label` says what the session shows, for screen readers. */
 export const Terminal = ({
   children,
   className = "",
@@ -187,14 +177,14 @@ export const Terminal = ({
 }: {
   children: ReactNode;
   className?: string;
-  /** Sets smaller type, for a session with a wide table. */
+
   dense?: boolean;
-  /** A strip under the session, for controls. */
+
   footer?: ReactNode;
-  /** Lets what's behind the window show through, for a window on a painting. */
+
   glass?: boolean;
   label: string;
-  /** Fixes the height, so a session that grows scrolls inside the window. */
+
   scroll?: boolean;
   title: string;
 }) => (

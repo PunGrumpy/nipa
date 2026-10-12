@@ -3,12 +3,10 @@ import path from "node:path";
 
 import { z } from "zod";
 
-// Changesets writes this file when a release is cut.
 const FILE = path.join(process.cwd(), "../../packages/cli/CHANGELOG.md");
 const RELEASES_API =
   "https://api.github.com/repos/PunGrumpy/nipa/releases?per_page=100";
 
-/** A run of a change's text. `at` is where it starts, which is its key. */
 export interface Segment {
   at: number;
   code: boolean;
@@ -16,7 +14,6 @@ export interface Segment {
 }
 
 export interface Change {
-  /** The commit that added the change, when Changesets names one. */
   commit?: string;
   segments: Segment[];
   text: string;
@@ -24,7 +21,7 @@ export interface Change {
 
 export interface Release {
   changes: Change[];
-  /** When GitHub published the release, as an ISO date. */
+
   date?: string;
   version: string;
 }
@@ -32,7 +29,6 @@ export interface Release {
 const VERSION = /^## (?<version>\S+)/u;
 const CHANGE = /^- (?:(?<commit>[0-9a-f]{7,40}): )?(?<text>.+)$/u;
 
-/** Splits a line of Markdown at its backticks, the only markup the file has. */
 const toSegments = (text: string): Segment[] => {
   const segments: Segment[] = [];
   let at = 0;
@@ -69,11 +65,8 @@ const ReleasesSchema = z.array(
   z.object({ published_at: z.string(), tag_name: z.string() })
 );
 
-/** Each version's release date from GitHub. Empty when GitHub doesn't answer. */
 const releaseDates = async (): Promise<Map<string, string>> => {
   try {
-    // Without a token, GitHub allows 60 requests an hour from one address,
-    // which a shared build machine can use up.
     const token = process.env.GITHUB_TOKEN;
     const response = await fetch(RELEASES_API, {
       cache: "force-cache",
@@ -90,7 +83,6 @@ const releaseDates = async (): Promise<Map<string, string>> => {
       ])
     );
   } catch {
-    // The page still lists every release, without its date.
     return new Map();
   }
 };

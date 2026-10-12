@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-/** A link in the nav that marks itself when it leads to the open page. */
 export const NavLink = ({
   children,
   href,

@@ -29,7 +29,7 @@ interface Session {
 
 interface Result {
   output: ReactNode;
-  /** The session after the command, when the command changes it. */
+
   session?: Session;
 }
 
@@ -69,8 +69,6 @@ const SERVERS: Record<Project, Cell[][]> = {
 const isProject = (name: string): name is Project =>
   Object.hasOwn(SERVERS, name);
 
-// What the demo runs. `help` lists them all, and the first ones are the
-// buttons under the session.
 const DEMO_COMMANDS = [
   ["nipa whoami", "Show who you're logged in as"],
   ["nipa server ls", "List the servers in your project"],
@@ -97,7 +95,6 @@ const Success = ({ children }: { children: ReactNode }) => (
   </Line>
 );
 
-/** The demo speaking, as a shell comment, so it doesn't pass for CLI output. */
 const Aside = ({ children }: { children: ReactNode }) => (
   <Line>
     <Dim># {children}</Dim>
@@ -240,7 +237,6 @@ const editDistance = (from: string, to: string): number => {
   return row.at(-1) ?? 0;
 };
 
-/** The error `nipa` prints for a command it doesn't have. */
 const unknownCommand = (word: string): Result => {
   const [closest] = COMMAND_NAMES.map((name) => ({
     name,
@@ -262,7 +258,6 @@ const unknownCommand = (word: string): Result => {
 
 const HELP_WORDS = new Set(["--help", "-h", "help"]);
 
-/** `nipa login`, and any command that needs a session when there is none. */
 const startsLogin = (words: readonly string[], session: Session): boolean => {
   const [program, name] = words;
   if (program !== "nipa" || name === undefined) {
@@ -302,14 +297,12 @@ const OTP = /^\d{6}$/u;
 const LOGIN = "nipa login";
 const SERVER_LS = "nipa server ls";
 
-// When each line of the played session shows, in milliseconds.
 const LOGIN_AT = 600;
 const LOGIN_DONE = LOGIN_AT + typed(LOGIN);
 const SERVER_LS_AT = LOGIN_DONE + 3400;
 const SERVER_LS_DONE = SERVER_LS_AT + typed(SERVER_LS);
 const PROMPT_AT = SERVER_LS_DONE + 700;
 
-/** The session that plays when the page loads. */
 const Played = () => (
   <>
     <Command at={LOGIN_AT}>{LOGIN}</Command>
@@ -343,29 +336,22 @@ const Played = () => (
   </>
 );
 
-/**
- * The session in the hero. It plays one login and one command, then takes
- * commands from the visitor and answers with made-up data.
- */
 export const HeroSession = ({ className }: { className?: string }) => {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [cleared, setCleared] = useState(false);
   const [started, setStarted] = useState(false);
   const [value, setValue] = useState("");
-  // The command that waits for the OTP code, or true for `nipa login` itself.
+
   const [waiting, setWaiting] = useState<readonly string[] | true | null>(null);
-  // An OTP code that isn't 6 digits was entered.
+
   const [rejected, setRejected] = useState(false);
 
-  // Only the handlers read these, so they don't need to draw the session.
   const session = useRef<Session>({ loggedIn: true, project: "my-project" });
   const history = useRef<string[]>([]);
-  // The place in the history that the arrow keys recalled, or null.
+
   const recalled = useRef<number | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
-  // Keeps the prompt in view when the session grows and while typing, also
-  // after the visitor scrolled up to read.
   const toBottom = () => {
     const body = input.current?.closest("pre");
     if (body) {
@@ -410,8 +396,7 @@ export const HeroSession = ({ className }: { className?: string }) => {
         <Answer label="Password">********</Answer>
       );
       setWaiting(words[1] === "login" ? true : words);
-      // The buttons turn off while nipa waits for the code, so a visitor who
-      // pressed one would lose their place.
+
       input.current?.focus();
       return;
     }
@@ -504,8 +489,6 @@ export const HeroSession = ({ className }: { className?: string }) => {
         className="block min-h-full cursor-text"
         data-played={started || undefined}
         onClick={(event) => {
-          // A click on the session moves to the prompt, but not at the end of
-          // a drag that selected text to copy.
           if (window.getSelection()?.isCollapsed === false) {
             event.preventDefault();
           }

@@ -12,7 +12,6 @@ import {
   Terminal,
 } from "./terminal";
 
-/** What `nipa whoami` prints for a project. */
 export const WhoamiOutput = ({ project }: { project: string }) => (
   <>
     <Log>
@@ -82,7 +81,6 @@ const member = (name: Cell, address: string, health: Cell): Cell[] => [
   health,
 ];
 
-/** What `nipa lb inspect web-lb` prints. */
 export const InspectOutput = ({ project }: { project: string }) => (
   <>
     <Log>

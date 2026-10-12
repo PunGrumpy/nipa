@@ -8,7 +8,6 @@ import { HeroSession } from "./hero-session";
 import { ArrowRightIcon } from "./icons";
 import { ArtLabel, Painting } from "./painting";
 
-/** A painted sky, inset from the page edge, with the product at the bottom. */
 export const Hero = () => (
   <section className="p-2 sm:p-3" id="top">
     <div className="text-gray-1000 relative isolate overflow-hidden rounded-3xl px-4 pt-32 scheme-dark sm:rounded-[2rem] sm:px-6 sm:pt-36">

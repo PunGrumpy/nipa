@@ -5,13 +5,12 @@ const DATE = new Intl.DateTimeFormat("en", {
   timeZone: "UTC",
 });
 
-/** The date and the sections of a terms or privacy page. */
 export const Legal = ({
   children,
   updated,
 }: {
   children: ReactNode;
-  /** The day the text last changed, as an ISO date. */
+
   updated: string;
 }) => (
   <article>

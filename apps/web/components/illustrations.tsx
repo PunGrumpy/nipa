@@ -4,10 +4,6 @@ type IconProps = SVGProps<SVGSVGElement>;
 
 const BRUSH_FILTER = "nipa-brush";
 
-/**
- * The filter that gives the brush icons their uneven edge. Render it once on
- * a page that uses them.
- */
 export const BrushFilter = () => (
   <svg aria-hidden className="absolute size-0" focusable={false}>
     <filter height="140%" id={BRUSH_FILTER} width="140%" x="-20%" y="-20%">
@@ -83,7 +79,7 @@ const DOT_COLUMNS = 10;
 const DOT_ROWS = 5;
 const DOT_STEP = 20;
 const DOT_SIZE = 4;
-// The top right dots give way to the focus frame.
+
 const FRAME_COLUMN = 8;
 const FRAME_ROWS = 2;
 
@@ -92,7 +88,6 @@ const DOTS = Array.from({ length: DOT_COLUMNS * DOT_ROWS }, (_, index) => ({
   row: Math.floor(index / DOT_COLUMNS),
 })).filter((dot) => dot.column < FRAME_COLUMN || dot.row >= FRAME_ROWS);
 
-/** A session drawn as a plate of dots, with a focus frame on the prompt. */
 export const SessionGlyph = (props: IconProps) => (
   <svg
     aria-hidden

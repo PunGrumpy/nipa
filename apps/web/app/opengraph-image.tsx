@@ -8,20 +8,18 @@ import { site } from "@/lib/site";
 export const alt = `${site.name}: ${site.tagline}`;
 export const size = { height: 630, width: 1200 };
 export const contentType = "image/png";
-// The site is a static export, so the build draws the image once.
+
 export const dynamic = "force-static";
 
-// Each path is written out, so the build traces these three files only.
 const root = process.cwd();
 const FONTS = "node_modules/geist/dist/fonts";
 const SANS = "Geist";
 const MONO = "Geist Mono";
 const WHITE = "#fff";
 const WORDMARK_PX = 168;
-// The mark is as tall as the letters, as in the Logo component.
+
 const MARK_PX = Math.round(WORDMARK_PX * 0.62);
 
-/** The card for shared links: the logo on the hero's painting. */
 const image = async () => {
   const [painting, sans, mono] = await Promise.all([
     readFile(path.join(root, "assets/art/lake-george.jpg")),

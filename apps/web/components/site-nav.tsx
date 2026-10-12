@@ -12,7 +12,6 @@ const LINKS = [
   { href: "/changelog", label: "Changelog" },
 ] as const;
 
-/** A pill that floats over the page. */
 export const SiteNav = () => (
   <header className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
     <nav

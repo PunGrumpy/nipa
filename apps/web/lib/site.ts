@@ -3,8 +3,6 @@ import cli from "../../../packages/cli/package.json" with { type: "json" };
 const REPO = "https://github.com/PunGrumpy/nipa";
 const DOCS = `${REPO}/blob/main/docs`;
 
-// The address the site is served from. Shared links need it to give an
-// absolute URL for their image, so set SITE_URL when you build for a deploy.
 const SITE_URL = process.env.SITE_URL ?? "http://localhost:3000";
 
 export const site = {

@@ -37,7 +37,6 @@ const SectionHeading = ({
   </div>
 );
 
-/** Why nipa exists, set as one long thought. */
 export const Intro = () => (
   <section className="px-6 py-24 sm:py-32">
     <div className="mx-auto max-w-2xl">
@@ -102,7 +101,6 @@ export const HowItWorks = () => (
   </section>
 );
 
-/** A painting between sections, with how long a session lasts on a pane of glass. */
 export const Interlude = () => (
   <section className="border-gray-alpha-400 border-t p-2 sm:p-3">
     <div className="text-gray-1000 relative isolate flex min-h-[34rem] flex-col justify-end overflow-hidden rounded-3xl p-4 scheme-dark sm:min-h-[40rem] sm:p-8 lg:flex-row lg:items-end lg:justify-between">
@@ -260,7 +258,6 @@ export const Commands = () => (
   </section>
 );
 
-/** The last call to install, on a painting that closes the page. */
 export const Closing = () => (
   <section className="border-gray-alpha-400 border-t">
     <div className="p-2 sm:p-3">

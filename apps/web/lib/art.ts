@@ -14,8 +14,6 @@ export interface Artwork {
 
 const MET = "https://www.metmuseum.org/art/collection/search";
 
-// Hudson River School paintings from The Metropolitan Museum of Art's Open
-// Access collection. The Met gives these images to the public domain (CC0).
 export const art = {
   kauterskillClove: {
     artist: "Sanford Robinson Gifford",

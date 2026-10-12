@@ -1,10 +1,6 @@
 @import "tailwindcss";
 @import "../styles/geist.css";
 
-/*
- * Tailwind reads its palette from the Geist tokens and nothing else, so
- * `bg-gray-100` or `text-blue-900` is the only way to name a color.
- */
 @theme inline {
   --color-*: initial;
 
@@ -147,11 +143,6 @@
   }
 }
 
-/*
- * The hero terminal plays once, in CSS. Each line waits `--at` before it
- * shows, and a typed command grows one character at a time over `--chars`.
- * With reduced motion, the whole session is there from the start.
- */
 @media (prefers-reduced-motion: no-preference) {
   .terminal-line {
     opacity: 0;
@@ -169,7 +160,6 @@
   }
 }
 
-/* The visitor started typing, so the rest of the played session shows now. */
 [data-played] .terminal-line {
   opacity: 1;
   animation: none;

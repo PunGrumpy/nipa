@@ -6,7 +6,6 @@ import { CheckIcon, CopyIcon } from "./icons";
 
 const COPIED_MS = 2000;
 
-/** A shell command with a button that copies it. */
 export const CopyCommand = ({ command }: { command: string }) => {
   const [copied, setCopied] = useState(false);
 
@@ -23,7 +22,7 @@ export const CopyCommand = ({ command }: { command: string }) => {
       await navigator.clipboard.writeText(command);
       setCopied(true);
     } catch {
-      // Without clipboard access, the command is still there to select.
+      // The command is still there to select.
     }
   };
 
