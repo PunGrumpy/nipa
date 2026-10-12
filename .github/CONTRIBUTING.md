@@ -54,10 +54,12 @@ The site is a static export that Cloudflare Workers serves. `apps/web/cloudflare
 ```sh
 cd apps/web
 cf auth login
-bun run deploy
+SITE_URL=https://nipa.pungrumpy.workers.dev bun run deploy
 ```
 
-Shared links point their image at `https://nipa.pungrumpy.workers.dev`. Set `SITE_URL` when you build for another address. `bun run deploy:preview` deploys the current branch as a preview.
+Set `SITE_URL` to the address the site is served from, so shared links get the right image URL. Without it, they point at `http://localhost:3000`. `bun run deploy:preview` deploys the current branch as a preview.
+
+The build also reads `GITHUB_TOKEN`, which is optional. The changelog page asks GitHub for each release's date, and a token keeps that request clear of the limit for requests without one.
 
 ## Report a security problem
 
