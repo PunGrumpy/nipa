@@ -1,4 +1,4 @@
-import cli from "../../../../packages/cli/package.json" with { type: "json" };
+import cli from "../../../packages/cli/package.json" with { type: "json" };
 
 const REPO = "https://github.com/PunGrumpy/nipa";
 const DOCS = `${REPO}/blob/main/docs`;

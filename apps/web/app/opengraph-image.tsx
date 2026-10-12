@@ -24,7 +24,7 @@ const MARK_PX = Math.round(WORDMARK_PX * 0.62);
 /** The card for shared links: the logo on the hero's painting. */
 const image = async () => {
   const [painting, sans, mono] = await Promise.all([
-    readFile(path.join(root, "src/assets/art/lake-george.jpg")),
+    readFile(path.join(root, "assets/art/lake-george.jpg")),
     readFile(path.join(root, FONTS, "geist-sans/Geist-SemiBold.ttf")),
     readFile(path.join(root, FONTS, "geist-mono/GeistMono-Regular.ttf")),
   ]);
