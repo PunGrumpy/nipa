@@ -3,8 +3,6 @@ import cli from "../../../packages/cli/package.json" with { type: "json" };
 const REPO = "https://github.com/PunGrumpy/nipa";
 const DOCS = `${REPO}/blob/main/docs`;
 
-const SITE_URL = process.env.SITE_URL ?? "http://localhost:3000";
-
 export const site = {
   author: cli.author,
   description:
@@ -26,6 +24,5 @@ export const site = {
   },
   name: "nipa",
   tagline: "Log in to Nipa Cloud once a day. Run OpenStack tools all day.",
-  url: SITE_URL,
   version: cli.version,
 } as const;

@@ -3,12 +3,13 @@ import type { ReactNode } from "react";
 
 import { fonts } from "@/lib/fonts";
 import { site } from "@/lib/site";
+import { url } from "@/lib/url";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
   description: site.description,
-  metadataBase: new URL(site.url),
+  metadataBase: new URL(url),
   openGraph: {
     description: site.description,
     siteName: site.name,
