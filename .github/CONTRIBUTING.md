@@ -54,10 +54,10 @@ The site is a static export that Cloudflare Workers serves. `apps/web/cloudflare
 ```sh
 cd apps/web
 cf auth login
-SITE_URL=https://example.com bun run deploy
+bun run deploy
 ```
 
-Set `SITE_URL` to the address the site is served from, so shared links get the right image URL. `bun run deploy:preview` deploys the current branch as a preview.
+Shared links point their image at `https://nipa.pungrumpy.workers.dev`. Set `SITE_URL` when you build for another address. `bun run deploy:preview` deploys the current branch as a preview.
 
 ## Report a security problem
 
