@@ -1,29 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { fonts } from "@/lib/fonts";
 import { site } from "@/lib/site";
 
 import "./globals.css";
-
-const geistSans = Geist({
-  display: "swap",
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-});
-
-const geistMono = Geist_Mono({
-  display: "swap",
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-});
-
-const newsreader = Newsreader({
-  axes: ["opsz"],
-  display: "swap",
-  subsets: ["latin"],
-  variable: "--font-newsreader",
-});
 
 export const metadata: Metadata = {
   description: site.description,
@@ -47,11 +28,8 @@ export const viewport: Viewport = {
 };
 
 const RootLayout = ({ children }: { children: ReactNode }) => (
-  <html
-    className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}
-    lang="en"
-  >
-    <body className="font-sans">{children}</body>
+  <html className={fonts} lang="en">
+    <body>{children}</body>
   </html>
 );
 
