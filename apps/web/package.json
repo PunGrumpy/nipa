@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:cloudflare": "next build && cf-wrangler build",
+    "deploy": "bun run build:cloudflare && cf deploy --prebuilt",
+    "deploy:preview": "next build && CLOUDFLARE_PREVIEW_BUILD=true cf-wrangler build && cf previews deploy --prebuilt",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
@@ -22,7 +25,9 @@
     "@types/node": "26.6.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "cf": "1.0.0-beta.14",
     "tailwindcss": "4.3.3",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "wrangler": "4.149.0"
   }
 }

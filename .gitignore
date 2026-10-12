@@ -3,6 +3,8 @@ dist/
 .next/
 next-env.d.ts
 out/
+.cloudflare/
+.wrangler/
 .turbo/
 coverage/
 *.tgz
