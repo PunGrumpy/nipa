@@ -59,6 +59,8 @@ SITE_URL=https://nipa.pungrumpy.workers.dev bun run deploy
 
 Set `SITE_URL` to the address the site is served from, so shared links get the right image URL. Without it, they point at `http://localhost:3000`. `bun run deploy:preview` deploys the current branch as a preview.
 
+Workers Builds deploys `main` and gives each other branch a preview. Its build command is `bun run build:cloudflare` and its deploy command is `bun run deploy:ci`, which deploys a preview when Cloudflare builds one and the site otherwise.
+
 The build also reads `GITHUB_TOKEN`, which is optional. The changelog page asks GitHub for each release's date, and a token keeps that request clear of the limit for requests without one.
 
 ## Report a security problem

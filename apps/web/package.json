@@ -11,6 +11,7 @@
     "build:cloudflare": "next build && cf-wrangler build",
     "deploy": "bun run build:cloudflare && cf deploy --prebuilt",
     "deploy:preview": "next build && CLOUDFLARE_PREVIEW_BUILD=true cf-wrangler build && cf previews deploy --prebuilt",
+    "deploy:ci": "if [ \"$CLOUDFLARE_PREVIEW_BUILD\" = \"true\" ]; then cf previews deploy --prebuilt; else cf deploy --prebuilt; fi",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

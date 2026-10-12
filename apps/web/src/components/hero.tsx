@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { art } from "@/lib/art";
 import { site } from "@/lib/site";
 
@@ -18,15 +20,15 @@ export const Hero = () => (
       />
 
       <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
-        <a
+        <Link
           className="border-gray-alpha-400 bg-background-100/40 text-gray-1000 hover:bg-background-100/60 flex h-7 items-center gap-1.5 rounded-full border pr-2 pl-3 text-[13px] backdrop-blur-sm transition-colors duration-150"
-          href={site.links.releases}
+          href="/changelog"
         >
           <span className="font-mono">v{site.version}</span>
           <span className="text-gray-alpha-700">·</span>
           Open source under MIT
           <ArrowRightIcon className="size-3" />
-        </a>
+        </Link>
 
         <h1 className="mt-6 font-serif text-[clamp(2.5rem,5.4vw,4.25rem)] leading-[1.02] tracking-[-0.035em] text-balance">
           Log in to Nipa Cloud once a day.{" "}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { site } from "@/lib/site";
 
 import { GitHubIcon, Logo } from "./icons";
+import { NavLink } from "./nav-link";
 
 const LINKS = [
   { href: "/#how-it-works", label: "How it works" },
@@ -28,12 +29,7 @@ export const SiteNav = () => (
       <ul className="hidden items-center md:flex">
         {LINKS.map((link) => (
           <li key={link.href}>
-            <Link
-              className="hover:bg-gray-alpha-100 hover:text-gray-1000 flex h-9 items-center rounded-xl px-3 text-[15px] text-gray-900 transition-colors duration-150"
-              href={link.href}
-            >
-              {link.label}
-            </Link>
+            <NavLink href={link.href}>{link.label}</NavLink>
           </li>
         ))}
       </ul>
