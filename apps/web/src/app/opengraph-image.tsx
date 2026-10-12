@@ -8,6 +8,8 @@ import { site } from "@/lib/site";
 export const alt = `${site.name}: ${site.tagline}`;
 export const size = { height: 630, width: 1200 };
 export const contentType = "image/png";
+// The site is a static export, so the build draws the image once.
+export const dynamic = "force-static";
 
 // Each path is written out, so the build traces these three files only.
 const root = process.cwd();

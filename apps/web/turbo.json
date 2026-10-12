@@ -13,7 +13,7 @@
       // The site's address for shared links, and a token for the release
       // dates the changelog reads from GitHub.
       "env": ["SITE_URL", "VERCEL_PROJECT_PRODUCTION_URL", "GITHUB_TOKEN"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "out/**"]
     }
   }
 }
