@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // The site prints the CLI's version and its changelog, which it reads
+      // from these files.
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/cli/package.json",
+        "$TURBO_ROOT$/packages/cli/CHANGELOG.md"
+      ],
+      // The site's address for shared links, and a token for the release
+      // dates the changelog reads from GitHub.
+      "env": ["SITE_URL", "VERCEL_PROJECT_PRODUCTION_URL", "GITHUB_TOKEN"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+    }
+  }
+}
