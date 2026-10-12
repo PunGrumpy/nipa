@@ -47,6 +47,20 @@ bun run test
 
 [Add a command to nipa](../docs/add-a-command.md) and [Release nipa](../docs/releasing.md) have the details.
 
+## Deploy the site
+
+The site is a static export that Cloudflare Workers serves. `apps/web/cloudflare.config.ts` configures the Worker.
+
+```sh
+cd apps/web
+cf auth login
+SITE_URL=https://nipa.pungrumpy.workers.dev bun run deploy
+```
+
+Set `SITE_URL` to the address the site is served from, so shared links get the right image URL. Without it, they point at `http://localhost:3000`. `bun run deploy:preview` deploys the current branch as a preview.
+
+The build also reads `GITHUB_TOKEN`, which is optional. The changelog page asks GitHub for each release's date, and a token keeps that request clear of the limit for requests without one.
+
 ## Report a security problem
 
 Don't open a public issue for a vulnerability. Follow the [security policy](SECURITY.md).

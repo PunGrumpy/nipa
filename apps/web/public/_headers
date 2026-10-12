@@ -1,0 +1,10 @@
+# Cloudflare reads this file from the built site. See
+# https://developers.cloudflare.com/workers/static-assets/headers/
+
+# The build names these files after their content, so they never change.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The image has no file extension, so Cloudflare can't tell its type.
+/opengraph-image
+  Content-Type: image/png
