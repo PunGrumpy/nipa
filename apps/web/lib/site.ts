@@ -4,7 +4,7 @@ const REPO = "https://github.com/PunGrumpy/nipa";
 const DOCS = `${REPO}/blob/main/docs`;
 
 export const site = {
-  author: cli.author,
+  author: { ...cli.author, x: "@pungrumpy" },
   description:
     "nipa logs in to Nipa Cloud with your password and an OTP code, then runs openstack, terraform or any OpenStack tool with that session.",
   install: "npm install -g nipa-cli",

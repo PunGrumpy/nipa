@@ -6,7 +6,9 @@ import { PageShell } from "@/components/page-shell";
 import { art } from "@/lib/art";
 
 export const metadata: Metadata = {
-  title: "Page not found · nipa",
+  alternates: { canonical: null },
+  robots: { index: false },
+  title: "Page not found",
 };
 
 const PAGES = [

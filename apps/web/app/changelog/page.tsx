@@ -9,7 +9,7 @@ import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   description: "What changed in each release of nipa.",
-  title: "Changelog · nipa",
+  title: "Changelog",
 };
 
 const DATE = new Intl.DateTimeFormat("en", {

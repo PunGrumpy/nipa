@@ -8,7 +8,7 @@ import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
   description: "The terms for the nipa command-line tool and this site.",
-  title: "Terms · nipa",
+  title: "Terms",
 };
 
 const Terms = () => (

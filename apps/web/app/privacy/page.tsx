@@ -9,7 +9,7 @@ import { site } from "@/lib/site";
 export const metadata: Metadata = {
   description:
     "What the nipa command-line tool and this site do with your data.",
-  title: "Privacy · nipa",
+  title: "Privacy",
 };
 
 const Privacy = () => (
