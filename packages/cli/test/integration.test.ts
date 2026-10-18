@@ -555,6 +555,16 @@ describe("passthroughs on a profile without a Space API URL", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("the dev profile has no Space API URL");
   });
+
+  test("a program that can't start exits 126 with a message, not a stack", async () => {
+    const bin = inDir("bin", "badshebang");
+    await writeFile(bin, "#!/no/such/interpreter\n");
+    await chmod(bin, 0o755);
+    const { code, stderr } = await run(["exec", "badshebang"]);
+    expect(code).toBe(126);
+    expect(stderr).toContain("can't run badshebang");
+    expect(stderr).not.toContain("    at ");
+  });
 });
 
 describe("server ls", () => {
