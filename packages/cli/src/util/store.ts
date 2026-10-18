@@ -139,11 +139,17 @@ const authSchemaFor = (json: z.core.util.JSONType) =>
   isLegacyAuth(json) ? LegacyAuthSchema : SessionsFileSchema;
 
 export class StoreError extends Error {
-  constructor(message: string) {
+  readonly hint?: string;
+
+  constructor(message: string, hint?: string) {
     super(message);
     this.name = "StoreError";
+    this.hint = hint;
   }
 }
+
+const OWNER_HINT =
+  "Check that your user owns the file. A `sudo nipa …` run leaves it owned by root.";
 
 /** Tokens this close to expiry count as expired, so a command doesn't fail halfway. */
 const EXPIRY_MARGIN_MS = 60_000;
@@ -189,7 +195,8 @@ const readText = async (file: string): Promise<string | undefined> => {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return undefined;
     }
-    throw error;
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new StoreError(`can't read ${file}: ${reason}`, OWNER_HINT);
   }
 };
 
@@ -218,10 +225,17 @@ const writeJson = async (
   file: string,
   value: Config | { sessions: Sessions }
 ): Promise<void> => {
-  await mkdir(configDir(), { mode: 0o700, recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-  // mode only applies when the file is created
-  await chmod(file, 0o600);
+  try {
+    await mkdir(configDir(), { mode: 0o700, recursive: true });
+    await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, {
+      mode: 0o600,
+    });
+    // mode only applies when the file is created
+    await chmod(file, 0o600);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new StoreError(`can't write ${file}: ${reason}`, OWNER_HINT);
+  }
 };
 
 export const loadConfig = async (): Promise<Config> =>

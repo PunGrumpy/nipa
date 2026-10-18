@@ -2589,4 +2589,22 @@ describe("broken files", () => {
     expect(stderr).toContain("staging");
     expect(stderr).toContain("delete it");
   });
+
+  test.skipIf(process.getuid?.() === 0 || process.platform === "win32")(
+    "an unreadable config.json says who should own it",
+    async () => {
+      const file = path.join(dir, "config.json");
+      await writeFile(file, "{}");
+      await chmod(file, 0o000);
+      try {
+        const { code, stderr } = await run(["profile", "ls"]);
+        expect(code).toBe(1);
+        expect(stderr).toContain("can't read");
+        expect(stderr).toContain("sudo");
+        expect(stderr).not.toContain("delete it");
+      } finally {
+        await chmod(file, 0o600);
+      }
+    }
+  );
 });

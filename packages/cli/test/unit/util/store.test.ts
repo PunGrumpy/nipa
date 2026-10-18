@@ -6,7 +6,7 @@ import {
   expect,
   test,
 } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -14,8 +14,12 @@ import {
   isProdKeystone,
   loadConfig,
   loadSession,
+  saveConfig,
   StoreError,
 } from "../../../src/util/store";
+
+// root reads and writes anything, and Windows ignores modes
+const ignoresModes = process.getuid?.() === 0 || process.platform === "win32";
 
 let dir: string;
 const before = process.env.NIPA_CONFIG_DIR;
@@ -151,4 +155,38 @@ describe("loadSession", () => {
     await writeAuth(JSON.stringify(session));
     expect(await loadSession("prod")).toEqual(session);
   });
+});
+
+describe("files nipa can't use", () => {
+  test.skipIf(ignoresModes)(
+    "an unreadable config.json is an error with a hint",
+    async () => {
+      await writeConfig("{}");
+      await chmod(path.join(dir, "config.json"), 0o000);
+      const attempt = loadConfig();
+      await expect(attempt).rejects.toThrow(StoreError);
+      await expect(attempt).rejects.toThrow(/^can't read /u);
+      await expect(attempt).rejects.toMatchObject({
+        hint: expect.stringContaining("sudo"),
+      });
+    }
+  );
+
+  test.skipIf(ignoresModes)(
+    "an unwritable config directory is an error with a hint",
+    async () => {
+      const config = await loadConfig();
+      await chmod(dir, 0o500);
+      try {
+        const attempt = saveConfig(config);
+        await expect(attempt).rejects.toThrow(StoreError);
+        await expect(attempt).rejects.toThrow(/^can't write /u);
+        await expect(attempt).rejects.toMatchObject({
+          hint: expect.stringContaining("sudo"),
+        });
+      } finally {
+        await chmod(dir, 0o700);
+      }
+    }
+  );
 });
