@@ -10,7 +10,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { loadConfig, loadSession, StoreError } from "../../../src/util/store";
+import {
+  isProdKeystone,
+  loadConfig,
+  loadSession,
+  StoreError,
+} from "../../../src/util/store";
 
 let dir: string;
 const before = process.env.NIPA_CONFIG_DIR;
@@ -102,6 +107,35 @@ describe("loadConfig", () => {
     expect(config.currentProfile).toBe("prod");
     expect(config.profiles.prod?.username).toBe("me@example.com");
     expect(config.profiles.prod?.spaceUrl).toBe("https://space.nipa.cloud/api");
+  });
+
+  test("a profile on production's Keystone without /v3 keeps its Space API URL", async () => {
+    await writeConfig(
+      JSON.stringify({
+        currentProfile: "work",
+        profiles: {
+          work: {
+            ...profile,
+            authUrl: "https://identity-api.nipa.cloud",
+            spaceUrl: "https://space.nipa.cloud/api",
+          },
+        },
+      })
+    );
+    const config = await loadConfig();
+    expect(config.profiles.work?.spaceUrl).toBe("https://space.nipa.cloud/api");
+  });
+});
+
+describe("isProdKeystone", () => {
+  test.each([
+    ["https://identity-api.nipa.cloud/v3", true],
+    ["https://identity-api.nipa.cloud", true],
+    ["https://identity-api.nipa.cloud/v3/", true],
+    ["https://IDENTITY-API.nipa.cloud:443/v3", true],
+    ["https://keystone.example.com/v3", false],
+  ])("%s -> %p", (authUrl, prod) => {
+    expect(isProdKeystone(authUrl)).toBe(prod);
   });
 });
 

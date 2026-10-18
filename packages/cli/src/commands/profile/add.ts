@@ -2,6 +2,7 @@ import { probeSpace, spaceApiUrl } from "../../util/api";
 import { handle } from "../../util/command";
 import { probe } from "../../util/keystone";
 import {
+  isProdKeystone,
   loadConfig,
   PROD_PROFILE,
   PROFILE_NAME,
@@ -51,7 +52,7 @@ const spaceUrlInput = async (input: {
   if (input.flag !== undefined) {
     return input.flag;
   }
-  if (input.authUrl === PROD_PROFILE.authUrl) {
+  if (isProdKeystone(input.authUrl)) {
     return PROD_PROFILE.spaceUrl;
   }
   if (!input.prompts.interactive) {
