@@ -1268,9 +1268,12 @@ describe("doctor", () => {
       inDir(".cache", "nipa", "update.json"),
       JSON.stringify({ checkedAt: new Date().toISOString(), latest: "99.0.0" })
     );
-    const { code, stderr, stdout } = await run(["doctor", "--json"], {
-      PATH: path.dirname(process.execPath),
-    });
+    // bun by path, not by name: with a bun shim, the bun on this PATH is a
+    // shell wrapper that needs tools the PATH no longer has.
+    const { code, stderr, stdout } = await runProcess(
+      [process.execPath, ENTRY, "doctor", "--json"],
+      { ...testEnv(dir), PATH: path.dirname(process.execPath) }
+    );
     expect(code).toBe(0);
     const { checks } = JSON.parse(stdout);
     expect(stderr).toBe("");
