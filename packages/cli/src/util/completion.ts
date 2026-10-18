@@ -69,10 +69,10 @@ const bashValue = (value: FlagValue): string | undefined => {
       return `_nipa_reply ${value.choices.join(" ")}; return`;
     }
     case "project": {
-      return `_nipa_reply "$(${dynamic("projects")} 2>/dev/null)"; return`;
+      return `_nipa_reply_lines < <(${dynamic("projects")} 2>/dev/null); return`;
     }
     case "profile": {
-      return `_nipa_reply "$(${dynamic("profiles")} 2>/dev/null)"; return`;
+      return `_nipa_reply_lines < <(${dynamic("profiles")} 2>/dev/null); return`;
     }
     default: {
       const _exhaustive: never = value;
@@ -87,13 +87,13 @@ const bashArg = (value: ArgValue): string | undefined => {
       return undefined;
     }
     case "project": {
-      return `_nipa_reply "$(${dynamic("projects")} 2>/dev/null)"`;
+      return `_nipa_reply_lines < <(${dynamic("projects")} 2>/dev/null)`;
     }
     case "profile": {
-      return `_nipa_reply "$(${dynamic("profiles")} 2>/dev/null)"`;
+      return `_nipa_reply_lines < <(${dynamic("profiles")} 2>/dev/null)`;
     }
     case "resource": {
-      return `_nipa_reply "$(${dynamic(value.resource)} 2>/dev/null)"`;
+      return `_nipa_reply_lines < <(${dynamic(value.resource)} 2>/dev/null)`;
     }
     case "choice": {
       return `_nipa_reply ${value.choices.join(" ")}`;
@@ -114,7 +114,7 @@ const bashTarget = (target: Target): string => {
       return '_nipa_offset "$((i + 1))"';
     }
     case "openstack": {
-      return `_nipa_reply "$(nipa __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)"`;
+      return `_nipa_reply_lines < <(nipa __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)`;
     }
     default: {
       const _exhaustive: never = target;
@@ -172,6 +172,16 @@ _nipa_reply() {
   COMPREPLY=($(compgen -W "$*" -- "$cur"))
 }
 
+# Names from nipa, one per line, kept literal: compgen -W would expand
+# $(…) and $VAR inside a name. Each match is escaped for the command line.
+_nipa_reply_lines() {
+  local line
+  COMPREPLY=()
+  while IFS= read -r line; do
+    if [[ $line == "$cur"* ]]; then COMPREPLY+=("$(printf '%q' "$line")"); fi
+  done
+}
+
 # _command_offset comes from the bash-completion package.
 _nipa_offset() {
   if declare -F _command_offset >/dev/null; then
@@ -194,7 +204,7 @@ _nipa() {
   done
   if [[ -z $command ]]; then
     case $prev in
-      ${PROFILE_WORDS.join("|")}) _nipa_reply "$(${dynamic("profiles")} 2>/dev/null)"; return ;;
+      ${PROFILE_WORDS.join("|")}) _nipa_reply_lines < <(${dynamic("profiles")} 2>/dev/null); return ;;
     esac
     if [[ $cur == -* ]]; then _nipa_reply ${globals}; else _nipa_reply ${commands}; fi
     return
