@@ -349,6 +349,11 @@ describe("dispatch", () => {
       updateNotice: false,
     });
   });
+  test("a cluster with -h prints help instead of running the command", async () => {
+    const outcome = await go(["server", "rm", "x", "-yh"]);
+    expect(outcome.kind).toBe("print");
+    expect(seen).toEqual([]);
+  });
 });
 
 /**
@@ -380,6 +385,13 @@ describe("help and version, on the real table", () => {
     expect(await text(["whoami", "--nope", "--help"])).toBe(
       await text(["help", "whoami"])
     );
+  });
+  test("-h inside a cluster of short flags asks for help", async () => {
+    expect(await text(["whoami", "-dh"])).toBe(await text(["help", "whoami"]));
+    expect(await text(["server", "stop", "web", "-yh"])).toBe(
+      await text(["help", "server", "stop"])
+    );
+    expect(await text(["logout", "-hd"])).toBe(await text(["help", "logout"]));
   });
   test("groups and subcommands", async () => {
     const server = await text(["help", "server"]);

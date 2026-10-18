@@ -214,11 +214,23 @@ export const takeGlobals = (input: {
   return { globals: flagValues(GLOBAL_FLAGS, raw), rest: words.slice(at) };
 };
 
+/** `-yh`, `-dh`: one dash, letters only. Any `h` in it asks for help. */
+const SHORT_CLUSTER = /^-[a-zA-Z]+$/u;
+
+/**
+ * True when a word before `--` asks for help: `--help`, `-h`, or a cluster
+ * of short flags with an `h` in it, such as `-yh`. The cluster is read here
+ * rather than after parsing, so help wins even when the rest of the line
+ * is missing an argument.
+ */
 export const asksForHelp = (words: readonly string[]): boolean => {
   const end = words.indexOf("--");
   const options = end === -1 ? words : words.slice(0, end);
   const spellings = new Set(flagWords(helpFlag));
-  return options.some((word) => spellings.has(word));
+  return options.some(
+    (word) =>
+      spellings.has(word) || (SHORT_CLUSTER.test(word) && word.includes("h"))
+  );
 };
 
 const tokenize = (input: {
