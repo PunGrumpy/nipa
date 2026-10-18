@@ -4,7 +4,7 @@
 
 This page shows how to add a profile for a second Keystone, such as a staging cloud, and run commands against it. You stay logged in to production the whole time.
 
-A profile is a Keystone URL, a user domain and a region, with its own session. nipa starts with one profile, `prod`, which is Nipa Cloud production.
+A profile is a Keystone URL, a user domain, a region and, for `server ls` and the other resource commands, the Space API URL of the portal that goes with that Keystone, with its own session. nipa starts with one profile, `prod`, which is Nipa Cloud production.
 
 ## Add the profile
 
@@ -15,15 +15,16 @@ $ nipa profile add staging
 ✔ Keystone URL https://keystone.example.com/v3
 ✔ User domain nipacloud
 ✔ Region NCP-TH
+✔ Space portal URL (Enter to skip) https://portal.example.com
 ✔ Use staging now? Yes
-> Success! Added profile staging (Keystone v3.14) [231ms]
+> Success! Added profile staging (Keystone v3.14, Space API portal.example.com) [231ms]
 > Now using staging. Run `nipa login` to log in to it.
 ```
 
-Replace `https://keystone.example.com/v3` with your Keystone's URL. In a script, pass every value as a flag instead:
+Replace `https://keystone.example.com/v3` with your Keystone's URL. The Space portal URL is the address of the Space portal for that Keystone, such as `https://portal-stg-epc.nipa.cloud` for Nipa Cloud staging; without it, `nipa server ls` and the other resource commands don't work on the profile. In a script, pass every value as a flag instead:
 
 ```sh
-nipa profile add staging --auth-url https://keystone.example.com/v3 --use
+nipa profile add staging --auth-url https://keystone.example.com/v3 --space-url https://portal.example.com --use
 ```
 
 `--user-domain` and `--region` default to `nipacloud` and `NCP-TH`.
@@ -75,7 +76,7 @@ nipa saves the profile and project in `.nipa/project.json`, and commands in the 
 ```console
 $ nipa profile ls
 > 2 profiles
-  name     keystone                 region  logged in as
+  Name     Keystone                 Region  Logged in as
 ✔ prod     identity-api.nipa.cloud  NCP-TH  me@example.com (my-project)
   staging  keystone.example.com     NCP-TH  -
 ```
