@@ -20,7 +20,7 @@ Send each kind of task to its source:
 - **A review of those surfaces**: load the `cli-ux` skill before you judge the diff, even when the review makes no edits
 - **A new command**: follow `docs/add-a-command.md`
 - **A new or changed flag or argument**: change the spec in `src/commands/<name>/command.ts`. Parsing, help and completion all read it
-- **A new Space API call**: add a module in `src/util/`, written like `src/util/compute.ts`, and its routes in `test/mocks/keystone.ts`
+- **A new Space API call**: add a module in `src/util/`, written like `src/util/compute.ts`, and its routes in `test/mocks/space.ts`
 - **A new durable UX rule**: update the `cli-ux` skill, not this file
 
 ## Code map
