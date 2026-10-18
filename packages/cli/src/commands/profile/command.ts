@@ -2,6 +2,7 @@ import { jsonFlag, yesFlag } from "../../util/arg-common";
 import { defineCommand, defineGroup } from "../../util/command";
 
 export const lsSubcommand = defineCommand({
+  aliases: ["list"],
   args: [],
   flags: [jsonFlag],
   name: "ls",
