@@ -27,6 +27,10 @@ jobs:
       - run: bun run check
       - run: bun run typecheck
       - run: bun run --cwd packages/cli check:package
+      # The site is a static export. Its changelog page asks GitHub for
+      # release dates and falls back to none without a token, so this needs
+      # no secret.
+      - run: bun run --cwd apps/web build
       # Fails when install, the formatter or a build changed a tracked file,
       # such as a bun.lock that wasn't committed.
       - name: Check that the working tree is clean
@@ -60,12 +64,12 @@ jobs:
       - run: bun run test
       - name: Smoke-test the compiled binary
         run: |
-          bun run build
+          bun run --cwd packages/cli build
           ./packages/cli/dist/nipa --version
           ./packages/cli/dist/nipa completion bash > /dev/null
       - name: Smoke-test the npm package
         run: |
-          bun run build:npm
+          bun run --cwd packages/cli build:npm
           node packages/cli/dist/nipa.js --version
           node packages/cli/dist/nipa.js completion bash > /dev/null
 
