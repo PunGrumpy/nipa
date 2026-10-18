@@ -67,7 +67,7 @@ For anything nipa has no command for yet, put `nipa os` in front of an `openstac
 
 ## 4. Turn on tab completion
 
-nipa completes its commands, options, and your project, server and security group names when you press Tab. After `nipa os`, it completes openstack's commands and options too, and the names of your servers, flavors, images and networks, such as `nipa os server show <Tab>` and `--flavor <Tab>`. Add the line for your shell to its startup file:
+nipa completes its commands, options, and your profile, project, server, volume, network, security group, load balancer and database names when you press Tab. After `nipa os`, it completes openstack's commands and options too, and the names of your servers, flavors, images and networks, such as `nipa os server show <Tab>` and `--flavor <Tab>`. Add the line for your shell to its startup file:
 
 ```sh
 echo 'eval "$(nipa completion zsh)"' >> ~/.zshrc
@@ -79,7 +79,7 @@ The line runs nipa each time zsh starts. To skip that, save the script where you
 nipa completion --install
 ```
 
-For zsh, `--install` also prints the `fpath` line to add to `~/.zshrc` when it isn't there. For bash, fish and PowerShell, run `nipa completion --help`.
+For zsh, `--install` also prints the `fpath` line to add to `~/.zshrc` when it isn't there. For bash and fish, `--install` works the same way. PowerShell has no completion folder: add `nipa completion pwsh | Out-String | Invoke-Expression` to your `$PROFILE`.
 
 ## What to read next
 
