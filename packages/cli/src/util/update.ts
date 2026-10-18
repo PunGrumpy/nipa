@@ -97,16 +97,17 @@ export const updateNotice = (latest: string, current: string): string => {
   ].join("\n");
 };
 
-// Prints the answer from the last check and refreshes it for the next run, so
-// no command waits on GitHub.
-export const checkForUpdate = async (version: string): Promise<void> => {
-  if (
-    !shouldCheck({
-      env: process.env,
-      isTTY: process.stderr.isTTY === true,
-      version,
-    })
-  ) {
+interface CheckOptions {
+  env?: NodeJS.ProcessEnv;
+  isTTY?: boolean;
+  /** Replaces the GitHub request in tests. */
+  latest?: () => Promise<string | undefined>;
+}
+
+const check = async (version: string, options: CheckOptions): Promise<void> => {
+  const env = options.env ?? process.env;
+  const isTTY = options.isTTY ?? process.stderr.isTTY === true;
+  if (!shouldCheck({ env, isTTY, version })) {
     return;
   }
   const cache = await readCache(CACHE_FILE, CacheSchema);
@@ -116,9 +117,30 @@ export const checkForUpdate = async (version: string): Promise<void> => {
   if (cache && Date.now() - Date.parse(cache.checkedAt) < CHECK_EVERY_MS) {
     return;
   }
-  const latest = await fetchLatest();
-  if (latest) {
-    const next: Cache = { checkedAt: new Date().toISOString(), latest };
-    await writeCache(CACHE_FILE, next);
+  const latest = await (options.latest ?? fetchLatest)();
+  // A failed check is remembered too, so a blocked GitHub costs one
+  // timeout a day, not one per command. The last answer stays.
+  const next: Cache = {
+    checkedAt: new Date().toISOString(),
+    latest: latest ?? cache?.latest ?? version,
+  };
+  await writeCache(CACHE_FILE, next);
+};
+
+/**
+ * Prints the answer from the last check and refreshes it for the next run,
+ * so no command waits on GitHub. It never fails the command: a cache nipa
+ * can't write is reported with --debug and tried again next time.
+ */
+export const checkForUpdate = async (
+  version: string,
+  options: CheckOptions = {}
+): Promise<void> => {
+  try {
+    await check(version, options);
+  } catch (error) {
+    debug(
+      `update check failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 };
