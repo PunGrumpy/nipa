@@ -6,16 +6,28 @@ import {
   expect,
   test,
 } from "bun:test";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+import { z } from "zod";
 
 import {
   isProdKeystone,
   loadConfig,
   loadSession,
+  readCache,
   saveConfig,
   StoreError,
+  writeCache,
 } from "../../../src/util/store";
 
 // root reads and writes anything, and Windows ignores modes
@@ -42,6 +54,12 @@ beforeEach(async () => {
   await rm(path.join(dir, "config.json"), { force: true });
   await rm(path.join(dir, "auth.json"), { force: true });
 });
+
+/** The permission bits as octal digits, like `600`. */
+const modeOf = async (file: string): Promise<string> => {
+  const info = await stat(file);
+  return info.mode.toString(8).slice(-3);
+};
 
 const writeConfig = (json: string) =>
   writeFile(path.join(dir, "config.json"), json);
@@ -176,7 +194,10 @@ describe("files nipa can't use", () => {
     "an unwritable config directory is an error with a hint",
     async () => {
       const config = await loadConfig();
-      await chmod(dir, 0o500);
+      // nipa resets the mode of a directory it owns, so lock the parent
+      const locked = path.join(dir, "locked");
+      await mkdir(locked, { mode: 0o500 });
+      process.env.NIPA_CONFIG_DIR = path.join(locked, "nipa");
       try {
         const attempt = saveConfig(config);
         await expect(attempt).rejects.toThrow(StoreError);
@@ -185,8 +206,71 @@ describe("files nipa can't use", () => {
           hint: expect.stringContaining("sudo"),
         });
       } finally {
-        await chmod(dir, 0o700);
+        process.env.NIPA_CONFIG_DIR = dir;
+        await chmod(locked, 0o700);
       }
+    }
+  );
+});
+
+describe("writes", () => {
+  let cache: string;
+  const cacheBefore = process.env.XDG_CACHE_HOME;
+
+  beforeAll(async () => {
+    cache = await mkdtemp(path.join(tmpdir(), "nipa-store-cache-"));
+    process.env.XDG_CACHE_HOME = cache;
+  });
+
+  afterAll(async () => {
+    if (cacheBefore === undefined) {
+      delete process.env.XDG_CACHE_HOME;
+    } else {
+      process.env.XDG_CACHE_HOME = cacheBefore;
+    }
+    await rm(cache, { force: true, recursive: true });
+  });
+
+  test.skipIf(ignoresModes)(
+    "config.json lands private, in a private directory, with no temp file left",
+    async () => {
+      await saveConfig({ currentProfile: "prod", profiles: {} });
+      const files = await readdir(dir);
+      expect(files.filter((name) => name.endsWith(".tmp"))).toEqual([]);
+      expect(await modeOf(path.join(dir, "config.json"))).toBe("600");
+      expect(await modeOf(dir)).toBe("700");
+    }
+  );
+
+  test.skipIf(ignoresModes)(
+    "an existing config.json with looser modes is replaced by a private one",
+    async () => {
+      const file = path.join(dir, "config.json");
+      await writeFile(file, "{}", { mode: 0o644 });
+      await chmod(file, 0o644);
+      await saveConfig({ currentProfile: "prod", profiles: {} });
+      expect(await modeOf(file)).toBe("600");
+    }
+  );
+
+  test.skipIf(ignoresModes)(
+    "a config directory with looser modes is made private again",
+    async () => {
+      await chmod(dir, 0o755);
+      await saveConfig({ currentProfile: "prod", profiles: {} });
+      expect(await modeOf(dir)).toBe("700");
+    }
+  );
+
+  test.skipIf(ignoresModes)(
+    "cache files are private, in a private directory, and read back",
+    async () => {
+      await writeCache("probe.json", { ok: true });
+      expect(await modeOf(path.join(cache, "nipa", "probe.json"))).toBe("600");
+      expect(await modeOf(path.join(cache, "nipa"))).toBe("700");
+      expect(
+        await readCache("probe.json", z.object({ ok: z.boolean() }))
+      ).toEqual({ ok: true });
     }
   );
 });

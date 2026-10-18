@@ -1,4 +1,11 @@
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -180,12 +187,35 @@ export const readCache = async <T>(
   }
 };
 
+/**
+ * Writes the whole file or nothing: a temp file next to it, then a rename.
+ * `mode` applies to the temp file, so the final file has it whatever the old
+ * file had. The pid in the name keeps two nipa processes apart.
+ */
+const writeFileAtomic = async (
+  file: string,
+  text: string,
+  mode: number
+): Promise<void> => {
+  const temp = `${file}.${process.pid}.tmp`;
+  try {
+    await writeFile(temp, text, { mode });
+    await chmod(temp, mode);
+    await rename(temp, file);
+  } catch (error) {
+    await rm(temp, { force: true });
+    throw error;
+  }
+};
+
 export const writeCache = async (
   name: string,
   value: z.core.util.JSONType
 ): Promise<void> => {
-  await mkdir(path.dirname(cachePath(name)), { recursive: true });
-  await writeFile(cachePath(name), `${JSON.stringify(value)}\n`);
+  const file = cachePath(name);
+  await mkdir(path.dirname(file), { mode: 0o700, recursive: true });
+  await chmod(path.dirname(file), 0o700);
+  await writeFileAtomic(file, `${JSON.stringify(value)}\n`, 0o600);
 };
 
 const readText = async (file: string): Promise<string | undefined> => {
@@ -227,11 +257,9 @@ const writeJson = async (
 ): Promise<void> => {
   try {
     await mkdir(configDir(), { mode: 0o700, recursive: true });
-    await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, {
-      mode: 0o600,
-    });
-    // mode only applies when the file is created
-    await chmod(file, 0o600);
+    // mkdir's mode only applies when it creates the directory.
+    await chmod(configDir(), 0o700);
+    await writeFileAtomic(file, `${JSON.stringify(value, null, 2)}\n`, 0o600);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new StoreError(`can't write ${file}: ${reason}`, OWNER_HINT);
