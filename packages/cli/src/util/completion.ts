@@ -349,6 +349,7 @@ const zsh = (program: ProgramSpec): string => {
 _nipa_dynamic() {
   local -a values
   values=(\${(f)"$(nipa __complete $1 2>/dev/null)"})
+  values=("\${(@)values//:/\\\\:}")
   _describe -t $1 $2 values
 }
 

@@ -501,8 +501,12 @@ esac
     await mkdir(bin);
     await writeFile(path.join(bin, "nipa"), HOSTILE_NIPA);
     await chmod(path.join(bin, "nipa"), 0o755);
-    const { stdout } = await nipa("completion", "bash");
-    await writeFile(path.join(hostile, "completion.bash"), stdout);
+    await Promise.all(
+      ["bash", "zsh"].map(async (shell) => {
+        const { stdout } = await nipa("completion", shell);
+        await writeFile(path.join(hostile, `completion.${shell}`), stdout);
+      })
+    );
   });
 
   afterAll(async () => {
@@ -523,5 +527,26 @@ esac
     expect(
       await bashCompleteIn(hostile, "nipa", "server", "stop", "my")
     ).toEqual(["my\\ server"]);
+  });
+
+  test("zsh escapes the colon for _describe and keeps the rest", async () => {
+    // Stub _describe to print the entries it would split at an unescaped colon.
+    const stubs = `compdef() { :; }; _describe() { print -rl -- "\${(@P)4}"; }`;
+    const { stdout } = await runProcess(
+      [
+        "zsh",
+        "-f",
+        "-c",
+        `${stubs}; source '${path.join(hostile, "completion.zsh")}'; _nipa_dynamic servers server`,
+      ],
+      testEnv(hostile)
+    );
+    expect(lines(stdout)).toEqual([
+      "web-1",
+      "web-$(echo INJECTED)",
+      "my server",
+      "a\\:b",
+      "it's",
+    ]);
   });
 });
