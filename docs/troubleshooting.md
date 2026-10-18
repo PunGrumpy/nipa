@@ -16,7 +16,11 @@ Keystone refused the OTP code. Each code works once and only for about 30s, so w
 
 ## "this account's MFA rules don't allow this login method"
 
-Keystone accepted the credentials but the account's MFA rule doesn't list the method you used. You see this when you log in with an application credential on an account with MFA. Use `nipa login` instead, and pass the session to other tools with `nipa exec` or `nipa env`.
+Keystone's receipt listed no MFA rule that a password and an OTP code can satisfy. nipa logs in with those two only, so it has no other method to try. Ask your Nipa Cloud administrator which rule your account has, or check it in the portal.
+
+## "this account needs … to log in"
+
+The account's MFA rules don't include `totp`, so a password and an OTP code can't satisfy them. nipa names each rule it saw. Ask your administrator to allow `password + totp` for the account. nipa has no other way to log in.
 
 ## "you aren't logged in to prod" or "your prod session expired"
 
@@ -30,9 +34,21 @@ Keystone or the Space API refused the token before it expired, for example after
 
 If it happens again right after a login, the profile's Space API may belong to another Keystone. Check its `authUrl` and `spaceUrl` with `nipa profile ls --json`.
 
+## "no project named or with ID …"
+
+`nipa login --project`, `nipa switch` or `nipa link` got a name or ID that none of your projects has. nipa matches the whole name or ID, so copy one from the list the error prints under `Your projects`.
+
+## "your account has no projects you can use"
+
+Keystone lists no project for your account, so nipa has nothing to scope a token to. Ask your Nipa Cloud administrator to add you to a project, then run `nipa login` again.
+
 ## "the … profile has no Space API URL"
 
 The profile's Keystone isn't production's, and nobody gave it a Space portal URL. Remove the profile with `nipa profile rm`, then add it again with `--space-url` and the URL of the portal that goes with its Keystone, such as `https://portal-stg-epc.nipa.cloud` for staging. Until then, `nipa -P <profile> os server list` runs the OpenStack client with the session.
+
+## "… doesn't answer like the Space API"
+
+The profile's `spaceUrl` answers with something other than JSON, such as the portal's web page. The portal does that for a path it doesn't know. Check the URL with `nipa profile ls --json`. It's the portal URL with `/api`, such as `https://space.nipa.cloud/api`. To change it, remove the profile with `nipa profile rm` and add it again with `--space-url`.
 
 ## "`nipa login` needs a terminal to ask for your password"
 
@@ -49,6 +65,10 @@ Your password changed since `nipa login --remember` saved it. nipa asks for the 
 ## "no profile named …"
 
 The name after `-P`, or in `NIPA_PROFILE`, isn't a profile. The error lists the profiles you have. Check `NIPA_PROFILE` with `echo $NIPA_PROFILE` if you didn't pass `-P`.
+
+## "can't use project …, which .nipa/project.json links to"
+
+Keystone refused a token for the project that the folder's `.nipa/project.json` links to. Your account may have lost access to that project, or Keystone revoked your session. Run `nipa link` to pick another project. If Keystone revoked your session, run `nipa login`.
 
 ## "couldn't open a browser with …"
 
@@ -98,6 +118,10 @@ Nova couldn't finish an action on the server, most often its create. Look at it 
 1. Run `nipa server inspect <server>`. `Last action` names the action that failed, how long ago, and who asked for it
 2. Run `nipa server history <server>` to see every action on the server, newest first, with the request ID that Nova logged each one under. Give that ID to Nipa Cloud support when you ask them why it failed
 3. Run `nipa server logs <server>` to read the console log, where cloud-init writes what it did at boot. If nipa says the server has no console log yet, the server never booted, so the cause is in the create, not inside the server
+
+## "… are named …"
+
+Two or more servers, volumes, networks, security groups, load balancers or databases in the project have the name you gave, such as `2 servers in my-project are named "web"`, so nipa can't tell which one you mean. The error lists their IDs. Run the command again with one ID in place of the name.
 
 ## You can't connect to a port on your server
 
