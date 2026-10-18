@@ -2568,4 +2568,25 @@ describe("broken files", () => {
     expect(stderr).toContain("auth.json");
     expect(stderr).toContain("delete it");
   });
+
+  test("a config.json with a bad profile fails instead of reading as a 0.1 file", async () => {
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        currentProfile: "staging",
+        profiles: {
+          staging: {
+            authUrl: "not-a-url",
+            region: "NCP-TH",
+            userDomain: "nipacloud",
+          },
+        },
+      })
+    );
+    const { code, stderr } = await run(["profile", "ls"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("config.json");
+    expect(stderr).toContain("staging");
+    expect(stderr).toContain("delete it");
+  });
 });
