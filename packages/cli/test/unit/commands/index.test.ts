@@ -91,6 +91,18 @@ describe("the command table", () => {
     }
   });
 
+  test("every ls subcommand has the list alias", () => {
+    for (const command of topLevel) {
+      if (command.kind !== "group") {
+        continue;
+      }
+      const ls = command.subcommands.find((sub) => sub.name === "ls");
+      if (ls) {
+        expect(namesOf(ls)).toContain("list");
+      }
+    }
+  });
+
   test("a command's flags don't reuse a global option's spelling", () => {
     const globalWords = new Set(
       GLOBAL_FLAGS.flatMap((flag) => flagWords(flag))

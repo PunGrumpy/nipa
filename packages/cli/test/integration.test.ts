@@ -201,6 +201,12 @@ describe("profiles", () => {
     expect(stderr).toMatch(/✔ prod\s+identity-api\.nipa\.cloud\s+NCP-TH/u);
   });
 
+  test("list is the same as ls", async () => {
+    const { code, stderr } = await run(["profile", "list"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("1 profile");
+  });
+
   test("add checks that the URL is Keystone v3", async () => {
     const { code, stderr } = await run([
       "profile",
