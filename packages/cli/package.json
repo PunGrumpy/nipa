@@ -43,7 +43,7 @@
     "build:npm": "bun build src/index.ts --target=node --minify --outfile dist/nipa.js",
     "build:release": "bun scripts/build-release.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc-ts --noEmit",
     "check:package": "bun run build:npm && publint",
     "prepack": "bun run build:npm"
   },
@@ -54,7 +54,7 @@
     "@inquirer/select": "5.2.5",
     "@types/bun": "1.4.2",
     "picocolors": "1.1.1",
-    "typescript": "6.0.3",
+    "tsc-ts": "0.0.3",
     "zod": "4.6.5"
   },
   "preferGlobal": true,
