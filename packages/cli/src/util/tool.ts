@@ -49,9 +49,20 @@ export const runTool = async ({
   const onTerminate = () => child.kill("SIGTERM");
   process.on("SIGINT", onInterrupt);
   process.on("SIGTERM", onTerminate);
-  await once(child, "exit");
-  process.off("SIGINT", onInterrupt);
-  process.off("SIGTERM", onTerminate);
+  try {
+    await once(child, "exit");
+  } catch (error) {
+    // spawn emits `error` instead of `exit` when the program can't start:
+    // a script whose interpreter is missing, or a file the OS won't run.
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new CliError(`can't run ${command}: ${reason}`, {
+      exitCode: 126,
+      hint: "Check that the file runs on its own, such as its `#!` line.",
+    });
+  } finally {
+    process.off("SIGINT", onInterrupt);
+    process.off("SIGTERM", onTerminate);
+  }
 
   const { exitCode, signalCode } = child;
   if (signalCode) {

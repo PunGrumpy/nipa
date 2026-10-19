@@ -179,6 +179,7 @@ const fakeClient = (input: { globals: GlobalValues }): Client => {
         out += t;
       },
     },
+    toolSession: fail,
   };
 };
 

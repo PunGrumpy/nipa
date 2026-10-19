@@ -526,6 +526,47 @@ describe("with a session", () => {
   });
 });
 
+describe("passthroughs on a profile without a Space API URL", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    // Move prod's session to a dev profile on the same fake Keystone, with
+    // no spaceUrl: what `profile add dev --auth-url …` leaves behind.
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    const dev = { ...config.profiles.prod };
+    delete dev.spaceUrl;
+    config.profiles.dev = dev;
+    auth.sessions.dev = auth.sessions.prod;
+    await writeFile(inDir("config.json"), JSON.stringify(config));
+    await writeFile(inDir("auth.json"), JSON.stringify(auth));
+  });
+
+  test("exec runs with the session and announces the profile", async () => {
+    const { code, stderr, stdout } = await run(["-P", "dev", "exec", "env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("OS_PROJECT_ID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(stderr).toContain("Using profile dev");
+    expect(stderr).not.toContain("has no Space API URL");
+  });
+
+  test("server ls still says the profile has no Space API URL", async () => {
+    const { code, stderr } = await run(["-P", "dev", "server", "ls"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("the dev profile has no Space API URL");
+  });
+
+  test("a program that can't start exits 126 with a message, not a stack", async () => {
+    const bin = inDir("bin", "badshebang");
+    await writeFile(bin, "#!/no/such/interpreter\n");
+    await chmod(bin, 0o755);
+    const { code, stderr } = await run(["exec", "badshebang"]);
+    expect(code).toBe(126);
+    expect(stderr).toContain("can't run badshebang");
+    expect(stderr).not.toContain("    at ");
+  });
+});
+
 describe("server ls", () => {
   beforeAll(async () => {
     await freshDir();

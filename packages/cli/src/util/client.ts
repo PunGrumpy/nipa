@@ -36,6 +36,11 @@ export interface Client {
   readonly session: () => Promise<SignedIn>;
   /** session() with the saved project, whatever the folder links to. */
   readonly savedSession: () => Promise<SignedIn>;
+  /**
+   * session(), announcing a non-prod profile first, for commands that run a
+   * program with the session and need no Space API: os, tf and exec.
+   */
+  readonly toolSession: () => Promise<SignedIn>;
   /** session() with the Space API. Says which profile it uses when that isn't prod. */
   readonly cloud: () => Promise<Cloud>;
 }
@@ -82,6 +87,12 @@ export const createClient = (input: {
   const savedSession = once(async () =>
     requireSession({ active: await profile(), linked: false, prompts })
   );
+  const toolSession = once(async () => {
+    const active = await profile();
+    // Before the session, so a login prompt reads under the profile line.
+    announceProfile(active);
+    return session();
+  });
   const cloud = once(async () => {
     const active = await profile();
     const spaceUrl = requireSpaceUrl(active);
@@ -98,5 +109,6 @@ export const createClient = (input: {
     savedSession,
     session,
     stdout: createResultStream(process.stdout),
+    toolSession,
   };
 };
