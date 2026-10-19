@@ -1,5 +1,15 @@
 # nipa-cli
 
+## 0.1.7
+
+### Patch Changes
+
+- 7e26b01: nipa writes `config.json`, `auth.json` and its cache files by renaming a finished temp file into place, so a crash or a second nipa command can't leave a half-written file, and it keeps `~/.config/nipa` and `~/.cache/nipa` private (`0700`, files `0600`) on every write, not only when it creates them. When the update check can't reach GitHub, nipa remembers that for a day instead of waiting on it after every command, and a cache it can't write no longer fails the command.
+- e2eb3e6: Tab completion in bash no longer expands `$(…)` or `$VAR` inside a project, server, volume, image, network, security group, load balancer or database name that comes from Keystone or the Space API, and it escapes names with spaces or quotes so they insert as one word. zsh keeps a `:` in a name. Run `nipa completion --install` again, or restart your shell if it loads the script with `eval`, to pick up the new script.
+- 8fbd78a: `-h` inside a cluster of short options, as in `nipa server stop web -yh`, prints the command's help instead of running the command. `nipa profile list` is the same as `nipa profile ls`, like every other `ls` subcommand.
+- ffd7ffe: `nipa os`, `nipa tf` and `nipa exec` run on a profile that has no Space API URL, such as one added with `nipa profile add` for another Keystone without `--space-url`. They failed with "has no Space API URL" since 0.1.5, although only `server ls` and the other resource commands need that URL. A program that can't start, such as a script whose `#!` interpreter is missing, exits with code 126 and a message instead of a stack trace.
+- 22b8cb7: A `config.json` that nipa can't read, such as one with a typo or a profile with a bad URL, now fails with an error that names the file, instead of loading as a nipa 0.1 file with only the `prod` profile and deleting the other profiles on the next save. A profile on production's Keystone keeps its Space API URL however the Keystone URL was typed, with or without `/v3`.
+
 ## 0.1.6
 
 ### Patch Changes
