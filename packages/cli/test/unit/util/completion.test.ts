@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -93,15 +94,21 @@ const openstackComplete = async (...words: string[]) => {
   return lines(stdout);
 };
 
-const bashComplete = async (...words: string[]) => {
+/** Completes with the script and the PATH of `base`, a directory like `dir`. */
+const bashCompleteIn = async (base: string, ...words: string[]) => {
   const quoted = words.map((w) => `'${w}'`).join(" ");
-  const { stdout } = await shellRun([
-    "bash",
-    "-c",
-    `source '${script("bash")}'; COMP_WORDS=(${quoted}); COMP_CWORD=${words.length - 1}; _nipa; printf '%s\\n' "\${COMPREPLY[@]}"`,
-  ]);
+  const { stdout } = await runProcess(
+    [
+      "bash",
+      "-c",
+      `source '${path.join(base, "completion.bash")}'; COMP_WORDS=(${quoted}); COMP_CWORD=${words.length - 1}; _nipa; printf '%s\\n' "\${COMPREPLY[@]}"`,
+    ],
+    testEnv(base)
+  );
   return lines(stdout);
 };
+
+const bashComplete = (...words: string[]) => bashCompleteIn(dir, ...words);
 
 // Stub compadd and _files, which only work inside a real completion.
 const zshComplete = async (...words: string[]) => {
@@ -475,4 +482,71 @@ describe.if(has("pwsh"))("pwsh", () => {
     },
     PWSH_TIMEOUT_MS
   );
+});
+
+describe("names with shell syntax", () => {
+  let hostile: string;
+
+  const HOSTILE_NIPA = `#!/bin/sh
+case "$1 $2" in
+  "__complete servers"|"__complete projects")
+    printf '%s\\n' 'web-1' 'web-$(echo INJECTED)' 'my server' 'a:b' "it's" ;;
+  *) exec bun "${ENTRY}" "$@" ;;
+esac
+`;
+
+  beforeAll(async () => {
+    hostile = await mkdtemp(path.join(tmpdir(), "nipa-completion-hostile-"));
+    const bin = path.join(hostile, "bin");
+    await mkdir(bin);
+    await writeFile(path.join(bin, "nipa"), HOSTILE_NIPA);
+    await chmod(path.join(bin, "nipa"), 0o755);
+    await Promise.all(
+      ["bash", "zsh"].map(async (shell) => {
+        const { stdout } = await nipa("completion", shell);
+        await writeFile(path.join(hostile, `completion.${shell}`), stdout);
+      })
+    );
+  });
+
+  afterAll(async () => {
+    await rm(hostile, { force: true, recursive: true });
+  });
+
+  test("bash inserts them literally and escaped", async () => {
+    const names = await bashCompleteIn(hostile, "nipa", "server", "stop", "");
+    expect(names.slice(0, 4)).toEqual([
+      "web-1",
+      "web-\\$\\(echo\\ INJECTED\\)",
+      "my\\ server",
+      "a:b",
+    ]);
+    // printf %q spells the quote \' or $'\'' depending on the bash version.
+    expect(names[4]).toMatch(/it.*s/u);
+    expect(names).toHaveLength(5);
+    expect(
+      await bashCompleteIn(hostile, "nipa", "server", "stop", "my")
+    ).toEqual(["my\\ server"]);
+  });
+
+  test("zsh escapes the colon for _describe and keeps the rest", async () => {
+    // Stub _describe to print the entries it would split at an unescaped colon.
+    const stubs = `compdef() { :; }; _describe() { print -rl -- "\${(@P)4}"; }`;
+    const { stdout } = await runProcess(
+      [
+        "zsh",
+        "-f",
+        "-c",
+        `${stubs}; source '${path.join(hostile, "completion.zsh")}'; _nipa_dynamic servers server`,
+      ],
+      testEnv(hostile)
+    );
+    expect(lines(stdout)).toEqual([
+      "web-1",
+      "web-$(echo INJECTED)",
+      "my server",
+      "a\\:b",
+      "it's",
+    ]);
+  });
 });
