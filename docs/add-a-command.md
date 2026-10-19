@@ -46,18 +46,21 @@ export const volumeCommand = defineGroup({
 Write the handler in `ls.ts`. `handle` types its `flags` and `args` from the declaration, so `flags.json` is `true` or absent, and the handler never reads a raw word:
 
 ```ts
-import { listVolumes } from "../../util/volume";
 import { handle } from "../../util/command";
+import { withSpinner } from "../../util/ui";
+import { listVolumes } from "../../util/volume";
 import { lsSubcommand } from "./command";
 
 export const ls = handle(lsSubcommand, async ({ client, flags }) => {
-  const { active, service, session } = await client.cloud();
-  const volumes = await listVolumes(await service("volumev3"));
+  const { active, session, space } = await client.cloud();
+  const { project } = session;
+  const loading = `Loading the volumes in ${project.name}…`;
   if (flags.json) {
-    const { project } = session;
+    const volumes = await withSpinner(loading, () => listVolumes(space));
     client.stdout.json({ profile: active.name, project, volumes });
     return 0;
   }
+  // The table goes here. Copy printVolumes from src/commands/volume/ls.ts.
   return 0;
 });
 ```
@@ -98,7 +101,7 @@ Import the command in `src/commands/index.ts`, and add it to a section of the ma
 
 ## 5. Test the command and add a changeset
 
-Add a test to `test/integration.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/mocks/keystone.ts`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
+Add a test to `test/integration.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/mocks/space.ts`, the fake Space API that the fake Keystone serves under `/api`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
 
 ```sh
 bun run test

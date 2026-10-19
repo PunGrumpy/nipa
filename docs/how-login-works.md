@@ -8,13 +8,13 @@ This page explains what nipa sends to Keystone when you log in and where it keep
 
 Keystone is the OpenStack identity service. A Nipa Cloud account with multi-factor authentication (MFA) has the rule `password + totp`, where TOTP is the time-based one-time password from your authenticator app. Keystone gives a token only to a login that satisfies the rule.
 
-nipa sends your password first, in a `POST /v3/auth/tokens` request. On an account without MFA, that request returns a token and the login ends there. On an account with MFA, Keystone returns `401 Unauthorized` with an auth receipt in the `Openstack-Auth-Receipt` header. The receipt proves the password was right and lists the methods that are still missing.
+nipa sends your password first, in a `POST /v3/auth/tokens` request. On an account without MFA, that request returns a token and the login ends there. On an account with MFA, Keystone returns `401 Unauthorized` with an auth receipt in the `Openstack-Auth-Receipt` header. The receipt proves the password was right and lists the methods that are still missing. Nipa Cloud's gateway sends that `401` with an empty body, so nipa doesn't see the list; it assumes the missing method is TOTP, the only second factor it supports, and asks for a code.
 
 nipa then asks for your OTP code and sends it in a second request, with the receipt in the same header. Keystone checks the code and returns the token. If the code is wrong, nipa asks for the next code and sends it with the same receipt, up to 3 times. You type your password only once.
 
-## Why application credentials don't work
+## Why nipa only logs in with a password and a code
 
-An application credential logs in with the `application_credential` method alone. When the account's MFA rule doesn't list that method, Keystone answers with a receipt that has no methods left to try. nipa prints "this account's MFA rules don't allow this login method" for that case. The `nipa login` flow above avoids it, because it uses the methods the rule asks for.
+nipa sends only the `password`, `totp` and `token` methods. When Keystone's receipt lists the account's rules and none of them includes `totp`, nipa stops with "this account needs … to log in", naming each rule, because it has no way to satisfy them. When the receipt lists no rules at all, nipa prints "this account's MFA rules don't allow this login method". An application credential wouldn't help: it logs in with the `application_credential` method alone, which an MFA rule of `password + totp` doesn't allow.
 
 ## A token works in one project
 
@@ -24,12 +24,13 @@ OpenStack services accept a token only in the project it names, which Keystone c
 
 ## Where the token goes
 
-nipa saves the token in `auth.json`, next to `config.json`, in `~/.config/nipa/`. It writes both files with mode `0600` in a `0700` directory. The token is a bearer token, so anyone who reads `auth.json` can act as you until it expires.
+nipa saves the token in `auth.json`, next to `config.json`, in the config directory: `NIPA_CONFIG_DIR` when set, else `$XDG_CONFIG_HOME/nipa`, else `~/.config/nipa/`. It writes both files with mode `0600` in a `0700` directory. The token is a bearer token, so anyone who reads `auth.json` can act as you until it expires.
 
 When you run `nipa os`, `nipa tf` or `nipa exec`, nipa starts the command with these variables:
 
 - **`OS_TOKEN`**: the token, which Terraform's OpenStack provider reads directly
 - **`OS_AUTH_TYPE`**: `v3token`, which tells the OpenStack client and SDK to log in with `OS_TOKEN`
+- **`OS_IDENTITY_API_VERSION`**: `3`, and **`OS_INTERFACE`**: `public`, which the OpenStack client reads
 - **`OS_AUTH_URL`**, **`OS_REGION_NAME`**: from the profile
 - **`OS_PROJECT_ID`**, **`OS_PROJECT_NAME`**, **`OS_PROJECT_DOMAIN_ID`**: from the token's project
 

@@ -40,6 +40,6 @@ Each page does one job, based on its content type:
 
 Confirm these before you rely on the matching docs:
 
-- The tests check the Keystone receipt flow, password first and then the OTP code with the receipt, against a fake Keystone. Confirm it against Nipa Cloud production with a real login.
-- The staging Keystone URL, user domain and region for Nipa staff aren't written down yet. [Use nipa with a staging Keystone](profiles.md) uses `https://keystone.example.com/v3` until they are.
+- ~~Confirm the receipt flow against production.~~ Confirmed: the 0.1.2 and 0.1.3 fixes (empty `401` bodies, dropped unscoped tokens) came from real logins against Nipa Cloud production.
+- The staging Keystone URL, user domain and region for Nipa staff aren't written down yet. The staging portal URL is known: `https://portal-stg-epc.nipa.cloud`. [Use nipa with a staging Keystone](profiles.md) uses `https://keystone.example.com/v3` until the rest are.
 - Does the staging Keystone use the same MFA rule as production?
