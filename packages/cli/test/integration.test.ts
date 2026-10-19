@@ -2618,4 +2618,43 @@ describe("broken files", () => {
     expect(stderr).toContain("auth.json");
     expect(stderr).toContain("delete it");
   });
+
+  test("a config.json with a bad profile fails instead of reading as a 0.1 file", async () => {
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        currentProfile: "staging",
+        profiles: {
+          staging: {
+            authUrl: "not-a-url",
+            region: "NCP-TH",
+            userDomain: "nipacloud",
+          },
+        },
+      })
+    );
+    const { code, stderr } = await run(["profile", "ls"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("config.json");
+    expect(stderr).toContain("staging");
+    expect(stderr).toContain("delete it");
+  });
+
+  test.skipIf(process.getuid?.() === 0 || process.platform === "win32")(
+    "an unreadable config.json says who should own it",
+    async () => {
+      const file = path.join(dir, "config.json");
+      await writeFile(file, "{}");
+      await chmod(file, 0o000);
+      try {
+        const { code, stderr } = await run(["profile", "ls"]);
+        expect(code).toBe(1);
+        expect(stderr).toContain("can't read");
+        expect(stderr).toContain("sudo");
+        expect(stderr).not.toContain("delete it");
+      } finally {
+        await chmod(file, 0o600);
+      }
+    }
+  );
 });

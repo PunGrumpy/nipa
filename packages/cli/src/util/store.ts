@@ -5,7 +5,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { spaceApiUrl } from "./api";
-import { ProjectSchema } from "./keystone";
+import { identityUrl, ProjectSchema } from "./keystone";
 
 export const DEFAULT_PROFILE = "prod";
 
@@ -36,13 +36,17 @@ const ProfilesSchema = z.record(z.string().regex(PROFILE_NAME), ProfileSchema);
 
 type Profiles = z.infer<typeof ProfilesSchema>;
 
+/** True for production's Keystone however it was typed: with or without /v3, a trailing slash, or uppercase. */
+export const isProdKeystone = (authUrl: string): boolean =>
+  new URL(identityUrl(authUrl)).href === PROD_PROFILE.authUrl;
+
 // Profiles from before nipa called the Space API have no spaceUrl, and nipa
 // 0.1.4 gave every new profile production's. Production's Space API takes
 // only production's tokens, so only a profile on production's Keystone gets
 // it. 0.1.4 also saved a portal URL as it was, so nipa adds its /api.
 const withSpaceUrl = (profile: Profile): Profile => {
   const { spaceUrl, ...rest } = profile;
-  if (profile.authUrl === PROD_PROFILE.authUrl) {
+  if (isProdKeystone(profile.authUrl)) {
     return {
       ...rest,
       spaceUrl: spaceApiUrl(spaceUrl ?? PROD_PROFILE.spaceUrl),
@@ -85,7 +89,23 @@ const LegacyConfigSchema = ProfileSchema.extend({
   profiles: withProd({ [DEFAULT_PROFILE]: profile }),
 }));
 
-const ConfigFileSchema = z.union([ConfigSchema, LegacyConfigSchema]);
+const ObjectSchema = z.record(z.string(), z.unknown());
+
+const hasKey = (json: z.core.util.JSONType, ...keys: string[]): boolean => {
+  const object = ObjectSchema.safeParse(json);
+  return object.success && keys.some((key) => Object.hasOwn(object.data, key));
+};
+
+/**
+ * A 0.1 config.json holds one profile's fields at the top level. Anything
+ * with `profiles` or `currentProfile` is the current format and must parse
+ * strictly, so a typo or a newer nipa's key is an error, not a reset to prod.
+ */
+const isLegacyConfig = (json: z.core.util.JSONType): boolean =>
+  !hasKey(json, "profiles", "currentProfile");
+
+const configSchemaFor = (json: z.core.util.JSONType) =>
+  isLegacyConfig(json) ? LegacyConfigSchema : ConfigSchema;
 
 // Sessions from before nipa called the Space API also hold the endpoints from
 // Keystone's catalog, which nipa drops when it loads them.
@@ -102,22 +122,34 @@ const SessionsSchema = z.record(z.string(), SessionSchema);
 
 type Sessions = z.infer<typeof SessionsSchema>;
 
-const AuthFileSchema = z.union([
-  z
-    .object({ sessions: SessionsSchema })
-    .strict()
-    .transform((file) => file.sessions),
-  SessionSchema.transform((session): Sessions => ({
-    [DEFAULT_PROFILE]: session,
-  })),
-]);
+const SessionsFileSchema = z
+  .object({ sessions: SessionsSchema })
+  .strict()
+  .transform((file) => file.sessions);
+
+const LegacyAuthSchema = SessionSchema.transform((session): Sessions => ({
+  [DEFAULT_PROFILE]: session,
+}));
+
+/** A 0.1 auth.json holds one session at the top level, with no `sessions`. */
+const isLegacyAuth = (json: z.core.util.JSONType): boolean =>
+  !hasKey(json, "sessions");
+
+const authSchemaFor = (json: z.core.util.JSONType) =>
+  isLegacyAuth(json) ? LegacyAuthSchema : SessionsFileSchema;
 
 export class StoreError extends Error {
-  constructor(message: string) {
+  readonly hint?: string;
+
+  constructor(message: string, hint?: string) {
     super(message);
     this.name = "StoreError";
+    this.hint = hint;
   }
 }
+
+const OWNER_HINT =
+  "Check that your user owns the file. A `sudo nipa …` run leaves it owned by root.";
 
 /** Tokens this close to expiry count as expired, so a command doesn't fail halfway. */
 const EXPIRY_MARGIN_MS = 60_000;
@@ -163,13 +195,14 @@ const readText = async (file: string): Promise<string | undefined> => {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return undefined;
     }
-    throw error;
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new StoreError(`can't read ${file}: ${reason}`, OWNER_HINT);
   }
 };
 
 const readJson = async <T>(
   file: string,
-  schema: z.ZodType<T>
+  schemaFor: (json: z.core.util.JSONType) => z.ZodType<T, unknown>
 ): Promise<T | undefined> => {
   const text = await readText(file);
   if (text === undefined) {
@@ -181,7 +214,7 @@ const readJson = async <T>(
   } catch {
     throw new StoreError(`${file} isn't valid JSON`);
   }
-  const parsed = schema.safeParse(json);
+  const parsed = schemaFor(json).safeParse(json);
   if (!parsed.success) {
     throw new StoreError(`${file}: ${z.prettifyError(parsed.error)}`);
   }
@@ -192,14 +225,21 @@ const writeJson = async (
   file: string,
   value: Config | { sessions: Sessions }
 ): Promise<void> => {
-  await mkdir(configDir(), { mode: 0o700, recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-  // mode only applies when the file is created
-  await chmod(file, 0o600);
+  try {
+    await mkdir(configDir(), { mode: 0o700, recursive: true });
+    await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, {
+      mode: 0o600,
+    });
+    // mode only applies when the file is created
+    await chmod(file, 0o600);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new StoreError(`can't write ${file}: ${reason}`, OWNER_HINT);
+  }
 };
 
 export const loadConfig = async (): Promise<Config> =>
-  (await readJson(configPath(), ConfigFileSchema)) ?? {
+  (await readJson(configPath(), configSchemaFor)) ?? {
     currentProfile: DEFAULT_PROFILE,
     profiles: withProd({}),
   };
@@ -208,7 +248,7 @@ export const saveConfig = (config: Config): Promise<void> =>
   writeJson(configPath(), config);
 
 const loadSessions = async (): Promise<Sessions> =>
-  (await readJson(authPath(), AuthFileSchema)) ?? {};
+  (await readJson(authPath(), authSchemaFor)) ?? {};
 
 export const loadSession = async (
   profile: string

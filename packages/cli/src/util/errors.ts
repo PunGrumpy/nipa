@@ -28,7 +28,8 @@ export const toCliError = (error: Error): CliError | undefined => {
   }
   if (error instanceof StoreError) {
     return new CliError(error.message, {
-      hint: "Fix the file, or delete it and run `nipa login` again.",
+      hint:
+        error.hint ?? "Fix the file, or delete it and run `nipa login` again.",
     });
   }
   return undefined;
