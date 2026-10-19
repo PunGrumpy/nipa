@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 
 // Times the type checkers on each workspace: TypeScript 6, which both
-// workspaces used before, against the TypeScript 7 compiler and tsc-ts at the
-// versions the workspaces pin now. Each compiler is installed into a temporary
-// directory and run through its npm bin, as `bun run typecheck` runs it.
+// workspaces used before, against the TypeScript 7 compiler that apps/web pins
+// and the tsc-ts that the root pins. Each compiler is installed into a
+// temporary directory and run through its npm bin, as `bun run typecheck` runs
+// it.
 //
 //   bun run bench [--runs 10] [--json]
 
@@ -78,7 +79,7 @@ const pinned = (workspace: string, name: string): string => {
 const COMPILERS = [
   BASELINE,
   { bin: "tsc", pkg: "typescript", version: pinned("apps/web", "typescript") },
-  { bin: "tsc-ts", pkg: "tsc-ts", version: pinned("packages/cli", "tsc-ts") },
+  { bin: "tsc-ts", pkg: "tsc-ts", version: pinned(".", "tsc-ts") },
 ];
 
 const WORKSPACES = [
