@@ -26,7 +26,7 @@ The account's MFA rules don't include `totp`, so a password and an OTP code can'
 
 The profile has no session, or its token expired after the 24 hours a Nipa Cloud token lasts. In a terminal, nipa logs you in before it runs the command.
 
-In a script, nothing can type a password, so nipa stops with this error instead. Run `nipa login` in a terminal, then run the script again.
+Where nipa can't prompt, it stops with this error instead: in a script, in CI, or with `--json` or `--non-interactive`. Run `nipa login` in a terminal, then run the command again.
 
 ## "your prod session expired or was revoked"
 

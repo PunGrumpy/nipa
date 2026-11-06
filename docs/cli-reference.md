@@ -63,7 +63,7 @@ These options belong to one command:
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
 | `--region <region>` | `profile add` | The region. The default is `NCP-TH` |
-| `--space-url <url>` | `profile add` | The Space portal URL, such as `https://space.nipa.cloud`, or its API URL. nipa saves the API under the portal's `/api` and checks that it answers. A profile on production's Keystone gets `https://space.nipa.cloud/api` without it. With another Keystone, nipa asks for it in a terminal, and Enter skips it |
+| `--space-url <url>` | `profile add` | The Space portal URL, such as `https://space.nipa.cloud`, or its API URL. nipa saves the API under the portal's `/api` and checks that it answers. A profile on production's Keystone gets `https://space.nipa.cloud/api` without it. With another Keystone, nipa asks for it when it can prompt, and Enter skips it |
 | `--use` | `profile add` | Makes the new profile the current one |
 | `--install` | `completion` | Saves the script where the shell loads it, instead of printing it |
 | `-y, --yes` | `profile rm`, `server stop`, `server restart` | Skips the confirmation. When nipa can't prompt, these commands need it |

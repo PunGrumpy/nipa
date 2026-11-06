@@ -60,8 +60,8 @@ export const createTheme = (input: {
 }): Theme => {
   const { argv, env } = input;
   return {
-    // Forced color may tint the Warning: and Error: prefixes on stderr, but
-    // help, the only thing painted for stdout, stays plain in a pipe.
+    // Forced color paints what nipa writes to a stderr pipe, but help, the
+    // only thing painted for stdout, stays plain in a pipe.
     stderr: createColors(
       colorEnabled({ argv, env, forceMayAdd: true, stream: input.stderr })
     ),
