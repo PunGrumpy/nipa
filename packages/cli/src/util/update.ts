@@ -1,9 +1,8 @@
-import pc from "picocolors";
 import { z } from "zod";
 
 import { debug, request } from "./http";
 import { readCache, writeCache } from "./store";
-import { writeStderr } from "./ui";
+import { cyan, dim, green, writeStderr } from "./ui";
 
 const RELEASES = "https://github.com/PunGrumpy/nipa/releases";
 const LATEST_API =
@@ -76,11 +75,11 @@ export const knownUpdate = async (
 
 export const updateNotice = (latest: string, current: string): string => {
   const notes = releaseNotes(latest);
-  const from = pc.dim(`v${current}`);
-  const to = pc.green(`v${latest}`);
+  const from = dim(`v${current}`);
+  const to = green(`v${latest}`);
   const lines = [
     `Update available! ${from} ≫ ${to}`,
-    `Release notes: ${pc.cyan(notes)}`,
+    `Release notes: ${cyan(notes)}`,
   ];
   // Width without color codes, so the box lines up.
   const plain = [

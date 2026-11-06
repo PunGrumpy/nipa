@@ -7,7 +7,11 @@ import confirm from "@inquirer/confirm";
 import input from "@inquirer/input";
 import password from "@inquirer/password";
 import select from "@inquirer/select";
-import pc from "picocolors";
+
+import { theme } from "./theme";
+
+// Everything these paint goes to stderr, so stderr decides the colors.
+export const { bold, cyan, dim, gray, green, red, yellow } = theme.stderr;
 
 export class CliError extends Error {
   readonly hint?: string;
@@ -214,23 +218,23 @@ export const writeStderr = (line: string): void => {
 };
 
 export const log = (message: string): void => {
-  writeStderr(`${pc.dim(">")} ${message}`);
+  writeStderr(`${dim(">")} ${message}`);
 };
 
 export const success = (message: string, elapsedMs?: number): void => {
   const time = elapsedMs === undefined ? "" : `[${formatElapsed(elapsedMs)}]`;
-  const elapsed = time ? ` ${pc.dim(time)}` : "";
-  writeStderr(`${pc.cyan("> Success!")} ${message}${elapsed}`);
+  const elapsed = time ? ` ${dim(time)}` : "";
+  writeStderr(`${cyan("> Success!")} ${message}${elapsed}`);
 };
 
 export const note = (message: string): void => {
-  writeStderr(`${pc.bold(pc.yellow("> NOTE:"))} ${message}`);
+  writeStderr(`${bold(yellow("> NOTE:"))} ${message}`);
 };
 
 export const printError = (error: CliError): void => {
-  writeStderr(`${pc.bold(pc.red("Error:"))} ${error.message}`);
+  writeStderr(`${bold(red("Error:"))} ${error.message}`);
   if (error.hint) {
-    writeStderr(`${pc.dim(">")} ${error.hint}`);
+    writeStderr(`${dim(">")} ${error.hint}`);
   }
 };
 
@@ -253,7 +257,7 @@ export const withSpinner = async <T>(
     const symbol = FRAMES[frame % FRAMES.length] ?? "";
     frame += 1;
     process.stderr.write(
-      `\r${pc.dim(symbol)} ${clean(message, { newline: false, sgr: true })}`
+      `\r${dim(symbol)} ${clean(message, { newline: false, sgr: true })}`
     );
   };
   const delay = setTimeout(() => {
@@ -399,8 +403,6 @@ export const createResultStream = (
     stdout.write(text);
   },
 });
-
-export const { bold, cyan, dim, gray, green, red, yellow } = pc;
 
 export type Paint = (text: string) => string;
 

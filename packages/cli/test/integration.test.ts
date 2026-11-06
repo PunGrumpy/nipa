@@ -168,6 +168,53 @@ describe("a closed pipe", () => {
   });
 });
 
+// NO_COLOR is empty, so it doesn't count and FORCE_COLOR can speak.
+const colorEnv = (extra: Record<string, string>) => ({
+  NO_COLOR: "",
+  ...extra,
+});
+
+describe("streams and colors", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  const ESC = "\u001B";
+
+  test("FORCE_COLOR colors help but never --json", async () => {
+    const env = colorEnv({ FORCE_COLOR: "1" });
+    const help = await run(["--help"], env);
+    expect(help.stdout).toContain(ESC);
+    const json = await run(["whoami", "--json"], env);
+    expect(json.code).toBe(0);
+    expect(json.stdout).not.toContain(ESC);
+    expect(JSON.parse(json.stdout)).toMatchObject({ loggedIn: true });
+  });
+
+  test("FORCE_COLOR colors the messages on stderr", async () => {
+    const { stderr } = await run(["logn"], colorEnv({ FORCE_COLOR: "1" }));
+    expect(stderr).toContain(`${ESC}[`);
+  });
+
+  test("--no-color and NO_COLOR beat FORCE_COLOR", async () => {
+    const forced = { FORCE_COLOR: "1" };
+    const flag = await run(["--help", "--no-color"], colorEnv(forced));
+    expect(flag.stdout).not.toContain(ESC);
+    const env = await run(["--help"], { ...forced, NO_COLOR: "1" });
+    expect(env.stdout).not.toContain(ESC);
+    const error = await run(["logn", "--no-color"], colorEnv(forced));
+    expect(error.stderr).not.toContain(ESC);
+  });
+
+  test("CI doesn't color a pipe", async () => {
+    const help = await run(["--help"], colorEnv({ CI: "1" }));
+    expect(help.stdout).not.toContain(ESC);
+    const error = await run(["logn"], colorEnv({ CI: "1" }));
+    expect(error.stderr).not.toContain(ESC);
+  });
+});
+
 describe("without a session", () => {
   beforeEach(freshDir);
 

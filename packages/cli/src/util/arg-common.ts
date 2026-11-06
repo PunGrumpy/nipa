@@ -35,7 +35,7 @@ export const helpFlag = {
  * Options nipa takes before any command, and after any command that isn't a
  * passthrough. The parser, the help pages and the completion scripts read
  * this list. dispatch.ts gives `help` and `version` their meaning, and
- * createClient gives `profile` and `debug` theirs. picocolors reads
+ * createClient gives `profile` and `debug` theirs. theme.ts reads
  * `--no-color` from process.argv itself.
  */
 export const GLOBAL_FLAGS = [

@@ -359,7 +359,7 @@ describe("dispatch", () => {
 
 /**
  * What nipa prints for help or the version, with the real command table.
- * picocolors turns colors on when CI is set, so the text loses them here.
+ * FORCE_COLOR turns colors on, so the text loses them here.
  */
 const text = async (argv: string[]) => {
   const outcome = await go(argv, realProgram);
