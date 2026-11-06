@@ -24,6 +24,7 @@ When a change touches output or flow, cover each item that applies:
 - The new output, and an assertion that the removed string is gone
 - The path with a terminal and the path without one. `runProcess` closes stdin, so it always tests the second
 - `--json`: parse stdout with `JSON.parse` and assert fields, and assert stdout has nothing else
+- `--json` on a failure: stdout is empty, stderr is one line that parses, and `reason`, `status` and the exit code are the ones expected. On a success, stderr is empty, even on a profile that isn't `prod`
 - A pipe: assert that stdout holds only the bare values, one per line
 - The stdout and stderr split: messages on stderr, data on stdout
 - The exit code for success, failure, a wrong command line, and Ctrl-C or a declined confirmation where the command prompts
@@ -65,6 +66,8 @@ Reject or fix a change that:
 - prints anything but data to stdout, or prints data only to stderr
 - writes to `process.stderr` instead of `writeStderr`, or follows a redirect, reads a response body without `readText` or its own catch, or puts a remote name in a cell without going through `printTable` or `printFields`
 - adds color, a spinner or a note to `--json` output
+- writes a human line to stderr under `--json`, or a failure that prints `Error:` or a hint there instead of the error document
+- renames, reuses or removes a `reason`, or sets `next` from a hint instead of at a throw site
 - imports `picocolors` outside `src/util/theme.ts`, or paints stderr text with the stdout palette
 - prints more than one `success` line for one change, or a `success` line before the change is saved
 - writes local files before the remote call they depend on succeeds

@@ -7,13 +7,13 @@ These rules cover the flow, streams, layout, errors and safety of every nipa com
 nipa writes results and messages to different streams, so a pipe gets only data:
 
 - **stdout**: the command's result, through `client.stdout`: `json()` for `--json`, `line()` for bare values such as one server ID per line, and `write()` for raw text
-- **stderr**: everything else: notes, success lines, errors, spinners, tables, prompts, debug lines and the update notice (two lines, shown only when nipa can prompt)
+- **stderr**: everything else: notes, success lines, errors, spinners, tables, prompts, debug lines and the update notice (two lines, shown only when nipa can prompt). Under `--json`, stderr carries only a failure's error document and `--debug` lines. See [Machine errors](#machine-errors)
 
 Command folders never call `console.*`. `test/unit/commands/index.test.ts` fails when they do.
 
 A command picks its stdout shape from the mode:
 
-- With `--json`, stdout carries one JSON document, indented by 2, and nothing else. Messages may still go to stderr
+- With `--json`, stdout carries one JSON document, indented by 2, and nothing else. `run()` turns on JSON mode for the whole run, in which `log`, `success`, `note`, `printTable`, `printFields` and the spinner write nothing, so a success leaves stderr empty. `--debug` lines still write. A passthrough command (`os`, `tf`, `exec`) turns the mode off, because a `--json` after its name belongs to its program
 - In a terminal without `--json`, the result is a human table or a set of `log` lines on stderr, and stdout stays empty
 - In a pipe without `--json` (`client.stdout.isTTY` is false), stdout carries the bare values a script needs, one per line, such as `nipa server ls` printing IDs and `nipa whoami` printing the user name
 
@@ -43,7 +43,7 @@ Use the helpers in `src/util/ui.ts` instead of hand-built lines:
 | `note(message)` | `> NOTE: message`, in bold yellow | A no-op or a condition the person should know about |
 | `withSpinner(message, task)` | A spinner after 300 ms, erased when `task` ends. Only where nipa can prompt, and never with `TERM=dumb` | Network calls and other waits |
 | `printTable({ headings, rows, marks })` | A borderless table between blank lines, 2 spaces in | Lists of resources |
-| `throw new CliError(message, options)` | `Error: message`, then `> hint`, through `printError` in `src/index.ts` | Failures |
+| `throw new CliError(message, options)` | `Error: message`, then `> hint`, through `printError` in `src/index.ts`. Under `--json`, one error document instead | Failures |
 
 Rules for the helpers:
 
@@ -114,7 +114,29 @@ Rules:
 - Use `usageError(message, hint)` when the command line was wrong. It exits with 2
 - Suggest the closest command when a word is unknown, as the dispatcher does: ``Did you mean `nipa server`?``
 - For a server-side or network failure, the hint points to `--debug` or to the Keystone URL
-- Never print a stack trace, a raw response body, or an upstream error object. `src/index.ts` rethrows anything that isn't a known error, so wrap new error types there
+- Never print a stack trace, a raw response body, or an upstream error object. `src/index.ts` rethrows anything that isn't a known error, so wrap new error types there. Under `--json` it writes an `internal_error` document instead, with the message `Unexpected error in nipa. This is a bug.` and exit 1
+- Give an error a `reason` when a script could act on it. Without one, exit 2 is `invalid_arguments` and anything else is `failed`
+
+### Machine errors
+
+With `--json`, a failure writes nothing to stdout and exactly one single-line JSON document to stderr, like the Vercel CLI's machine errors. The exit code stays the source of truth.
+
+```json
+{
+  "message": "you aren't logged in to prod",
+  "reason": "login_required",
+  "status": "action_required",
+  "hint": "Run `nipa login`.",
+  "next": [{ "argv": ["nipa", "login"], "command": "nipa login" }]
+}
+```
+
+- `status` is `action_required` for exit 2 and for `login_required` and `token_expired`: a person has to act before the command can run. Everything else is `error`
+- `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `api_error`, `invalid_config`, `internal_error` and `failed`. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
+- `message` and `hint` are the human error's text. `hint` appears only when the error has one
+- `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
+- The document is a single line, `JSON.stringify` output with the format characters it leaves alone escaped, and it bypasses the styling helpers
+- `whoami --json` is the one exception to "a failure writes nothing to stdout": logged out, it prints its `{ "loggedIn": false, "profile": ... }` document to stdout, leaves stderr empty and returns 1, as `doctor --json` does for failing checks
 
 ### Remote boundary
 
@@ -146,6 +168,7 @@ Treat these as contracts. Change them only with a migration, tests, and a change
 - Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
 - The files in the config directory and their JSON shape
 - `--json` field names and meanings. Add fields freely, but don't rename or remove them
+- The error document under `--json`: one line on stderr with `status`, `reason`, `message`, and `hint` and `next` when they apply, an empty stdout, and the `reason` codes. Add codes and fields freely, but don't rename or remove them
 - The bare values that piped stdout prints
 - The completion scripts that `nipa completion <shell>` prints
 
