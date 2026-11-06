@@ -27,10 +27,10 @@ A reader that quits early, as `nipa server ls | head -1` does, closes the pipe. 
 
 1. `--no-color` before `--`
 2. A nonempty `NO_COLOR`
-3. `FORCE_COLOR`, where `0` and `false` mean off and any other value means on
+3. `FORCE_COLOR`, where `0` and `false` mean off and any other value means on. On stderr it can turn color on for a pipe, so a forced `Warning:` or `Error:` prefix is tinted. Help, the only thing painted for stdout, stays plain in a pipe even when forced
 4. Whether that stream is a terminal and `TERM` isn't `dumb`
 
-`CI` says nothing about color. `help.ts` paints with the stdout palette, and `ui.ts`, `http.ts` and `update.ts` paint with the stderr one, through the `bold`, `cyan` and other exports of `ui.ts`. A command that writes to `client.stdout` paints nothing, so `--json` stays free of escape codes even with `FORCE_COLOR=1`.
+`CI` says nothing about color. `help.ts` paints with the stdout palette, so help has color only on a terminal with `TERM` not `dumb`, and `ui.ts`, `http.ts` and `update.ts` paint with the stderr one, through the `bold`, `cyan` and other exports of `ui.ts`. A command that writes to `client.stdout` paints nothing, so `--json` stays free of escape codes even with `FORCE_COLOR=1`.
 
 ## Output helpers
 

@@ -182,10 +182,11 @@ describe("streams and colors", () => {
 
   const ESC = "\u001B";
 
-  test("FORCE_COLOR colors help but never --json", async () => {
+  test("FORCE_COLOR leaves piped help and --json plain", async () => {
     const env = colorEnv({ FORCE_COLOR: "1" });
     const help = await run(["--help"], env);
-    expect(help.stdout).toContain(ESC);
+    expect(help.stdout).toContain("Usage:");
+    expect(help.stdout).not.toContain(ESC);
     const json = await run(["whoami", "--json"], env);
     expect(json.code).toBe(0);
     expect(json.stdout).not.toContain(ESC);

@@ -16,6 +16,11 @@ export interface ColorInput {
   argv: readonly string[];
   env: NodeJS.ProcessEnv;
   stream: StreamLike;
+  /**
+   * Whether FORCE_COLOR may turn color on for a stream that isn't a
+   * terminal. It can always turn color off.
+   */
+  forceMayAdd: boolean;
 }
 
 const FORCE_OFF = new Set(["0", "false"]);
@@ -26,7 +31,7 @@ const FORCE_OFF = new Set(["0", "false"]);
  * nothing about colors.
  */
 export const colorEnabled = (input: ColorInput): boolean => {
-  const { argv, env, stream } = input;
+  const { argv, env, forceMayAdd, stream } = input;
   const end = argv.indexOf("--");
   if ((end === -1 ? argv : argv.slice(0, end)).includes("--no-color")) {
     return false;
@@ -34,10 +39,12 @@ export const colorEnabled = (input: ColorInput): boolean => {
   if (env.NO_COLOR) {
     return false;
   }
+  const terminal = stream.isTTY === true && env.TERM !== "dumb";
   if (env.FORCE_COLOR) {
-    return !FORCE_OFF.has(env.FORCE_COLOR.toLowerCase());
+    const forced = !FORCE_OFF.has(env.FORCE_COLOR.toLowerCase());
+    return forceMayAdd ? forced : forced && terminal;
   }
-  return stream.isTTY === true && env.TERM !== "dumb";
+  return terminal;
 };
 
 export interface Theme {
@@ -53,8 +60,14 @@ export const createTheme = (input: {
 }): Theme => {
   const { argv, env } = input;
   return {
-    stderr: createColors(colorEnabled({ argv, env, stream: input.stderr })),
-    stdout: createColors(colorEnabled({ argv, env, stream: input.stdout })),
+    // Forced color may tint the Warning: and Error: prefixes on stderr, but
+    // help, the only thing painted for stdout, stays plain in a pipe.
+    stderr: createColors(
+      colorEnabled({ argv, env, forceMayAdd: true, stream: input.stderr })
+    ),
+    stdout: createColors(
+      colorEnabled({ argv, env, forceMayAdd: false, stream: input.stdout })
+    ),
   };
 };
 

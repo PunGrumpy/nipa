@@ -10,10 +10,12 @@ const enabled = (input: {
   argv?: string[];
   env?: NodeJS.ProcessEnv;
   stream?: { isTTY?: boolean };
+  forceMayAdd?: boolean;
 }) =>
   colorEnabled({
     argv: input.argv ?? [],
     env: input.env ?? {},
+    forceMayAdd: input.forceMayAdd ?? true,
     stream: input.stream ?? tty,
   });
 
@@ -40,6 +42,21 @@ describe("colorEnabled", () => {
     expect(enabled({ env: { FORCE_COLOR: "0" }, stream: tty })).toBe(false);
     expect(enabled({ env: { FORCE_COLOR: "false" }, stream: tty })).toBe(false);
     expect(enabled({ env: { FORCE_COLOR: "" }, stream: tty })).toBe(true);
+  });
+
+  test("FORCE_COLOR can't add color to a stream that may not take it", () => {
+    const force = (FORCE_COLOR: string, stream: { isTTY?: boolean }) =>
+      enabled({ env: { FORCE_COLOR }, forceMayAdd: false, stream });
+    expect(force("1", pipe)).toBe(false);
+    expect(force("1", tty)).toBe(true);
+    expect(force("0", tty)).toBe(false);
+    expect(
+      enabled({
+        env: { FORCE_COLOR: "1", TERM: "dumb" },
+        forceMayAdd: false,
+        stream: tty,
+      })
+    ).toBe(false);
   });
 
   test("NO_COLOR beats FORCE_COLOR and the terminal, but only when it has a value", () => {
@@ -86,6 +103,17 @@ describe("createTheme", () => {
     });
     expect(painted(redirected.stdout)).toBe(true);
     expect(painted(redirected.stderr)).toBe(false);
+  });
+
+  test("FORCE_COLOR tints a piped stderr but never a piped stdout", () => {
+    const forced = createTheme({
+      argv: [],
+      env: { FORCE_COLOR: "1" },
+      stderr: pipe,
+      stdout: pipe,
+    });
+    expect(painted(forced.stderr)).toBe(true);
+    expect(painted(forced.stdout)).toBe(false);
   });
 });
 
