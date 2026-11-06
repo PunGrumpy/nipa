@@ -249,16 +249,15 @@ describe("what a terminal changes", () => {
   beforeAll(freshDir);
 
   test("help follows stdout and messages follow stderr", async () => {
-    const stdoutOnly = ["stdout" as const];
-    const help = await onTerminals(stdoutOnly, ["--help"]);
+    const [help, error, piped, colorful] = await Promise.all([
+      onTerminals(["stdout"], ["--help"]),
+      onTerminals(["stdout"], ["logn"]),
+      onTerminals(["stderr"], ["--help"]),
+      onTerminals(["stderr"], ["logn"]),
+    ]);
     expect(help.stdout).toContain(ESC);
-    const error = await onTerminals(stdoutOnly, ["logn"]);
     expect(error.stderr).not.toContain(ESC);
-
-    const stderrOnly = ["stderr" as const];
-    const piped = await onTerminals(stderrOnly, ["--help"]);
     expect(piped.stdout).not.toContain(ESC);
-    const colorful = await onTerminals(stderrOnly, ["logn"]);
     expect(colorful.stderr).toContain(ESC);
   });
 
