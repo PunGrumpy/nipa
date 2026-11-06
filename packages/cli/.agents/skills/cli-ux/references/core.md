@@ -126,14 +126,13 @@ With `--json`, a failure writes nothing to stdout and exactly one single-line JS
   "message": "you aren't logged in to prod",
   "reason": "login_required",
   "status": "action_required",
-  "hint": "Run `nipa login`.",
   "next": [{ "argv": ["nipa", "login"], "command": "nipa login" }]
 }
 ```
 
-- `status` is `action_required` for exit 2 and for `login_required` and `token_expired`: a person has to act before the command can run. Everything else is `error`
+- `status` is `action_required` for exit 2 and for `ambiguous_name`, `login_required` and `token_expired`: a person has to act before the command can run. Everything else is `error`
 - `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `api_error`, `invalid_config`, `internal_error` and `failed`. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
-- `message` and `hint` are the human error's text. `hint` appears only when the error has one
+- `message` and `hint` are the human error's text. `hint` appears only when the error has one and no `next`, which says the same thing in the profile the run named
 - `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
 - The document is a single line of `JSON.stringify` output written through `writeStderr`, which drops anything a terminal would act on, and it bypasses the styling helpers
 - `next` keeps the run's `--profile`, because a bare command would use another profile

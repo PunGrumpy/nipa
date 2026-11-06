@@ -453,7 +453,6 @@ describe("a failed --json command", () => {
     const result = await run(["server", "ls", "--json"]);
     expect(result.code).toBe(1);
     expect(failure(result)).toEqual({
-      hint: "Run `nipa login`.",
       message: "you aren't logged in to prod",
       next: [{ argv: ["nipa", "login"], command: "nipa login" }],
       reason: "login_required",
@@ -601,7 +600,6 @@ describe("a failed --json command that names a resource", () => {
     const result = await run(["server", "inspect", "nope", "--json"]);
     expect(result.code).toBe(1);
     expect(failure(result)).toEqual({
-      hint: "Run `nipa server ls` to see your servers.",
       message: 'no server named or with ID "nope" in Alpha',
       next: [{ argv: ["nipa", "server", "ls"], command: "nipa server ls" }],
       reason: "not_found",
@@ -677,7 +675,7 @@ describe("a failed --json command that names a resource", () => {
       expect(document).toMatchObject({
         message: '2 servers in Alpha are named "web-1"',
         reason: "ambiguous_name",
-        status: "error",
+        status: "action_required",
       });
       expect(document).not.toHaveProperty("next");
     } finally {

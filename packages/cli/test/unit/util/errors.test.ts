@@ -63,14 +63,13 @@ describe("jsonErrorDocument", () => {
     });
   });
 
-  test("keeps the hint and splits each next command into argv", () => {
+  test("lets next replace the hint it restates, and splits it into argv", () => {
     const error = new CliError("you aren't logged in to staging", {
       hint: "Run `nipa login -P staging`.",
       next: ["nipa login -P staging"],
       reason: "login_required",
     });
     expect(jsonErrorDocument(error)).toEqual({
-      hint: "Run `nipa login -P staging`.",
       message: "you aren't logged in to staging",
       next: [
         {
@@ -113,6 +112,13 @@ describe("jsonErrorDocument", () => {
       reason: "internal_error",
       status: "error",
     });
+  });
+});
+
+describe("hint in the error document", () => {
+  test("stays when there's no next", () => {
+    const error = new CliError("m", { hint: "Name one by its ID." });
+    expect(jsonErrorDocument(error).hint).toBe("Name one by its ID.");
   });
 });
 

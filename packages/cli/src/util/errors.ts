@@ -78,9 +78,11 @@ export interface ErrorDocument {
   next?: { command: string; argv: string[] }[];
 }
 
-// A person has to act before the command can run: fix the line or log in.
+// A person has to act before the command can run: fix the line, name one
+// server or log in.
 const blockedBeforeAnyEffect = (error: CliError): boolean =>
   error.exitCode === 2 ||
+  error.reason === "ambiguous_name" ||
   error.reason === "login_required" ||
   error.reason === "token_expired";
 
@@ -101,7 +103,8 @@ export const jsonErrorDocument = (
     reason: error.reason,
     status: blockedBeforeAnyEffect(error) ? "action_required" : "error",
   };
-  if (error.hint) {
+  // A next says what its hint says, in the profile the run named.
+  if (error.hint && !error.next?.length) {
     document.hint = error.hint;
   }
   if (error.next && error.next.length > 0) {
@@ -120,7 +123,7 @@ export const setProfileOption = (profile: string | undefined): void => {
   profileOption = profile;
 };
 
-/** Writes the error document: one line, and the only thing on stderr. */
+/** Writes the error document: one line, and always the last on stderr. */
 export const writeErrorDocument = (error: CliError): void => {
   writeStderr(JSON.stringify(jsonErrorDocument(error, profileOption)));
 };
