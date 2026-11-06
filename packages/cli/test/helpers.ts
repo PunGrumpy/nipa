@@ -39,6 +39,28 @@ export const runProcess = async (
   return { code, stderr, stdout };
 };
 
+/**
+ * Closes stdout before the command writes to it, as `nipa ... | head -1`
+ * does once head has read its line.
+ */
+export const runWithClosedStdout = async (
+  cmd: string[],
+  env: Record<string, string>
+): Promise<Pick<RunResult, "code" | "stderr">> => {
+  const proc = Bun.spawn(cmd, {
+    env,
+    stderr: "pipe",
+    stdin: "ignore",
+    stdout: "pipe",
+  });
+  await proc.stdout.cancel();
+  const [stderr, code] = await Promise.all([
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { code, stderr };
+};
+
 export const testEnv = (dir: string) => ({
   HOME: dir,
   NIPA_CONFIG_DIR: dir,

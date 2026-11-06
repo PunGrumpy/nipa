@@ -23,6 +23,7 @@ import pkg from "../package.json" with { type: "json" };
 import {
   ENTRY,
   runProcess,
+  runWithClosedStdout,
   seedLegacySession,
   seedSession,
   testEnv,
@@ -148,6 +149,22 @@ describe("help and usage", () => {
     expect(await exitCode(["--nope"])).toBe(2);
     expect(await exitCode(["whoami", "--nope"])).toBe(2);
     expect(await exitCode(["-P"])).toBe(2);
+  });
+});
+
+describe("a closed pipe", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("a closed stdout is not an error", async () => {
+    const { code, stderr } = await runWithClosedStdout(
+      ["bun", ENTRY, "profile", "ls", "--json"],
+      testEnv(dir)
+    );
+    expect(stderr).toBe("");
+    expect(code).toBe(0);
   });
 });
 

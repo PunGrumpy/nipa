@@ -12,6 +12,17 @@ import { toCliError } from "./util/errors";
 import { printError } from "./util/ui";
 import { checkForUpdate } from "./util/update";
 
+// A reader that quits early, as `nipa server ls | head -1` does, closes the
+// pipe. The write then fails with EPIPE, which says nothing the reader wants
+// to hear, and the command keeps its own exit code.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code !== "EPIPE") {
+      throw error;
+    }
+  });
+}
+
 try {
   const outcome = await run({
     argv: process.argv.slice(2),
