@@ -1,7 +1,7 @@
 import { handle } from "../../util/command";
 import { listServers } from "../../util/compute";
 import type { Server } from "../../util/compute";
-import { statusCell } from "../../util/status";
+import { statusCell, statusLabel } from "../../util/status";
 import {
   bold,
   dim,
@@ -10,11 +10,13 @@ import {
   gray,
   log,
   printTable,
+  tabSeparated,
   withSpinner,
 } from "../../util/ui";
 import { lsSubcommand } from "./command";
 import { mainAddress, nameCell } from "./format";
 
+const PIPE_HEADINGS = ["ID", "Name", "Status", "Address", "Flavor", "Created"];
 const FLAVOR = 3;
 const AGE = 4;
 const DEFAULT_WIDTH = 80;
@@ -41,6 +43,23 @@ export const printServers = (
   });
 };
 
+const isoTime = (time: string): string => {
+  const ms = Date.parse(time);
+  return Number.isNaN(ms) ? time : new Date(ms).toISOString();
+};
+
+// Every field a script can use: the ID that the next command takes, an ISO
+// time, and the bare name, even for a Kubernetes node.
+export const pipeRows = (servers: readonly Server[]): string[][] =>
+  servers.map((server) => [
+    server.id,
+    server.name,
+    statusLabel(server.status),
+    mainAddress(server) ?? "",
+    server.flavor,
+    isoTime(server.createdAt),
+  ]);
+
 export const ls = handle(lsSubcommand, async ({ client, flags }) => {
   const { active, session, space } = await client.cloud();
   const { project } = session;
@@ -54,15 +73,16 @@ export const ls = handle(lsSubcommand, async ({ client, flags }) => {
     return 0;
   }
   const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
-  if (servers.length === 0) {
-    log(`No servers in ${bold(project.name)} ${elapsed}`);
-    return 0;
-  }
-  log(`Servers in ${bold(project.name)} ${elapsed}`);
-  printServers(servers, Date.now(), process.stderr.columns || DEFAULT_WIDTH);
-  // A pipe gets one ID per line, because two servers can share a name.
+  log(
+    servers.length === 0
+      ? `No servers in ${bold(project.name)} ${elapsed}`
+      : `Servers in ${bold(project.name)} ${elapsed}`
+  );
   if (!client.stdout.isTTY) {
-    client.stdout.line(servers.map((server) => server.id).join("\n"));
+    // A pipe gets the table's rows, so grep and cut see one server per line.
+    client.stdout.line(tabSeparated(PIPE_HEADINGS, pipeRows(servers)));
+  } else if (servers.length > 0) {
+    printServers(servers, Date.now(), process.stderr.columns || DEFAULT_WIDTH);
   }
   return 0;
 });

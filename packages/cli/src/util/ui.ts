@@ -675,6 +675,19 @@ export const printTable = (table: {
   writeStderr("");
 };
 
+/**
+ * Rows for a pipe: the header, then one line per row, with one tab between
+ * fields and no padding. A value that holds a tab, a newline or an escape
+ * shows as text, so it can't add a field or a row.
+ */
+export const tabSeparated = (
+  headings: readonly string[],
+  rows: readonly (readonly string[])[]
+): string =>
+  [headings, ...rows]
+    .map((fields) => fields.map(oneLine).join("\t"))
+    .join("\n");
+
 export interface Field {
   label: string;
   lines: readonly Cell[];

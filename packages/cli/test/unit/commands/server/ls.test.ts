@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 
-import { printServers } from "../../../../src/commands/server/ls";
+import { pipeRows, printServers } from "../../../../src/commands/server/ls";
 import type { Server } from "../../../../src/util/compute";
 
 const NOW = Date.parse("2026-11-06T00:00:00Z");
@@ -99,5 +99,26 @@ describe("server ls at the terminal's width", () => {
     const out = lines([server(long)], 60);
     expect(out).toContain(`  ${long}`);
     expect(out.filter((line) => line.length > 60)).toEqual([`  ${long}`]);
+  });
+});
+
+describe("server ls in a pipe", () => {
+  test("a server with no address has an empty Address field", () => {
+    expect(pipeRows([server("web-1", { addresses: [] })])).toEqual([
+      [
+        "id-web-1",
+        "web-1",
+        "Active",
+        "",
+        "csa.large.v2",
+        "2026-11-03T00:00:00.000Z",
+      ],
+    ]);
+  });
+
+  test("a Kubernetes node keeps its bare name", () => {
+    expect(pipeRows([node("k8s-master-0", "master")])[0]?.[1]).toBe(
+      "k8s-master-0"
+    );
   });
 });

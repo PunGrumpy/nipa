@@ -1185,19 +1185,40 @@ describe("server ls", () => {
     expect(saved.sessions.prod.endpoints).toBeUndefined();
   });
 
-  test("prints a table on stderr and one ID per line to a pipe", async () => {
+  test("a pipe gets a tab-separated table on stdout and only the context line on stderr", async () => {
     const { code, stderr, stdout } = await run(["servers", "list"]);
     expect(code).toBe(0);
     expect(stderr).toMatch(/> Servers in Alpha \[\d+(?:ms|s)\]/u);
-    // The width is unknown on a pipe, so the table fits 80 columns: it drops
-    // Flavor and Age, and the Kubernetes role stays long while it fits.
-    expect(stderr).toMatch(/Name\s+Status\s+Address\n/u);
-    expect(stderr).not.toMatch(/Flavor|Age/u);
-    expect(stderr).toMatch(/web-1\s+● Active\s+203\.0\.113\.10\n/u);
-    expect(stderr).toMatch(
-      /k8s-control-plane-1 \(Kubernetes master\)\s+● Active\s+198\.51\.100\.9/u
-    );
-    expect(stdout.trim().split("\n")).toEqual(FAKE_SERVERS.map((s) => s.id));
+    expect(stderr).not.toMatch(/Name\s+Status/u);
+    expect(stderr).not.toContain("●");
+    const lines = stdout.trimEnd().split("\n");
+    expect(lines[0]).toBe("ID\tName\tStatus\tAddress\tFlavor\tCreated");
+    // Every row has the same six fields, and none of them is padded.
+    const rows = lines.slice(1).map((line) => line.split("\t"));
+    expect(rows.map((row) => row.length)).toEqual(rows.map(() => 6));
+    expect(rows.map(([id]) => id)).toEqual(FAKE_SERVERS.map((s) => s.id));
+    const web1 = rows.find(([, name]) => name === "web-1");
+    expect(web1?.slice(1, 5)).toEqual([
+      "web-1",
+      "Active",
+      "203.0.113.10",
+      "csa.large.v2",
+    ]);
+    expect(web1?.[5]).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/u);
+    // A Kubernetes node keeps its bare name in the pipe.
+    expect(stdout).toContain("\tk8s-control-plane-1\tActive\t");
+    expect(stdout).not.toContain("Kubernetes");
+    expect(stdout).not.toContain("● ");
+  });
+
+  test("cut -f1 of a pipe's rows gives the server IDs", async () => {
+    const { stdout } = await run(["server", "ls"]);
+    const ids = stdout
+      .trimEnd()
+      .split("\n")
+      .slice(1)
+      .map((line) => line.split("\t")[0]);
+    expect(ids).toEqual(FAKE_SERVERS.map((s) => s.id));
   });
 
   test("a project without servers says so after a switch", async () => {
@@ -1205,7 +1226,8 @@ describe("server ls", () => {
     const { code, stderr, stdout } = await run(["server", "ls"]);
     expect(code).toBe(0);
     expect(stderr).toContain("No servers in Beta");
-    expect(stdout).toBe("");
+    // A pipe still gets the header, so a script's cut and grep see a table.
+    expect(stdout).toBe("ID\tName\tStatus\tAddress\tFlavor\tCreated\n");
   });
 
   test("a revoked token asks for a new login", async () => {
@@ -1635,8 +1657,8 @@ describe("server start, stop and restart", () => {
     expect(keystone.requests).toContain(
       "GET /api/v4/instances/22222222-2222-4222-8222-222222222222"
     );
-    const { stderr: list } = await run(["server", "ls"]);
-    expect(list).toMatch(/web-1\s+● Shutoff/u);
+    const { stdout: list } = await run(["server", "ls"]);
+    expect(list).toMatch(/\tweb-1\tShutoff\t/u);
   });
 
   test("a stopped server: stop is a no-op, restart says to start it", async () => {

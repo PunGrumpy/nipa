@@ -114,6 +114,14 @@ export const serverCommand = defineGroup({
       description: "Start web-1 without waiting for it",
     },
     {
+      command: "nipa server ls | grep web",
+      description: "Find the servers with web in their name or address",
+    },
+    {
+      command: "nipa server ls | tail -n +2 | cut -f1",
+      description: "Print each server's ID",
+    },
+    {
       command: "nipa server ls --json | jq -r '.servers[].name'",
       description: "Print each server's name",
     },
