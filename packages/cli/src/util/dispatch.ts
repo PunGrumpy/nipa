@@ -9,7 +9,7 @@ import type { Client } from "./client";
 import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
 import { commandHelp, mainHelp } from "./help";
-import { asksForHelp, takeGlobals } from "./parse";
+import { asksForHelp, asksForJson, takeGlobals } from "./parse";
 import { namesOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
 import { CliError, usageError } from "./ui";
@@ -18,9 +18,13 @@ import { CliError, usageError } from "./ui";
 export type Outcome =
   /** Help or the version, for stdout. Exit 0. */
   | { readonly kind: "print"; readonly text: string }
-  /** A handler ran. `updateNotice` is false when a spec on its path says so. */
+  /**
+   * A handler ran. `updateNotice` is false when a spec on its path says so.
+   * `interactive` is the run's prompt mode, which the update check follows.
+   */
   | {
       readonly exitCode: number;
+      readonly interactive: boolean;
       readonly kind: "ran";
       readonly updateNotice: boolean;
     };
@@ -31,6 +35,7 @@ export interface RunInput {
   /** Makes the run's client once every global option is known. Tests can pass a fake. */
   readonly createClient: (input: {
     globals: GlobalValues;
+    json: boolean;
     program: ProgramSpec;
   }) => Client;
   readonly program: Program;
@@ -53,10 +58,15 @@ type Resolved =
 
 const print = (text: string): Outcome => ({ kind: "print", text });
 
-const ran = (exitCode: number, path: CommandPath): Outcome => ({
-  exitCode,
+const ran = (input: {
+  client: Client;
+  exitCode: number;
+  path: CommandPath;
+}): Outcome => ({
+  exitCode: input.exitCode,
+  interactive: input.client.prompts.interactive,
   kind: "ran",
-  updateNotice: path.every((spec) => spec.updateNotice !== false),
+  updateNotice: input.path.every((spec) => spec.updateNotice !== false),
 });
 
 /** Every command by name and alias, hidden ones included. */
@@ -203,11 +213,17 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     if (front.globals.help) {
       return print(commandHelp([command.spec]));
     }
+    // The words after a passthrough command belong to its program.
     const client = input.createClient({
       globals: front.globals,
+      json: false,
       program: spec,
     });
-    return ran(await command.run({ client, words: after }), [command.spec]);
+    return ran({
+      client,
+      exitCode: await command.run({ client, words: after }),
+      path: [command.spec],
+    });
   }
   const resolved: Resolved =
     command.kind === "group"
@@ -228,6 +244,14 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     words: resolved.words,
   });
   const globals = { ...front.globals, ...prepared.globals };
-  const client = input.createClient({ globals, program: spec });
-  return ran(await prepared.run(client), resolved.path);
+  const client = input.createClient({
+    globals,
+    json: asksForJson(resolved.words),
+    program: spec,
+  });
+  return ran({
+    client,
+    exitCode: await prepared.run(client),
+    path: resolved.path,
+  });
 };

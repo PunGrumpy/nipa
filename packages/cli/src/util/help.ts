@@ -1,8 +1,6 @@
 // Help pages and usage lines come from the specs, so they always list the
 // flags, arguments and subcommands the parser accepts.
 
-import pc from "picocolors";
-
 import { GLOBAL_FLAGS } from "./arg-common";
 import { flagPlaceholder, subjectOf } from "./spec";
 import type {
@@ -14,8 +12,12 @@ import type {
   ProgramSpec,
   Target,
 } from "./spec";
+import { theme } from "./theme";
 
 type Row = readonly [label: string, description: string];
+
+// Help goes to stdout, so stdout decides its colors.
+const colors = theme.stdout;
 
 const INDENT = "    ";
 const LINE_WIDTH = 80;
@@ -160,7 +162,7 @@ const commandRow = (spec: CommandSpec): Row => {
 };
 
 const section = (title: string, body: string): string => {
-  const heading = pc.dim(`${title}:`);
+  const heading = colors.dim(`${title}:`);
   return `  ${heading}\n\n${body}\n`;
 };
 
@@ -168,7 +170,7 @@ const examples = (list: readonly Example[]): string =>
   list
     .map(
       (e) =>
-        `${INDENT}${pc.dim(e.description)}\n${INDENT}${pc.cyan("$")} ${e.command}`
+        `${INDENT}${colors.dim(e.description)}\n${INDENT}${colors.cyan("$")} ${e.command}`
     )
     .join("\n\n");
 
@@ -184,19 +186,19 @@ export const mainHelp = (input: {
   const groups = program.sections.map((s) =>
     section(s.title, table(s.commands.map(commandRow), width))
   );
-  const version = pc.dim(`v${input.version}`);
+  const version = colors.dim(`v${input.version}`);
   return [
     "",
-    `  ${pc.bold("nipa")} ${version}`,
+    `  ${colors.bold("nipa")} ${version}`,
     "",
     wrap(program.summary, "  "),
     "",
-    `  ${pc.dim("Usage:")} nipa [options] <command>`,
+    `  ${colors.dim("Usage:")} nipa [options] <command>`,
     "",
     ...groups,
     section("Global options", table(globalRows, width)),
     section("Examples", examples(program.examples)),
-    `  Run ${pc.bold("nipa <command> --help")} for a command's options.`,
+    `  Run ${colors.bold("nipa <command> --help")} for a command's options.`,
     "",
   ].join("\n");
 };
@@ -213,7 +215,7 @@ export const commandHelp = (path: CommandPath): string => {
   const width = labelWidth([...subcommandRows, ...flagRows, ...globalRows]);
   const parts = [
     "",
-    `  ${pc.dim("Usage:")} ${usageLine(path)}`,
+    `  ${colors.dim("Usage:")} ${usageLine(path)}`,
     "",
     wrap(subject.description ?? subject.summary, "  "),
     "",

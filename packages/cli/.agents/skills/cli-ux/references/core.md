@@ -7,7 +7,7 @@ These rules cover the flow, streams, layout, errors and safety of every nipa com
 nipa writes results and messages to different streams, so a pipe gets only data:
 
 - **stdout**: the command's result, through `client.stdout`: `json()` for `--json`, `line()` for bare values such as one server ID per line, and `write()` for raw text
-- **stderr**: everything else: notes, success lines, errors, spinners, tables, prompts, debug lines and the update notice
+- **stderr**: everything else: notes, success lines, errors, spinners, tables, prompts, debug lines and the update notice (two lines, shown only when nipa can prompt)
 
 Command folders never call `console.*`. `test/unit/commands/index.test.ts` fails when they do.
 
@@ -19,6 +19,19 @@ A command picks its stdout shape from the mode:
 
 Some commands exist to print for a pipe or `eval`, such as `nipa env` and `nipa completion`. They write their whole result to stdout in every mode.
 
+A reader that quits early, as `nipa server ls | head -1` does, closes the pipe. `src/index.ts` ignores the EPIPE that follows on stdout and stderr, so the command keeps its own exit code. It rethrows any other stream error.
+
+### Color
+
+`src/util/theme.ts` decides color once per run and once per stream, because help goes to stdout and everything else to stderr, and the two can differ. It is the only module that imports `picocolors`; a test fails on any other import. Highest first:
+
+1. `--no-color` before `--`
+2. A nonempty `NO_COLOR`
+3. `FORCE_COLOR`, where `0` and `false` mean off and any other value means on. On stderr it turns color on for a pipe, and everything nipa paints there takes it. Help, the only thing painted for stdout, stays plain in a pipe even when forced
+4. Whether that stream is a terminal and `TERM` isn't `dumb`
+
+`CI` says nothing about color. `help.ts` paints with the stdout palette, so help has color only on a terminal with `TERM` not `dumb`, and `ui.ts`, `http.ts` and `update.ts` paint with the stderr one, through the `bold`, `cyan` and other exports of `ui.ts`. A command that writes to `client.stdout` paints nothing, so `--json` stays free of escape codes even with `FORCE_COLOR=1`.
+
 ## Output helpers
 
 Use the helpers in `src/util/ui.ts` instead of hand-built lines:
@@ -28,7 +41,7 @@ Use the helpers in `src/util/ui.ts` instead of hand-built lines:
 | `log(message)` | `> message`, with a dim `>` | State, context and next steps |
 | `success(message, elapsedMs?)` | `> Success! message [1s]` | The one line that confirms a completed change |
 | `note(message)` | `> NOTE: message`, in bold yellow | A no-op or a condition the person should know about |
-| `withSpinner(message, task)` | A spinner after 300 ms, in a terminal only, erased when `task` ends | Network calls and other waits |
+| `withSpinner(message, task)` | A spinner after 300 ms, erased when `task` ends. Only where nipa can prompt, and never with `TERM=dumb` | Network calls and other waits |
 | `printTable({ headings, rows, marks })` | A borderless table between blank lines, 2 spaces in | Lists of resources |
 | `throw new CliError(message, options)` | `Error: message`, then `> hint`, through `printError` in `src/index.ts` | Failures |
 
@@ -58,11 +71,11 @@ Read-only commands skip steps 4 to 6 and print their result.
 
 Prompt only when all of these hold:
 
-- `client.prompts.interactive` is true, which means stdin and stderr are both terminals
+- `client.prompts.interactive` is true. It is false when any of these holds: `--non-interactive`, `--json` before `--` in the leaf's words (passthrough commands excluded), a nonempty `CI`, or a stdin or stderr that isn't a terminal. `src/util/ui.ts` resolves it once per run in `createPrompts`
 - nipa can't infer the value
 - no argument or flag supplied it
 
-Never require a prompt. Without a terminal, fail with `usageError`, exit code 2, and a hint naming the flag or argument, as `profile add` does with `missing --auth-url`.
+Never require a prompt. When nipa can't prompt, fail with `usageError`, exit code 2, and a hint naming the flag or argument, as `profile add` does with `missing --auth-url`.
 
 Prompt wording:
 
@@ -128,9 +141,9 @@ nipa handles passwords, OTP codes and Keystone tokens:
 
 Treat these as contracts. Change them only with a migration, tests, and a changeset when users see it:
 
-- Command names, aliases, flags and their short forms
+- Command names, aliases, flags and their short forms. The global flags are `--profile`, `--debug`, `--no-color`, `--non-interactive`, `--help` and `--version`
 - Exit codes: 0 for success, 1 for a failure, 2 for a wrong command line, 127 when `os`, `tf` or `exec` can't find the program, 130 for Ctrl-C or a declined confirmation, and the child's code for passthrough commands
-- Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
+- Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
 - The files in the config directory and their JSON shape
 - `--json` field names and meanings. Add fields freely, but don't rename or remove them
 - The bare values that piped stdout prints

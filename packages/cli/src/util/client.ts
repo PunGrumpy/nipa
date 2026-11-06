@@ -13,7 +13,7 @@ import {
 } from "./session";
 import type { ActiveProfile, Cloud, SignedIn } from "./session";
 import type { ProgramSpec } from "./spec";
-import { createPrompts, createResultStream } from "./ui";
+import { createPrompts, createResultStream, setAnimation } from "./ui";
 import type { Prompts, ResultStream } from "./ui";
 
 export interface Client {
@@ -56,17 +56,23 @@ const once = <T>(task: () => Promise<T>): (() => Promise<T>) => {
 
 export const createClient = (input: {
   globals: GlobalValues;
+  /** The command line asks for `--json`. False for a passthrough command. */
+  json: boolean;
   program: ProgramSpec;
 }): Client => {
-  const { globals, program } = input;
+  const { globals, json, program } = input;
   // util/http.ts reads NIPA_DEBUG on each request.
   if (globals.debug) {
     process.env.NIPA_DEBUG = "1";
   }
   const prompts = createPrompts({
+    env: process.env,
+    json,
+    nonInteractive: globals["non-interactive"] === true,
     stderr: process.stderr,
     stdin: process.stdin,
   });
+  setAnimation(prompts.interactive && process.env.TERM !== "dumb");
   const link = once(() => findLink());
   const profile = once(async () =>
     resolveProfile({ link: await link(), override: globals.profile })

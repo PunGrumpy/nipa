@@ -7,7 +7,11 @@ import confirm from "@inquirer/confirm";
 import input from "@inquirer/input";
 import password from "@inquirer/password";
 import select from "@inquirer/select";
-import pc from "picocolors";
+
+import { theme } from "./theme";
+
+// Everything these paint goes to stderr, so stderr decides the colors.
+export const { bold, cyan, dim, gray, green, red, yellow } = theme.stderr;
 
 export class CliError extends Error {
   readonly hint?: string;
@@ -214,23 +218,23 @@ export const writeStderr = (line: string): void => {
 };
 
 export const log = (message: string): void => {
-  writeStderr(`${pc.dim(">")} ${message}`);
+  writeStderr(`${dim(">")} ${message}`);
 };
 
 export const success = (message: string, elapsedMs?: number): void => {
   const time = elapsedMs === undefined ? "" : `[${formatElapsed(elapsedMs)}]`;
-  const elapsed = time ? ` ${pc.dim(time)}` : "";
-  writeStderr(`${pc.cyan("> Success!")} ${message}${elapsed}`);
+  const elapsed = time ? ` ${dim(time)}` : "";
+  writeStderr(`${cyan("> Success!")} ${message}${elapsed}`);
 };
 
 export const note = (message: string): void => {
-  writeStderr(`${pc.bold(pc.yellow("> NOTE:"))} ${message}`);
+  writeStderr(`${bold(yellow("> NOTE:"))} ${message}`);
 };
 
 export const printError = (error: CliError): void => {
-  writeStderr(`${pc.bold(pc.red("Error:"))} ${error.message}`);
+  writeStderr(`${bold(red("Error:"))} ${error.message}`);
   if (error.hint) {
-    writeStderr(`${pc.dim(">")} ${error.hint}`);
+    writeStderr(`${dim(">")} ${error.hint}`);
   }
 };
 
@@ -238,11 +242,18 @@ const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "
 const SPINNER_DELAY_MS = 300;
 const ERASE_LINE = "\r\u001B[2K";
 
+let animating = false;
+
+/** createClient decides once per run, and until it does, nothing animates. */
+export const setAnimation = (on: boolean): void => {
+  animating = on;
+};
+
 export const withSpinner = async <T>(
   message: string,
   task: () => Promise<T>
 ): Promise<T> => {
-  if (!process.stderr.isTTY) {
+  if (!animating) {
     return task();
   }
   let frame = 0;
@@ -253,7 +264,7 @@ export const withSpinner = async <T>(
     const symbol = FRAMES[frame % FRAMES.length] ?? "";
     frame += 1;
     process.stderr.write(
-      `\r${pc.dim(symbol)} ${clean(message, { newline: false, sgr: true })}`
+      `\r${dim(symbol)} ${clean(message, { newline: false, sgr: true })}`
     );
   };
   const delay = setTimeout(() => {
@@ -311,8 +322,9 @@ interface ConfirmPrompt {
 /** Questions for the person at the terminal. Each one throws exit 130 on Ctrl-C. */
 export interface Prompts {
   /**
-   * True when stdin and stderr are terminals. Ask only then. Without one, a
-   * command fails with a hint naming the flag or argument to pass instead.
+   * True when stdin and stderr are terminals and nothing said not to ask:
+   * not `--non-interactive`, not `--json`, and no CI variable. Ask only then.
+   * Otherwise a command fails with a hint naming the flag or argument to pass.
    */
   readonly interactive: boolean;
   readonly text: (options: TextPrompt) => Promise<string>;
@@ -325,12 +337,42 @@ export interface Prompts {
 const promptLine = (text: string): string =>
   clean(text, { newline: false, sgr: true });
 
+// inquirer paints with node:util's styleText, which asks stdout about color
+// and ignores --no-color. This theme repaints every part the four prompts
+// use from the stderr palette, so a prompt follows the same decision as the
+// lines around it.
+const promptTheme = {
+  prefix: { done: green("✔"), idle: theme.stderr.blue("?") },
+  spinner: { frames: FRAMES.map((frame) => yellow(frame)), interval: 80 },
+  style: {
+    answer: cyan,
+    defaultAnswer: (text: string) => dim(`(${text})`),
+    description: cyan,
+    error: (text: string) => red(`> ${text}`),
+    help: dim,
+    highlight: cyan,
+    keysHelpTip: (keys: readonly (readonly [string, string])[]) =>
+      keys
+        .map(([key, action]) => `${bold(key)} ${dim(action)}`)
+        .join(dim(" • ")),
+    message: bold,
+  },
+};
+
 /** The prompts for one run, on these terminal streams. */
 export const createPrompts = (streams: {
   stdin: NodeJS.ReadableStream & { isTTY?: boolean };
   stderr: NodeJS.WritableStream & { isTTY?: boolean };
+  env: NodeJS.ProcessEnv;
+  /** `--non-interactive` was given. */
+  nonInteractive: boolean;
+  /** The command line asks for `--json`, whose stdout is for a program. */
+  json: boolean;
 }): Prompts => {
   const context = { input: streams.stdin, output: streams.stderr };
+  const refused = streams.nonInteractive || streams.json || !!streams.env.CI;
+  const interactive =
+    !refused && streams.stdin.isTTY === true && streams.stderr.isTTY === true;
   return {
     choice: (options) =>
       prompt(() =>
@@ -346,18 +388,29 @@ export const createPrompts = (streams: {
               name: promptLine(choice.name),
             })),
             message: promptLine(options.message),
+            theme: promptTheme,
           },
           context
         )
       ),
     confirm: (options) =>
       prompt(() =>
-        confirm({ ...options, message: promptLine(options.message) }, context)
+        confirm(
+          {
+            ...options,
+            message: promptLine(options.message),
+            theme: promptTheme,
+          },
+          context
+        )
       ),
-    interactive: streams.stdin.isTTY === true && streams.stderr.isTTY === true,
+    interactive,
     secret: (message) =>
       prompt(() =>
-        password({ mask: "*", message: promptLine(message) }, context)
+        password(
+          { mask: "*", message: promptLine(message), theme: promptTheme },
+          context
+        )
       ),
     text: (options) =>
       prompt(() =>
@@ -366,6 +419,7 @@ export const createPrompts = (streams: {
             ...options,
             message: promptLine(options.message),
             required: options.required ?? true,
+            theme: promptTheme,
           },
           context
         )
@@ -399,8 +453,6 @@ export const createResultStream = (
     stdout.write(text);
   },
 });
-
-export const { bold, cyan, dim, gray, green, red, yellow } = pc;
 
 export type Paint = (text: string) => string;
 

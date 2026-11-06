@@ -1,12 +1,10 @@
-import pc from "picocolors";
-
-import { formatElapsed, writeStderr } from "./ui";
+import { dim, formatElapsed, writeStderr } from "./ui";
 
 export const isDebug = (): boolean => process.env.NIPA_DEBUG === "1";
 
 export const debug = (message: string): void => {
   if (isDebug()) {
-    writeStderr(pc.dim(`> [debug] [${new Date().toISOString()}] ${message}`));
+    writeStderr(dim(`> [debug] [${new Date().toISOString()}] ${message}`));
   }
 };
 

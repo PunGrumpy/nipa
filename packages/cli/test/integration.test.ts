@@ -22,7 +22,10 @@ import path from "node:path";
 import pkg from "../package.json" with { type: "json" };
 import {
   ENTRY,
+  runOnTerminals,
   runProcess,
+  runWithClosedStderr,
+  runWithClosedStdout,
   seedLegacySession,
   seedSession,
   testEnv,
@@ -151,6 +154,244 @@ describe("help and usage", () => {
   });
 });
 
+describe("a closed pipe", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("a closed stdout is not an error", async () => {
+    const { code, stderr } = await runWithClosedStdout(
+      ["bun", ENTRY, "profile", "ls", "--json"],
+      testEnv(dir)
+    );
+    expect(stderr).toBe("");
+    expect(code).toBe(0);
+  });
+});
+
+describe("a closed stderr", () => {
+  test("keeps the exit code of the error it could not print", async () => {
+    const { code } = await runWithClosedStderr(
+      ["bun", ENTRY, "logn"],
+      testEnv(dir)
+    );
+    expect(code).toBe(2);
+  });
+});
+
+// NO_COLOR is empty, so it doesn't count and FORCE_COLOR can speak.
+const colorEnv = (extra: Record<string, string>) => ({
+  NO_COLOR: "",
+  ...extra,
+});
+
+describe("streams and colors", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  const ESC = "\u001B";
+
+  test("FORCE_COLOR leaves piped help and --json plain", async () => {
+    const env = colorEnv({ FORCE_COLOR: "1" });
+    const help = await run(["--help"], env);
+    expect(help.stdout).toContain("Usage:");
+    expect(help.stdout).not.toContain(ESC);
+    const json = await run(["whoami", "--json"], env);
+    expect(json.code).toBe(0);
+    expect(json.stdout).not.toContain(ESC);
+    expect(JSON.parse(json.stdout)).toMatchObject({ loggedIn: true });
+  });
+
+  test("FORCE_COLOR colors the messages on stderr", async () => {
+    const { stderr } = await run(["logn"], colorEnv({ FORCE_COLOR: "1" }));
+    expect(stderr).toContain(`${ESC}[`);
+  });
+
+  test("--no-color and NO_COLOR beat FORCE_COLOR", async () => {
+    const forced = { FORCE_COLOR: "1" };
+    const flag = await run(["--help", "--no-color"], colorEnv(forced));
+    expect(flag.stdout).not.toContain(ESC);
+    const env = await run(["--help"], { ...forced, NO_COLOR: "1" });
+    expect(env.stdout).not.toContain(ESC);
+    const error = await run(["logn", "--no-color"], colorEnv(forced));
+    expect(error.stderr).not.toContain(ESC);
+  });
+
+  test("CI doesn't color a pipe", async () => {
+    const help = await run(["--help"], colorEnv({ CI: "1" }));
+    expect(help.stdout).not.toContain(ESC);
+    const error = await run(["logn"], colorEnv({ CI: "1" }));
+    expect(error.stderr).not.toContain(ESC);
+  });
+});
+
+// The color codes in text, not the cursor movements that a prompt also writes.
+const colorCodes = (text: string): string[] =>
+  text
+    .split("\u001B[")
+    .slice(1)
+    .filter((rest) => /^[\d;]*m/u.test(rest));
+
+const onTerminals = (
+  terminals: ("stdin" | "stdout" | "stderr")[],
+  args: string[]
+) =>
+  // NO_COLOR is empty, so it doesn't count.
+  runOnTerminals({ args, env: { ...testEnv(dir), NO_COLOR: "" }, terminals });
+
+// A terminal on some streams and a pipe on the others, as `nipa ... | cat`
+// in a terminal, or `nipa ... 2>log`, leave them.
+describe("what a terminal changes", () => {
+  const ESC = "\u001B";
+  beforeAll(freshDir);
+
+  test("help follows stdout and messages follow stderr", async () => {
+    const [help, error, piped, colorful] = await Promise.all([
+      onTerminals(["stdout"], ["--help"]),
+      onTerminals(["stdout"], ["logn"]),
+      onTerminals(["stderr"], ["--help"]),
+      onTerminals(["stderr"], ["logn"]),
+    ]);
+    expect(help.stdout).toContain(ESC);
+    expect(error.stderr).not.toContain(ESC);
+    expect(piped.stdout).not.toContain(ESC);
+    expect(colorful.stderr).toContain(ESC);
+  });
+
+  test("a prompt follows the colors of the lines around it", async () => {
+    // stdout is a pipe, as in `nipa profile add dev | cat`.
+    const piped = await onTerminals(
+      ["stdin", "stderr"],
+      ["profile", "add", "dev"]
+    );
+    expect(piped.stderr).toContain("Keystone URL");
+    expect(piped.stderr).toContain(`${ESC}[34m?`);
+    expect(piped.stderr).toContain(`${ESC}[1mKeystone URL`);
+  });
+
+  test("a terminal can be asked to log in", async () => {
+    const { code, stderr } = await onTerminals(
+      ["stdin", "stderr"],
+      ["server", "ls"]
+    );
+    expect(stderr).toContain("You aren't logged in yet");
+    expect(stderr).toContain("Email");
+    expect(code).toBe(130);
+  });
+
+  test("--json never asks, even at a terminal", async () => {
+    const { code, stderr } = await onTerminals(
+      ["stdin", "stdout", "stderr"],
+      ["server", "ls", "--json"]
+    );
+    expect(stderr).toContain("you aren't logged in to prod");
+    expect(stderr).not.toContain("Email");
+    expect(code).toBe(1);
+  });
+
+  test("CI never asks, even at a terminal", async () => {
+    const { code, stderr } = await runOnTerminals({
+      args: ["server", "ls"],
+      env: { ...testEnv(dir), CI: "1", NO_COLOR: "" },
+      terminals: ["stdin", "stdout", "stderr"],
+    });
+    expect(stderr).toContain("you aren't logged in to prod");
+    expect(stderr).not.toContain("Email");
+    expect(code).toBe(1);
+  });
+
+  test.each([
+    ["after the command", ["server", "ls", "--non-interactive"]],
+    ["before the command", ["--non-interactive", "server", "ls"]],
+  ])(
+    "--non-interactive %s never asks, even at a terminal",
+    async (_where, args) => {
+      const { code, stderr } = await onTerminals(["stdin", "stderr"], args);
+      expect(stderr).toContain("you aren't logged in to prod");
+      expect(stderr).not.toContain("Email");
+      expect(code).toBe(1);
+    }
+  );
+
+  describe("the update notice", () => {
+    const NOTICE = "nipa 99.0.0 is available";
+
+    beforeAll(async () => {
+      await mkdir(inDir(".cache", "nipa"), { recursive: true });
+      await writeFile(
+        inDir(".cache", "nipa", "update.json"),
+        JSON.stringify({
+          checkedAt: new Date().toISOString(),
+          latest: "99.0.0",
+        })
+      );
+    });
+
+    test("shows where nipa can prompt", async () => {
+      const { stderr } = await onTerminals(
+        ["stdin", "stderr"],
+        ["profile", "ls"]
+      );
+      expect(stderr).toContain(NOTICE);
+    });
+
+    test("stays away from a run that can't prompt", async () => {
+      const closedStdin = await onTerminals(["stderr"], ["profile", "ls"]);
+      expect(closedStdin.stderr).not.toContain(NOTICE);
+      const json = await onTerminals(
+        ["stdin", "stderr"],
+        ["profile", "ls", "--json"]
+      );
+      expect(json.stderr).not.toContain(NOTICE);
+      const quiet = await onTerminals(
+        ["stdin", "stderr"],
+        ["profile", "ls", "--non-interactive"]
+      );
+      expect(quiet.stderr).not.toContain(NOTICE);
+    });
+  });
+
+  describe("--no-color leaves each kind of prompt plain", () => {
+    beforeAll(async () => {
+      const profile = {
+        authUrl: "https://keystone.example/v3",
+        region: "NCP-TH",
+        userDomain: "nipacloud",
+      };
+      await writeFile(
+        inDir("config.json"),
+        JSON.stringify({
+          currentProfile: "prod",
+          profiles: { dev: profile, prod: profile },
+        })
+      );
+    });
+
+    test.each([
+      ["text", ["profile", "add", "staging"], "Keystone URL"],
+      ["choice", ["profile", "use"], "Use profile:"],
+      ["confirm", ["profile", "rm", "dev"], "Remove profile dev"],
+      [
+        "password",
+        ["login", "--username", "a@example.com", "--project", "a".repeat(32)],
+        "Password",
+      ],
+    ])("%s", async (_kind, args, message) => {
+      const { code, stderr } = await onTerminals(
+        ["stdin", "stdout", "stderr"],
+        ["--no-color", ...args]
+      );
+      expect(stderr).toContain(message);
+      // The prompt still moves the cursor, which is not color.
+      expect(colorCodes(stderr)).toEqual([]);
+      expect(code).toBe(130);
+    });
+  });
+});
+
 describe("without a session", () => {
   beforeEach(freshDir);
 
@@ -175,7 +416,10 @@ describe("without a session", () => {
   test("login fails fast without a terminal", async () => {
     const { code, stderr } = await run(["login"]);
     expect(code).toBe(1);
-    expect(stderr).toContain("needs a terminal");
+    expect(stderr).toContain("needs to ask for your password");
+    expect(stderr).toContain("nipa can't prompt here");
+    expect(stderr).toContain("without `--non-interactive` or `CI`");
+    expect(stderr).not.toContain("needs a terminal");
   });
 
   test("logout is a no-op", async () => {
@@ -311,6 +555,17 @@ describe("profiles", () => {
     const { code, stderr } = await run(["profile", "add", "dev"]);
     expect(code).toBe(2);
     expect(stderr).toContain("missing --auth-url");
+    expect(stderr).toContain(
+      "Pass every value as a flag when nipa can't prompt."
+    );
+    expect(stderr).not.toContain("no terminal");
+  });
+
+  test("--non-interactive is accepted before and after the command", async () => {
+    const before = await run(["--non-interactive", "profile", "ls", "--json"]);
+    const after = await run(["profile", "ls", "--json", "--non-interactive"]);
+    expect(before.code).toBe(0);
+    expect(after.stdout).toBe(before.stdout);
   });
 
   test("use switches the current profile", async () => {
@@ -1557,7 +1812,7 @@ describe("saved passwords and session expiry", () => {
   test("login --remember without a terminal fails before the keychain", async () => {
     const { code, stderr } = await run(["login", "--remember"]);
     expect(code).toBe(1);
-    expect(stderr).toContain("`nipa login` needs a terminal");
+    expect(stderr).toContain("`nipa login` needs to ask for your password");
     expect(await readFakeKeychain(dir)).toEqual({});
   });
 

@@ -63,10 +63,10 @@ These options belong to one command:
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
 | `--user-domain <domain>` | `profile add` | The user domain. The default is `nipacloud` |
 | `--region <region>` | `profile add` | The region. The default is `NCP-TH` |
-| `--space-url <url>` | `profile add` | The Space portal URL, such as `https://space.nipa.cloud`, or its API URL. nipa saves the API under the portal's `/api` and checks that it answers. A profile on production's Keystone gets `https://space.nipa.cloud/api` without it. With another Keystone, nipa asks for it in a terminal, and Enter skips it |
+| `--space-url <url>` | `profile add` | The Space portal URL, such as `https://space.nipa.cloud`, or its API URL. nipa saves the API under the portal's `/api` and checks that it answers. A profile on production's Keystone gets `https://space.nipa.cloud/api` without it. With another Keystone, nipa asks for it when it can prompt, and Enter skips it |
 | `--use` | `profile add` | Makes the new profile the current one |
 | `--install` | `completion` | Saves the script where the shell loads it, instead of printing it |
-| `-y, --yes` | `profile rm`, `server stop`, `server restart` | Skips the confirmation. Without a terminal, these commands need it |
+| `-y, --yes` | `profile rm`, `server stop`, `server restart` | Skips the confirmation. When nipa can't prompt, these commands need it |
 | `--no-wait` | `server start`, `server stop`, `server restart` | Returns once the Space API takes the action, without waiting for the server |
 | `-n, --tail <n>` | `server logs` | Prints only the last `n` lines. Without it, nipa prints every line the Space API sends |
 | `--timeout <duration>` | `server start`, `server stop`, `server restart` | How long to wait for the server, as a number and `s`, `m` or `h`, such as `90s` or `10m`. The default is `5m`. It can't go with `--no-wait` |
@@ -79,7 +79,8 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | --- | --- | --- |
 | `-P, --profile <name>` | `NIPA_PROFILE` | Uses this profile instead of the current one |
 | `-d, --debug` | `NIPA_DEBUG=1` | Logs each HTTP request: method, URL, status and time. Never headers or bodies |
-| `--no-color` | `NO_COLOR=1` | Turns off colors |
+| `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on for the messages nipa writes to a pipe, but help stays plain in a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
+| `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
 | `-h, --help` |  | Prints help |
 | `-v, --version` |  | Prints the version |
 
@@ -95,7 +96,8 @@ These variables change where nipa keeps files and when it checks for updates:
 | `XDG_CACHE_HOME` | The parent of `nipa/update.json` and `nipa/openstack.json`. The default is `~/.cache` |
 | `XDG_DATA_HOME` | The parent of `bash-completion/completions/nipa`, where `nipa completion --install` saves the bash script. The default is `~/.local/share` |
 | `NIPA_NO_UPDATE_CHECK` | Turns off the update check when set to any value |
-| `CI` | Turns off the update check when set to any value |
+| `NO_UPDATE_NOTIFIER` | Turns off the update check when set to any value |
+| `CI` | Turns off prompts, spinners and the update check when set to any value |
 
 ## Files
 
@@ -655,4 +657,4 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 
 ## Update check
 
-On a terminal, nipa checks the [GitHub releases](https://github.com/PunGrumpy/nipa/releases) for a newer version at most once every 24 hours, after the command finishes. It waits at most 1.5 seconds for the answer. When a newer version exists, nipa prints a box with the version and a link to its release notes.
+Where nipa can prompt, nipa checks the [GitHub releases](https://github.com/PunGrumpy/nipa/releases) for a newer version at most once every 24 hours, after the command finishes. It waits at most 1.5 seconds for the answer. When a newer version exists, nipa prints two lines with the version and a link to its release notes.

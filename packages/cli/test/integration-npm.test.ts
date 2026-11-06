@@ -7,7 +7,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import pkg from "../package.json" with { type: "json" };
-import { ENTRY, runProcess, seedSession, testEnv } from "./helpers";
+import {
+  ENTRY,
+  runProcess,
+  runWithClosedStderr,
+  runWithClosedStdout,
+  seedSession,
+  testEnv,
+} from "./helpers";
 import { startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import { FAKE_SERVERS } from "./mocks/space";
@@ -47,6 +54,23 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
     const { code, stdout } = await node("--version");
     expect(code).toBe(0);
     expect(stdout.trim()).toBe(pkg.version);
+  });
+
+  test("a closed stdout is not an error", async () => {
+    const { code, stderr } = await runWithClosedStdout(
+      ["node", bundle, "profile", "ls", "--json"],
+      testEnv(dir)
+    );
+    expect(stderr).toBe("");
+    expect(code).toBe(0);
+  });
+
+  test("a closed stderr keeps the exit code of the error", async () => {
+    const { code } = await runWithClosedStderr(
+      ["node", bundle, "logn"],
+      testEnv(dir)
+    );
+    expect(code).toBe(2);
   });
 
   test("lists servers through the Space API", async () => {

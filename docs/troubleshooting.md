@@ -26,7 +26,7 @@ The account's MFA rules don't include `totp`, so a password and an OTP code can'
 
 The profile has no session, or its token expired after the 24 hours a Nipa Cloud token lasts. In a terminal, nipa logs you in before it runs the command.
 
-In a script, nothing can type a password, so nipa stops with this error instead. Run `nipa login` in a terminal, then run the script again.
+Where nipa can't prompt, it stops with this error instead: in a script, in CI, or with `--json` or `--non-interactive`. Run `nipa login` in a terminal, then run the command again.
 
 ## "your prod session expired or was revoked"
 
@@ -50,9 +50,9 @@ The profile's Keystone isn't production's, and nobody gave it a Space portal URL
 
 The profile's `spaceUrl` answers with something other than JSON, such as the portal's web page. The portal does that for a path it doesn't know. Check the URL with `nipa profile ls --json`. It's the portal URL with `/api`, such as `https://space.nipa.cloud/api`. To change it, remove the profile with `nipa profile rm` and add it again with `--space-url`.
 
-## "`nipa login` needs a terminal to ask for your password"
+## "`nipa login` needs to ask for your password, and nipa can't prompt here"
 
-You ran `nipa login` where nothing can type the answers, such as in continuous integration (CI) or with stdin redirected. nipa never reads a password from a pipe. Log in from a terminal first.
+You ran `nipa login` where nipa doesn't prompt: stdin or stderr isn't a terminal, `CI` has a value, or you passed `--non-interactive`. nipa never reads a password from a pipe. Log in from a terminal without those, then run the command again.
 
 ## "the macOS Keychain didn't save your password" or "nipa can't save your password on …"
 

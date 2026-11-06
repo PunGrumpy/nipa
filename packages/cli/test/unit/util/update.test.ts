@@ -1,9 +1,11 @@
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
   expect,
+  spyOn,
   test,
 } from "bun:test";
 import {
@@ -40,27 +42,47 @@ describe("isNewer", () => {
 });
 
 describe("shouldCheck", () => {
-  const release = { env: {}, isTTY: true, version: "0.1.0" };
+  const release = { env: {}, interactive: true, version: "0.1.0" };
 
-  test("checks a release build on a terminal", () => {
+  test("checks a release build when nipa can prompt", () => {
     expect(shouldCheck(release)).toBe(true);
   });
 
-  test("skips CI, scripts, dev builds and the opt-out", () => {
-    expect(shouldCheck({ ...release, env: { CI: "true" } })).toBe(false);
-    expect(shouldCheck({ ...release, isTTY: false })).toBe(false);
+  test("skips a run that can't prompt, a dev build and the opt-outs", () => {
+    expect(shouldCheck({ ...release, interactive: false })).toBe(false);
     expect(shouldCheck({ ...release, version: "0.0.0" })).toBe(false);
     expect(
       shouldCheck({ ...release, env: { NIPA_NO_UPDATE_CHECK: "1" } })
     ).toBe(false);
+    expect(shouldCheck({ ...release, env: { NO_UPDATE_NOTIFIER: "1" } })).toBe(
+      false
+    );
   });
 });
 
-test("the notice names both versions and links the release", () => {
+describe("updateNotice", () => {
   const notice = updateNotice("0.2.0", "0.1.0");
-  expect(notice).toContain("v0.1.0");
-  expect(notice).toContain("v0.2.0");
-  expect(notice).toContain("releases/tag/v0.2.0");
+
+  test("names both versions and links the release, in two lines", () => {
+    expect(notice.trim().split("\n")).toEqual([
+      "nipa 0.2.0 is available. You have 0.1.0.",
+      "Release notes: https://github.com/PunGrumpy/nipa/releases/tag/v0.2.0",
+    ]);
+  });
+
+  test("carries no paint, so a terminal or FORCE_COLOR changes nothing", () => {
+    expect(notice).not.toContain("\u001B");
+  });
+
+  test("is not the old box", async () => {
+    const source = await Bun.file(
+      path.join(import.meta.dir, "../../../src/util/update.ts")
+    ).text();
+    for (const old of ["Update available!", "╭", "│"]) {
+      expect(notice).not.toContain(old);
+      expect(source).not.toContain(old);
+    }
+  });
 });
 
 /** A GitHub that answers with `tag`, or doesn't answer at all. */
@@ -71,7 +93,7 @@ const github =
 
 const options = (latest: () => Promise<string | undefined>) => ({
   env: {},
-  isTTY: true,
+  interactive: true,
   latest,
 });
 
@@ -117,6 +139,57 @@ describe("checkForUpdate", () => {
       JSON.stringify(value)
     );
   };
+
+  const seedKnown = () =>
+    seed({ checkedAt: new Date().toISOString(), latest: "99.0.0" });
+
+  describe("the notice", () => {
+    let written: string[];
+    let spy: ReturnType<typeof spyOn>;
+
+    beforeEach(() => {
+      written = [];
+      spy = spyOn(process.stderr, "write").mockImplementation((chunk) => {
+        written.push(String(chunk));
+        return true;
+      });
+    });
+
+    afterEach(() => {
+      spy.mockRestore();
+    });
+
+    test("prints once when nipa can prompt and an update is known", async () => {
+      await seedKnown();
+      await checkForUpdate("0.1.0", options(github()));
+      expect(written.join("")).toContain("nipa 99.0.0 is available.");
+    });
+
+    test("prints nothing, and asks GitHub nothing, when nipa can't prompt", async () => {
+      await seedKnown();
+      let calls = 0;
+      await checkForUpdate("0.1.0", {
+        env: {},
+        interactive: false,
+        latest: () => {
+          calls += 1;
+          return github("99.0.0")();
+        },
+      });
+      expect(written).toEqual([]);
+      expect(calls).toBe(0);
+      await expect(readUpdate()).resolves.toMatchObject({ latest: "99.0.0" });
+    });
+
+    test("NO_UPDATE_NOTIFIER keeps it quiet", async () => {
+      await seedKnown();
+      await checkForUpdate("0.1.0", {
+        ...options(github()),
+        env: { NO_UPDATE_NOTIFIER: "1" },
+      });
+      expect(written).toEqual([]);
+    });
+  });
 
   test("remembers a failed check for a day", async () => {
     let calls = 0;

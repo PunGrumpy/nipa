@@ -1,4 +1,4 @@
-import { GLOBAL_FLAGS, helpFlag } from "./arg-common";
+import { GLOBAL_FLAGS, helpFlag, jsonFlag } from "./arg-common";
 import type { GlobalValues } from "./arg-common";
 import { commandLine, usageLine } from "./help";
 import { flagPlaceholder, flagWords } from "./spec";
@@ -217,6 +217,12 @@ export const takeGlobals = (input: {
 /** `-yh`, `-dh`: one dash, letters only. Any `h` in it asks for help. */
 const SHORT_CLUSTER = /^-[a-zA-Z]+$/u;
 
+/** The words before `--`, which are the only ones that can be options. */
+const optionWords = (words: readonly string[]): readonly string[] => {
+  const end = words.indexOf("--");
+  return end === -1 ? words : words.slice(0, end);
+};
+
 /**
  * True when a word before `--` asks for help: `--help`, `-h`, or a cluster
  * of short flags with an `h` in it, such as `-yh`. The cluster is read here
@@ -224,13 +230,23 @@ const SHORT_CLUSTER = /^-[a-zA-Z]+$/u;
  * is missing an argument.
  */
 export const asksForHelp = (words: readonly string[]): boolean => {
-  const end = words.indexOf("--");
-  const options = end === -1 ? words : words.slice(0, end);
   const spellings = new Set(flagWords(helpFlag));
-  return options.some(
+  return optionWords(words).some(
     (word) =>
       spellings.has(word) || (SHORT_CLUSTER.test(word) && word.includes("h"))
   );
+};
+
+/**
+ * True when a word before `--` is `--json`. Read from the words because the
+ * dispatcher builds the client from a `Prepared`, which holds the global
+ * values and a closure over the handler: the leaf's own flags, `json` among
+ * them, stay inside that closure. dispatch.test.ts checks that this agrees
+ * with the parsed `flags.json`.
+ */
+export const asksForJson = (words: readonly string[]): boolean => {
+  const spellings = new Set(flagWords(jsonFlag));
+  return optionWords(words).some((word) => spellings.has(word));
 };
 
 const tokenize = (input: {

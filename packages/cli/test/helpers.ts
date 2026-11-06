@@ -39,6 +39,81 @@ export const runProcess = async (
   return { code, stderr, stdout };
 };
 
+/**
+ * Closes stdout before the command writes to it, as `nipa ... | head -1`
+ * does once head has read its line.
+ */
+export const runWithClosedStdout = async (
+  cmd: string[],
+  env: Record<string, string>
+): Promise<Pick<RunResult, "code" | "stderr">> => {
+  const proc = Bun.spawn(cmd, {
+    env,
+    stderr: "pipe",
+    stdin: "ignore",
+    stdout: "pipe",
+  });
+  await proc.stdout.cancel();
+  const [stderr, code] = await Promise.all([
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { code, stderr };
+};
+
+type Stream = "stdin" | "stdout" | "stderr";
+
+const FAKE_TERMINALS = path.join(import.meta.dir, "fake-terminals.ts");
+
+/**
+ * Runs the CLI with the named streams reporting `isTTY`, so one can be a
+ * terminal while the others are pipes. The stdin terminal types a lone Ctrl-C,
+ * which cancels the first prompt: all a test needs to read what it printed.
+ * Without a stdin terminal, stdin is closed.
+ */
+export const runOnTerminals = async (input: {
+  args: string[];
+  env: Record<string, string>;
+  terminals: readonly Stream[];
+}): Promise<RunResult> => {
+  const typing = input.terminals.includes("stdin");
+  const proc = Bun.spawn([process.execPath, FAKE_TERMINALS, ...input.args], {
+    env: { ...input.env, NIPA_TEST_TTY: input.terminals.join(",") },
+    stderr: "pipe",
+    stdin: typing ? "pipe" : "ignore",
+    stdout: "pipe",
+  });
+  if (typing && proc.stdin) {
+    proc.stdin.write("\u0003");
+    await proc.stdin.end();
+  }
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { code, stderr, stdout };
+};
+
+/** Like runWithClosedStdout, for a reader that quits on stderr. */
+export const runWithClosedStderr = async (
+  cmd: string[],
+  env: Record<string, string>
+): Promise<Pick<RunResult, "code" | "stdout">> => {
+  const proc = Bun.spawn(cmd, {
+    env,
+    stderr: "pipe",
+    stdin: "ignore",
+    stdout: "pipe",
+  });
+  await proc.stderr.cancel();
+  const [stdout, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    proc.exited,
+  ]);
+  return { code, stdout };
+};
+
 export const testEnv = (dir: string) => ({
   HOME: dir,
   NIPA_CONFIG_DIR: dir,

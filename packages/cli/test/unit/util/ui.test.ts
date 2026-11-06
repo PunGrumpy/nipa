@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { PassThrough } from "node:stream";
 
-import pc from "picocolors";
+import { createColors } from "picocolors";
 
 import { nameCell } from "../../../src/commands/server/format";
 import type { Server } from "../../../src/util/compute";
@@ -10,6 +10,7 @@ import {
   printable,
   printFields,
   printTable,
+  setAnimation,
   withSpinner,
   withDetail,
   writeStderr,
@@ -47,7 +48,7 @@ describe("printable", () => {
   });
 
   test("keeps the colors nipa's helpers write", () => {
-    const colors = pc.createColors(true);
+    const colors = createColors(true);
     const line = `${colors.bold("x")} ${colors.dim("y")} ${colors.red("r")} ${colors.green("g")} ${colors.yellow("y")} ${colors.cyan("c")} ${colors.gray("z")}`;
     expect(line).toContain(ESC);
     expect(printable(line)).toBe(line);
@@ -82,21 +83,13 @@ describe("what reaches stderr", () => {
   });
 
   test("the spinner filters its message", async () => {
-    const tty = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
-    Object.defineProperty(process.stderr, "isTTY", {
-      configurable: true,
-      value: true,
-    });
+    setAnimation(true);
     try {
       await withSpinner(`Loading ${ESC}]0;x${BEL}${ESC}[2Jweb\n1…`, () =>
         Bun.sleep(400)
       );
     } finally {
-      if (tty) {
-        Object.defineProperty(process.stderr, "isTTY", tty);
-      } else {
-        Reflect.deleteProperty(process.stderr, "isTTY");
-      }
+      setAnimation(false);
     }
     const frames = written.filter((chunk) => chunk.includes("Loading"));
     expect(frames.length).toBeGreaterThan(0);
@@ -105,6 +98,11 @@ describe("what reaches stderr", () => {
       expect(frame).not.toContain("0;x");
       expect(frame).not.toContain("\n");
     }
+  });
+
+  test("the spinner draws nothing until a client turns it on", async () => {
+    await withSpinner("Loading", () => Bun.sleep(400));
+    expect(written).toEqual([]);
   });
 
   test("a table cell with a newline stays on one row", () => {
@@ -223,11 +221,41 @@ const streams = () => {
   return { answer, output: () => output, stderr, stdin };
 };
 
+const modes = { env: {}, json: false, nonInteractive: false };
+
+const terminal = (): { isTTY: true } & PassThrough =>
+  Object.assign(new PassThrough(), { isTTY: true as const });
+
+const canPrompt = (
+  over: Partial<typeof modes> & { stdin?: boolean; stderr?: boolean }
+) =>
+  createPrompts({
+    ...modes,
+    ...over,
+    stderr: over.stderr === false ? new PassThrough() : terminal(),
+    stdin: over.stdin === false ? new PassThrough() : terminal(),
+  }).interactive;
+
+describe("when nipa can prompt", () => {
+  test.each([
+    ["stdin and stderr are terminals", {}, true],
+    ["stdin is not a terminal", { stdin: false }, false],
+    ["stderr is not a terminal", { stderr: false }, false],
+    ["--non-interactive", { nonInteractive: true }, false],
+    ["--json", { json: true }, false],
+    ["CI is set", { env: { CI: "1" } }, false],
+    ["CI is empty", { env: { CI: "" } }, true],
+    ["NO_COLOR is set", { env: { NO_COLOR: "1" } }, true],
+  ])("%s", (_name, over, expected) => {
+    expect(canPrompt(over)).toBe(expected);
+  });
+});
+
 describe("prompts", () => {
   test("a confirmation can't carry a remote escape sequence", async () => {
     const { answer: press, output, stderr, stdin } = streams();
     press("n\r");
-    const answer = createPrompts({ stderr, stdin }).confirm({
+    const answer = createPrompts({ ...modes, stderr, stdin }).confirm({
       default: false,
       message: `Stop server evil${ESC}]0;t${BEL}${ESC}[2J?`,
     });
@@ -239,7 +267,7 @@ describe("prompts", () => {
   test("a choice's name can't carry a remote escape sequence", async () => {
     const { answer: press, output, stderr, stdin } = streams();
     press("\r");
-    const answer = createPrompts({ stderr, stdin }).choice({
+    const answer = createPrompts({ ...modes, stderr, stdin }).choice({
       choices: [{ name: `evil${ESC}]0;t${BEL}`, value: 1 }],
       message: "Switch to:",
     });

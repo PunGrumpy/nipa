@@ -1,4 +1,3 @@
-import pc from "picocolors";
 import { z } from "zod";
 
 import { debug, request } from "./http";
@@ -36,15 +35,20 @@ export const isNewer = (latest: string, current: string): boolean => {
   return false;
 };
 
+/**
+ * `interactive` is the run's prompt mode: a terminal, and no `--json`,
+ * `--non-interactive` or CI. Output for a program or a log gets no notice,
+ * and no request to GitHub either.
+ */
 export const shouldCheck = (input: {
   version: string;
   env: NodeJS.ProcessEnv;
-  isTTY: boolean;
+  interactive: boolean;
 }): boolean =>
-  input.isTTY &&
+  input.interactive &&
   input.version !== "0.0.0" &&
-  !input.env.CI &&
-  !input.env.NIPA_NO_UPDATE_CHECK;
+  !input.env.NIPA_NO_UPDATE_CHECK &&
+  !input.env.NO_UPDATE_NOTIFIER;
 
 const fetchLatest = async (): Promise<string | undefined> => {
   try {
@@ -74,42 +78,24 @@ export const knownUpdate = async (
   return cache && isNewer(cache.latest, version) ? cache.latest : undefined;
 };
 
-export const updateNotice = (latest: string, current: string): string => {
-  const notes = releaseNotes(latest);
-  const from = pc.dim(`v${current}`);
-  const to = pc.green(`v${latest}`);
-  const lines = [
-    `Update available! ${from} ≫ ${to}`,
-    `Release notes: ${pc.cyan(notes)}`,
-  ];
-  // Width without color codes, so the box lines up.
-  const plain = [
-    `Update available! v${current} ≫ v${latest}`,
-    `Release notes: ${notes}`,
-  ];
-  const width = Math.max(...plain.map((line) => line.length));
-  const row = (line: string, plainLine: string) =>
-    `  │  ${line}${" ".repeat(width - plainLine.length)}  │`;
-  return [
+export const updateNotice = (latest: string, current: string): string =>
+  [
     "",
-    `  ╭${"─".repeat(width + 4)}╮`,
-    ...lines.map((line, index) => row(line, plain[index] ?? line)),
-    `  ╰${"─".repeat(width + 4)}╯`,
-    "",
+    `nipa ${latest} is available. You have ${current}.`,
+    `Release notes: ${releaseNotes(latest)}`,
   ].join("\n");
-};
 
 interface CheckOptions {
+  /** Whether this run may talk to a person. See `shouldCheck`. */
+  interactive: boolean;
   env?: NodeJS.ProcessEnv;
-  isTTY?: boolean;
   /** Replaces the GitHub request in tests. */
   latest?: () => Promise<string | undefined>;
 }
 
 const check = async (version: string, options: CheckOptions): Promise<void> => {
   const env = options.env ?? process.env;
-  const isTTY = options.isTTY ?? process.stderr.isTTY === true;
-  if (!shouldCheck({ env, isTTY, version })) {
+  if (!shouldCheck({ env, interactive: options.interactive, version })) {
     return;
   }
   const cache = await readCache(CACHE_FILE, CacheSchema);
@@ -136,7 +122,7 @@ const check = async (version: string, options: CheckOptions): Promise<void> => {
  */
 export const checkForUpdate = async (
   version: string,
-  options: CheckOptions = {}
+  options: CheckOptions
 ): Promise<void> => {
   try {
     await check(version, options);

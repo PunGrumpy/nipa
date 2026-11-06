@@ -72,6 +72,7 @@ export const derived: [
       readonly debug?: true;
       readonly help?: true;
       readonly "no-color"?: true;
+      readonly "non-interactive"?: true;
       readonly profile?: string;
       readonly version?: true;
     }
