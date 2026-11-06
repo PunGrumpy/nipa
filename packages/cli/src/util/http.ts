@@ -84,3 +84,19 @@ export const request = async (
   }
   return res;
 };
+
+/**
+ * The body of a response as text. The request's signal still runs while the
+ * body streams, so a stall or a dropped connection here is a NetworkError, not
+ * a raw TimeoutError with a stack.
+ */
+export const readText = async (res: Response): Promise<string> => {
+  try {
+    return await res.text();
+  } catch (error) {
+    throw new NetworkError(
+      res.url,
+      error instanceof Error ? describe(error) : String(error)
+    );
+  }
+};

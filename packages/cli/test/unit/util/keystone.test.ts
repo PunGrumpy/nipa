@@ -280,3 +280,67 @@ describe("against a fake Keystone", () => {
     );
   });
 });
+
+describe("a Keystone that answers 200 with a body that isn't a token", () => {
+  let server: ReturnType<typeof Bun.serve>;
+  let account: Account;
+
+  beforeAll(() => {
+    server = Bun.serve({
+      fetch: (req) => {
+        const { pathname } = new URL(req.url);
+        if (pathname.endsWith("/auth/projects")) {
+          return pathname.startsWith("/stalled")
+            ? new Response(
+                new ReadableStream({
+                  start: (controller) => {
+                    controller.enqueue(new TextEncoder().encode('{"proj'));
+                  },
+                }),
+                { headers: { "Content-Type": "application/json" } }
+              )
+            : new Response("<h1>Welcome</h1>");
+        }
+        return new Response("<h1>Welcome</h1>", {
+          headers: { "X-Subject-Token": "tok" },
+          status: 201,
+        });
+      },
+      port: 0,
+    });
+    account = {
+      authUrl: `http://localhost:${server.port}`,
+      userDomain: "nipacloud",
+      username: PLAIN_USER.name,
+    };
+  });
+
+  afterAll(() => {
+    server.stop(true);
+  });
+
+  test("a login gives a KeystoneError, not a SyntaxError", async () => {
+    const attempt = loginWithPassword(account, FAKE_PASSWORD);
+    await expect(attempt).rejects.toThrow(KeystoneError);
+    await expect(attempt).rejects.toThrow(
+      "unexpected token response: the body isn't JSON"
+    );
+  });
+
+  test("a project list gives a KeystoneError", async () => {
+    const attempt = listProjects({ authUrl: account.authUrl, token: "tok" });
+    await expect(attempt).rejects.toThrow(KeystoneError);
+    await expect(attempt).rejects.toThrow(
+      "unexpected project list: the body isn't JSON"
+    );
+  });
+
+  test("a project list that stalls gives a NetworkError", async () => {
+    const attempt = listProjects({
+      authUrl: `${account.authUrl}/stalled`,
+      signal: AbortSignal.timeout(100),
+      token: "tok",
+    });
+    await expect(attempt).rejects.toThrow(NetworkError);
+  });
+});

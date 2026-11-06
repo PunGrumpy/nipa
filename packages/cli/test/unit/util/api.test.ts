@@ -34,6 +34,18 @@ const FAULTS = new Map<string, () => Response>([
         headers: { "Content-Type": "text/html" },
       }),
   ],
+  [
+    "/stalled-body",
+    () =>
+      new Response(
+        new ReadableStream({
+          start: (controller) => {
+            controller.enqueue(new TextEncoder().encode('{"name":'));
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      ),
+  ],
   ["/wrong-json", () => Response.json({ name: 1 })],
   [
     "/lines",
@@ -152,6 +164,22 @@ describe("createSpace", () => {
       NetworkError
     );
   });
+
+  test.each(["get", "getLines"] as const)(
+    "%s: a body that stalls is a NetworkError, not a raw timeout",
+    async (method) => {
+      const stalled = createSpace({
+        projectId: "p1",
+        region: "NCP-TH",
+        signal: AbortSignal.timeout(100),
+        token: "tok",
+        url: `${server.url}api/`,
+      });
+      const attempt = stalled[method]("/stalled-body", z.object({}));
+      await expect(attempt).rejects.toThrow(NetworkError);
+      await expect(attempt).rejects.toThrow(`can't reach ${server.url.host}`);
+    }
+  );
 
   test("a web page, such as a portal's for a path it doesn't know", async () => {
     const attempt = space().get("/web-page", z.object({}));

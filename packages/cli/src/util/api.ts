@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { request } from "./http";
+import { readText, request } from "./http";
 import { CliError } from "./ui";
 
 export class ApiError extends Error {
@@ -155,11 +155,11 @@ export const createSpace = (input: {
   return {
     get: async (path, schema) => {
       const res = await read(path);
-      return parseText(await res.text(), schema, res.status);
+      return parseText(await readText(res), schema, res.status);
     },
     getLines: async (path, schema) => {
       const res = await read(path);
-      const text = await res.text();
+      const text = await readText(res);
       const lines = text.split("\n").filter((line) => line.trim());
       return lines.map((line) => parseText(line, schema, res.status));
     },
