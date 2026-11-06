@@ -242,11 +242,33 @@ const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "
 const SPINNER_DELAY_MS = 300;
 const ERASE_LINE = "\r\u001B[2K";
 
+let animating = false;
+
+/**
+ * Whether this run redraws spinner frames. createClient decides once, and
+ * until it does, nothing animates. Unlike prompts, a stdin that is not a
+ * terminal doesn't matter: `echo x | nipa server ls` still has someone
+ * watching stderr.
+ */
+export const canAnimate = (run: {
+  stderr: { isTTY?: boolean };
+  env: NodeJS.ProcessEnv;
+  nonInteractive: boolean;
+  json: boolean;
+}): boolean => {
+  const refused = run.nonInteractive || run.json || !!run.env.CI;
+  return !refused && run.stderr.isTTY === true && run.env.TERM !== "dumb";
+};
+
+export const setAnimation = (on: boolean): void => {
+  animating = on;
+};
+
 export const withSpinner = async <T>(
   message: string,
   task: () => Promise<T>
 ): Promise<T> => {
-  if (!process.stderr.isTTY) {
+  if (!animating) {
     return task();
   }
   let frame = 0;

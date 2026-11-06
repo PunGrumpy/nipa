@@ -13,7 +13,12 @@ import {
 } from "./session";
 import type { ActiveProfile, Cloud, SignedIn } from "./session";
 import type { ProgramSpec } from "./spec";
-import { createPrompts, createResultStream } from "./ui";
+import {
+  canAnimate,
+  createPrompts,
+  createResultStream,
+  setAnimation,
+} from "./ui";
 import type { Prompts, ResultStream } from "./ui";
 
 export interface Client {
@@ -65,10 +70,19 @@ export const createClient = (input: {
   if (globals.debug) {
     process.env.NIPA_DEBUG = "1";
   }
+  const nonInteractive = globals["non-interactive"] === true;
+  setAnimation(
+    canAnimate({
+      env: process.env,
+      json,
+      nonInteractive,
+      stderr: process.stderr,
+    })
+  );
   const prompts = createPrompts({
     env: process.env,
     json,
-    nonInteractive: globals["non-interactive"] === true,
+    nonInteractive,
     stderr: process.stderr,
     stdin: process.stdin,
   });
