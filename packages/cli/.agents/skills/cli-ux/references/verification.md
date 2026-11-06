@@ -29,6 +29,7 @@ When a change touches output or flow, cover each item that applies:
 - The exit code for success, failure, a wrong command line, and Ctrl-C or a declined confirmation where the command prompts
 - An empty list: the human line on stderr, `[]` in `--json`, and exit code 0
 - `--debug`: request lines on stderr, and no token, password or OTP code anywhere
+- A remote name that holds an escape sequence or a newline, for any command that prints a name
 - Files: their contents, and mode `0600` for anything new in the config directory
 - The help page and completion, when a command, flag or argument changes
 
@@ -62,6 +63,7 @@ Reject or fix a change that:
 - prompts for a value an argument, flag, or the saved profile already supplies
 - prompts without checking `client.prompts.interactive`, or fails without a terminal and no hint naming the flag
 - prints anything but data to stdout, or prints data only to stderr
+- writes to `process.stderr` instead of `writeStderr`, or follows a redirect, reads a response body without `readText` or its own catch, or puts a remote name in a cell without going through `printTable` or `printFields`
 - adds color, a spinner or a note to `--json` output
 - prints more than one `success` line for one change, or a `success` line before the change is saved
 - writes local files before the remote call they depend on succeeds
