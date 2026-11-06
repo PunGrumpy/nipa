@@ -20,7 +20,7 @@ Resolution order:
 Rules:
 
 - Login needs to prompt. When `client.prompts.interactive` is false, `interactiveLogin` fails with `nipa can't prompt here` and a hint to run `nipa login` in a terminal without `--non-interactive` or `CI`
-- A command that needs a session prompts for login only when `client.prompts.interactive` is true. Without a terminal, it fails with `your <profile> session expired` or `you aren't logged in to <profile>`, and the hint names `loginLine(profile)`
+- A command that needs a session prompts for login only when `client.prompts.interactive` is true. When nipa can't prompt, it fails with `your <profile> session expired` or `you aren't logged in to <profile>`, and the hint names `loginLine(profile)`
 - A wrong OTP code gets up to 3 attempts. After a wrong code, nipa says each code works once and asks for the next one
 - A 401 from an API call means Keystone revoked the token. `guardSession` turns it into `your <profile> session expired or was revoked` with the login command as the hint
 - Save the config and the session only after Keystone returns a scoped token. Save a `--remember` password only after Keystone accepts it
@@ -34,7 +34,7 @@ States to test:
 - Login in a terminal, with and without MFA
 - A wrong OTP code, then a right one, and 3 wrong codes
 - `--project` as an ID, as a name, and as a name nipa can't find
-- A command that needs a session, with no session, with an expired one, and without a terminal
+- A command that needs a session, with no session, with an expired one, and when nipa can't prompt
 - A revoked token returning 401 from the Space API
 - `--remember` saving, a saved password skipping the email and password prompts, and a refused saved password
 - A session with less than 30 minutes left
@@ -46,7 +46,7 @@ States to test:
 Rules:
 
 - With an argument, use it. Without one, prompt with a choice list that marks the current entry and defaults to it
-- Without an argument and without a terminal, fail with exit code 2 and a hint listing the names to pass
+- Without an argument and when nipa can't prompt, fail with exit code 2 and a hint listing the names to pass
 - Choosing the current project or profile is a no-op. Print a `note`, such as `You're already using my-project`, and exit 0
 - `switch` with one project skips the prompt and uses it
 - `switch` and `link` read the saved session through `client.savedSession()`, so a linked folder never hides the saved project. After `switch` in a linked folder, a `note` says the folder still uses its own project and names `nipa unlink`
@@ -60,7 +60,7 @@ Rules:
 - The link's profile comes after `--profile` and `NIPA_PROFILE`, and before the current profile. The link's project applies only when the profile nipa picked is the link's
 - In a linked folder, `client.session()` exchanges the saved token for one in the linked project, keeps it in memory, and logs `Using project my-project from .nipa/project.json` after the profile line. It never saves that token
 - A link to a missing profile names the link file in the error. A broken link file names `nipa unlink` in the hint
-- `link` without a project and without a terminal fails with exit code 2 and lists the projects, like `switch`. Linking a folder to its own project again is a no-op `note`
+- `link` without a project and when nipa can't prompt fails with exit code 2 and lists the projects, like `switch`. Linking a folder to its own project again is a no-op `note`
 - `unlink` with no link is a no-op `note`, and exits 0
 
 States to test:
@@ -108,7 +108,7 @@ Resolution order:
 1. **Flags**: a bad `--timeout`, or `--timeout` with `--no-wait`, fails with exit code 2 before nipa logs in or calls the API
 2. **Server**: the argument, matched by ID first, then by name. No match, or a name that two servers share, fails before any change. The second error lists the IDs to pass instead
 3. **No-op**: starting a running server or stopping a stopped one prints a `note`, such as `web-1 is already stopped`, and exits 0. Restarting a stopped server fails with a hint naming `nipa server start`
-4. **Confirmation**: `stop` and `restart` ask `Stop server web-1 in my-project?`, which defaults to No. `--yes` skips it, and without a terminal they fail with exit code 2 and a hint naming `--yes`. `start` never asks
+4. **Confirmation**: `stop` and `restart` ask `Stop server web-1 in my-project?`, which defaults to No. `--yes` skips it, and when nipa can't prompt they fail with exit code 2 and a hint naming `--yes`. `start` never asks
 5. **Action**: one `POST` to the Space API, then a check of the server's state every 2 seconds until Nova reports the wanted status with no task left. With `--no-wait`, nipa stops after the `POST`, says it asked for the action, and names `nipa server inspect`
 
 Rules:
@@ -123,7 +123,7 @@ States to test:
 
 - A name, an ID, an unknown server, and a name two servers share
 - Each no-op, and a restart of a stopped server
-- `stop` and `restart` without `--yes` and without a terminal, with no `POST` sent
+- `stop` and `restart` without `--yes` and when nipa can't prompt, with no `POST` sent
 - A check that fails after the `POST` succeeds
 - A refusal from Nova, such as stopping a server that's still building
 - `--no-wait` sending one `POST` and no checks, and a bad `--timeout`

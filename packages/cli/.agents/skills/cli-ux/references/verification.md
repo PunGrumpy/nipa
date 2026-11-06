@@ -6,7 +6,7 @@ These gates cover testing, stale-string sweeps and review for any change to nipa
 
 Pick the test by what it needs:
 
-- **`test/integration.test.ts`**: runs `bun src/index.ts` as a process against the fake Keystone, with stdin closed and `NO_COLOR=1`. Use it for exit codes, the stdout and stderr split, files on disk, and the path without a terminal
+- **`test/integration.test.ts`**: runs `bun src/index.ts` as a process against the fake Keystone, with stdin closed and `NO_COLOR=1`. Use it for exit codes, the stdout and stderr split, files on disk, and the path where nipa can't prompt
 - **`test/integration-npm.test.ts`**: builds the Node bundle and runs it with `node`. Extend it when a change could behave differently on Node than on Bun
 - **`test/unit/commands/<name>/`**: pure helpers inside one command folder, such as `server/format.ts`
 - **`test/unit/util/`**: shared modules in `src/util`, such as `dispatch.test.ts` for routing and help, and `session.test.ts` for the login flow with fake prompts
@@ -61,7 +61,7 @@ When you rename a message, search for the old string in both `src` and `test`. T
 Reject or fix a change that:
 
 - prompts for a value an argument, flag, or the saved profile already supplies
-- prompts without checking `client.prompts.interactive`, or fails without a terminal and no hint naming the flag
+- prompts without checking `client.prompts.interactive`, or fails where nipa can't prompt and gives no hint naming the flag
 - prints anything but data to stdout, or prints data only to stderr
 - writes to `process.stderr` instead of `writeStderr`, or follows a redirect, reads a response body without `readText` or its own catch, or puts a remote name in a cell without going through `printTable` or `printFields`
 - adds color, a spinner or a note to `--json` output

@@ -36,7 +36,7 @@ Shipped output proves what exists, not that it's right.
 Walk a change through these maps before you write strings:
 
 1. **Surface map**: list the help, flags, prompts, spinners, notes, success lines, errors, tables and JSON the change touches
-2. **Mode map**: trace a terminal, a pipe (`client.stdout.isTTY` is false), no terminal at all (`client.prompts.interactive` is false), `--json` and `NO_COLOR`
+2. **Mode map**: trace a terminal, a pipe (`client.stdout.isTTY` is false), a run where nipa can't prompt (`client.prompts.interactive` is false: no terminal, `CI`, `--json` or `--non-interactive`), `--json` and `NO_COLOR`
 3. **State map**: name the profile, the session, the project and the files the command reads or writes
 4. **Question audit**: for every prompt, prove nipa can't infer the value and that a flag or argument can supply it
 5. **Mutation audit**: name each local write and each Keystone or API call that changes state, and what happens when it fails halfway
@@ -70,7 +70,7 @@ Every changed command answers four questions:
 A change isn't done until:
 
 - the before and after transcript is easier to scan
-- every prompt has a flag or argument, and the path without a terminal fails with a hint naming it
+- every prompt has a flag or argument, and the path where nipa can't prompt fails with a hint naming it
 - `--json` and piped stdout carry only data, with no color codes, spinners or notes
 - errors say what failed and how to fix it, and exit with the right code
 - the copy review covered every string the command prints, not only the edited line
