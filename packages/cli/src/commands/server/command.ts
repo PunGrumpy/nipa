@@ -115,7 +115,7 @@ export const serverCommand = defineGroup({
     },
     {
       command: "nipa server ls | grep web",
-      description: "Find the servers with web in their name or address",
+      description: "Find the lines with web in any field",
     },
     {
       command: "nipa server ls | tail -n +2 | cut -f1",
@@ -123,8 +123,8 @@ export const serverCommand = defineGroup({
     },
     {
       command:
-        "nipa server ls | grep web | cut -f1 | xargs -n1 nipa server stop --yes",
-      description: "Stop the servers that match, by ID",
+        "nipa server ls | awk -F'\\t' '$2 ~ /^web/ {print $1}' | xargs -n1 nipa server stop --yes",
+      description: "Stop the servers whose name starts with web, by ID",
     },
     {
       command: "nipa server ls --json | jq -r '.servers[].name'",

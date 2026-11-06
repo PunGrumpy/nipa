@@ -13,4 +13,17 @@ for (const name of ["stdin", "stdout", "stderr"] as const) {
   }
 }
 
+// Each stream can have its own width, so a test sees which one a table reads.
+for (const [name, columns] of [
+  ["stdout", process.env.NIPA_TEST_STDOUT_COLUMNS],
+  ["stderr", process.env.NIPA_TEST_STDERR_COLUMNS],
+] as const) {
+  if (columns) {
+    Object.defineProperty(process[name], "columns", {
+      configurable: true,
+      value: Number(columns),
+    });
+  }
+}
+
 await import("../src/index");

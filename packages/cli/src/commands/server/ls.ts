@@ -11,6 +11,7 @@ import {
   log,
   printTable,
   stderrWidth,
+  oneLine,
   tabSeparated,
   withSpinner,
 } from "../../util/ui";
@@ -75,8 +76,8 @@ export const ls = handle(lsSubcommand, async ({ client, flags }) => {
   const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
   log(
     servers.length === 0
-      ? `No servers in ${bold(project.name)} ${elapsed}`
-      : `Servers in ${bold(project.name)} ${elapsed}`
+      ? `No servers in ${bold(oneLine(project.name))} ${elapsed}`
+      : `Servers in ${bold(oneLine(project.name))} ${elapsed}`
   );
   if (!client.stdout.isTTY) {
     // A pipe gets the table's rows, so grep and cut see one server per line.

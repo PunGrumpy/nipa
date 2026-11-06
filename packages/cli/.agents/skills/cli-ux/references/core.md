@@ -171,7 +171,7 @@ Treat these as contracts. Change them only with a migration, tests, and a change
 - The files in the config directory and their JSON shape
 - `--json` field names and meanings. Add fields freely, but don't rename or remove them
 - The error document under `--json`: one line on stderr with `status`, `reason`, `message`, and `hint` and `next` when they apply, an empty stdout, and the `reason` codes. Add codes and fields freely, but don't rename or remove them
-- The bare values that piped stdout prints
+- The bare values that piped stdout prints, and a tab-separated table's header and column order
 - The completion scripts that `nipa completion <shell>` prints
 
 Human output on stderr may change for clarity, as long as the tests change with it.

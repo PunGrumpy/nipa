@@ -1154,6 +1154,30 @@ describe("server ls", () => {
     expect(stderr).not.toContain("Flavor");
   });
 
+  test("a table reads the width of stderr, where it prints, not of stdout", async () => {
+    const wide = await runOnTerminals({
+      args: ["server", "ls"],
+      env: {
+        ...testEnv(dir),
+        NIPA_TEST_STDERR_COLUMNS: "120",
+        NIPA_TEST_STDOUT_COLUMNS: "20",
+      },
+      terminals: ["stdout", "stderr"],
+    });
+    expect(wide.stderr).toMatch(/Name\s+Status\s+Address\s+Flavor\s+Age/u);
+    const narrow = await runOnTerminals({
+      args: ["server", "ls"],
+      env: {
+        ...testEnv(dir),
+        NIPA_TEST_STDERR_COLUMNS: "20",
+        NIPA_TEST_STDOUT_COLUMNS: "120",
+      },
+      terminals: ["stdout", "stderr"],
+    });
+    expect(narrow.stderr).not.toMatch(/Name\s+Status/u);
+    expect(narrow.stderr).toContain("web-1");
+  });
+
   test("--json lists the project's servers through the Space API", async () => {
     const before = serverLists();
     const { code, stdout } = await run(["server", "ls", "--json"]);
@@ -1240,6 +1264,13 @@ describe("server ls", () => {
     expect(stderr).toContain("No servers in Beta");
     // A pipe still gets the header, so a script's cut and grep see a table.
     expect(stdout).toBe("ID\tName\tStatus\tAddress\tFlavor\tCreated\n");
+    const terminal = await runOnTerminals({
+      args: ["server", "ls"],
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(terminal.stderr).toContain("No servers in Beta");
+    expect(terminal.stderr).not.toMatch(/Name\s+Status/u);
   });
 
   test("a revoked token asks for a new login", async () => {

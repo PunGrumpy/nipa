@@ -550,7 +550,10 @@ const safeCell = (cell: Cell): Cell => ({
 
 const heading: Paint = (text) => bold(cyan(text));
 
-/** Where a table may give way when the terminal is narrower than it is. */
+/**
+ * Where a table may give way when the terminal is narrower than it is. Records
+ * have no place for a table's `marks`, so don't combine the two.
+ */
 export interface TableFit {
   /** The terminal's width in columns. */
   width: number;

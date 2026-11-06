@@ -77,6 +77,12 @@ describe("server ls at the terminal's width", () => {
     expect(noAge.join("\n")).not.toContain("Age");
   });
 
+  test("drops a column before it shortens a role that would then fit", () => {
+    const out = lines([node("web-1", "master")], 75);
+    expect(out[1]).not.toContain("Flavor");
+    expect(out.join("\n")).toContain("web-1 (Kubernetes master)");
+  });
+
   test("shortens the Kubernetes role at 80 columns and fits", () => {
     const out = lines(SERVERS, 80);
     const text = out.join("\n");
