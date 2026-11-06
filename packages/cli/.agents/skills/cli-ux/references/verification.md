@@ -25,7 +25,8 @@ When a change touches output or flow, cover each item that applies:
 - The path with a terminal and the path without one. `runProcess` closes stdin, so it always tests the second
 - `--json`: parse stdout with `JSON.parse` and assert fields, and assert stdout has nothing else
 - `--json` on a failure: stdout is empty, stderr is one line that parses, and `reason`, `status` and the exit code are the ones expected. On a success, stderr is empty, even on a profile that isn't `prod`
-- A pipe: assert that stdout holds only the bare values, one per line
+- A pipe: assert that stdout holds only the bare values, one per line, or for `server ls` the header and tab-separated rows, and that stderr holds no table
+- A table: unit-test it at 120, 80 and 60 columns with injected width, and assert that no line passes the width unless one name does
 - The stdout and stderr split: messages on stderr, data on stdout
 - The exit code for success, failure, a wrong command line, and Ctrl-C or a declined confirmation where the command prompts
 - An empty list: the human line on stderr, `[]` in `--json`, and exit code 0

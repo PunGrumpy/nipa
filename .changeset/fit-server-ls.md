@@ -1,0 +1,5 @@
+---
+"nipa-cli": patch
+---
+
+`nipa server ls` now fits your terminal and works with `grep`. In a narrow terminal it drops the Flavor column, then Age, then shortens `(Kubernetes worker)` to `(worker)`, then prints each server as two lines, so rows no longer pile on each other and a name or address is never cut. In a pipe it now prints a header and one tab-separated line per server (ID, name, status, address, flavor and creation time as an ISO date), so `nipa server ls | grep web` filters the servers and stops printing the table on stderr. This changes what a pipe receives: it used to be one ID per line. To get the IDs, run `nipa server ls | tail -n +2 | cut -f1`, or `nipa server ls --json | jq -r '.servers[].id'`.
