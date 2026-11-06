@@ -5,12 +5,17 @@ import { createColors } from "picocolors";
 
 import { nameCell } from "../../../src/commands/server/format";
 import type { Server } from "../../../src/util/compute";
+import { debug } from "../../../src/util/http";
 import {
   createPrompts,
+  log,
+  note,
   printable,
   printFields,
   printTable,
   setAnimation,
+  setJsonMode,
+  success,
   withSpinner,
   withDetail,
   writeStderr,
@@ -58,6 +63,70 @@ describe("printable", () => {
     expect(printable(`${ESC}[8mhidden${ESC}[0m ${ESC}[38;5;9mred`)).toBe(
       "hidden red"
     );
+  });
+});
+
+describe("JSON mode", () => {
+  let written: string[];
+  let spy: ReturnType<typeof spyOn>;
+
+  beforeEach(() => {
+    written = [];
+    spy = spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      written.push(String(chunk));
+      return true;
+    });
+    setJsonMode(true);
+  });
+
+  afterEach(() => {
+    setJsonMode(false);
+    spy.mockRestore();
+    delete process.env.NIPA_DEBUG;
+  });
+
+  test("log, success, note, tables and fields write nothing", () => {
+    log("Using profile staging");
+    success("Done", 1200);
+    note("Your session expires soon");
+    printTable({ headings: ["Name"], rows: [[{ text: "web" }]] });
+    printFields([{ label: "Name", lines: [{ text: "web" }] }]);
+    expect(written).toEqual([]);
+  });
+
+  test("the spinner draws nothing, and the task still runs", async () => {
+    setAnimation(true);
+    let ran = false;
+    try {
+      const result = await withSpinner("Loading", async () => {
+        await Bun.sleep(400);
+        ran = true;
+        return 7;
+      });
+      expect(result).toBe(7);
+    } finally {
+      setAnimation(false);
+    }
+    expect(ran).toBe(true);
+    expect(written).toEqual([]);
+  });
+
+  test("debug lines still write when --debug asked for them", () => {
+    process.env.NIPA_DEBUG = "1";
+    debug("GET https://keystone.test/v3");
+    expect(written.join("")).toContain("[debug]");
+    expect(written.join("")).toContain("GET https://keystone.test/v3");
+  });
+
+  test("writeStderr is untouched, because the error document goes through it", () => {
+    writeStderr("kept");
+    expect(written).toEqual(["kept\n"]);
+  });
+
+  test("messages come back when the mode is off", () => {
+    setJsonMode(false);
+    log("hello");
+    expect(written.join("")).toContain("hello");
   });
 });
 

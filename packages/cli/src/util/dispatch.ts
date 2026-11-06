@@ -12,7 +12,7 @@ import { commandHelp, mainHelp } from "./help";
 import { asksForHelp, asksForJson, takeGlobals } from "./parse";
 import { namesOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
-import { CliError, usageError } from "./ui";
+import { CliError, setJsonMode, usageError } from "./ui";
 
 /** What a run ended with. src/index.ts prints, sets the exit code and shows the update notice. */
 export type Outcome =
@@ -181,6 +181,7 @@ const unknownCommand = (input: {
 /**
  * Runs the command argv names. Throws CliError for usage errors, which
  * src/index.ts prints with exit code 2, and lets handler errors through.
+ * Sets the JSON mode of ui.ts, which src/index.ts reads to print a failure.
  *
  *   nipa -P staging server ls --json
  *        └ globals ┘ │      │  └ ls's flags plus the globals: ls.prepare
@@ -188,6 +189,8 @@ const unknownCommand = (input: {
  *                    └ the table, by name or alias
  */
 export const run = async (input: RunInput): Promise<Outcome> => {
+  // Before anything can fail, so a failure to read the line has a mode too.
+  setJsonMode(asksForJson(input.argv));
   const spec = programSpec(input.program);
   const table = indexCommands(input.program);
   const front = takeGlobals({ unknown: "reject", words: input.argv });
@@ -215,7 +218,9 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     if (front.globals.help) {
       return print(commandHelp([command.spec]));
     }
-    // The words after a passthrough command belong to its program.
+    // The words after a passthrough command belong to its program, and so
+    // does a `--json` among them.
+    setJsonMode(false);
     const client = input.createClient({
       globals: front.globals,
       json: false,

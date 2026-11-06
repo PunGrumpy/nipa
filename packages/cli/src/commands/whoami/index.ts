@@ -10,9 +10,11 @@ export const whoami = handle(whoamiCommand, async ({ client, flags }) => {
   const session = await loadSession(active.name);
   if (!isActive(session)) {
     if (flags.json) {
+      // The document is the answer, so stderr stays empty, like `doctor`.
       client.stdout.line(
         JSON.stringify({ loggedIn: false, profile: active.name })
       );
+      return 1;
     }
     throw new CliError(`you aren't logged in to ${active.name}`, {
       hint: `Run \`${loginLine(active.name)}\`.`,

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
 
 import { z } from "zod";
@@ -16,7 +16,7 @@ import {
 } from "../../../src/util/command";
 import type { Program } from "../../../src/util/command";
 import { run } from "../../../src/util/dispatch";
-import { CliError } from "../../../src/util/ui";
+import { CliError, isJsonMode, setJsonMode } from "../../../src/util/ui";
 
 // A spy program: every handler records what it got, without the client.
 const seen: unknown[] = [];
@@ -227,6 +227,10 @@ const reasonOf = async (argv: string[]) => {
   return "no error";
 };
 
+afterEach(() => {
+  setJsonMode(false);
+});
+
 describe("the interaction mode a run starts with", () => {
   test.each([
     [["whoami"]],
@@ -249,6 +253,30 @@ describe("the interaction mode a run starts with", () => {
     const error = await usage(["--json", "whoami"]);
     expect(error.code).toBe(2);
     expect(lastJson).toBeNull();
+  });
+
+  test("JSON mode follows --json before --, and a passthrough command clears it", async () => {
+    await go(["whoami", "--json"]);
+    expect(isJsonMode()).toBe(true);
+    await go(["server", "--json"]);
+    expect(isJsonMode()).toBe(true);
+    await go(["whoami"]);
+    expect(isJsonMode()).toBe(false);
+    await go(["switch", "--", "--json"]);
+    expect(isJsonMode()).toBe(false);
+    await go(["exec", "--json", "ls"]);
+    expect(isJsonMode()).toBe(false);
+    await go(["os", "server", "list", "--json"]);
+    expect(isJsonMode()).toBe(false);
+  });
+
+  test("a run that fails on the command line is still in JSON mode", async () => {
+    await usage(["whoami", "--json", "--nope"]);
+    expect(isJsonMode()).toBe(true);
+    await usage(["bogus", "--json"]);
+    expect(isJsonMode()).toBe(true);
+    await usage(["bogus"]);
+    expect(isJsonMode()).toBe(false);
   });
 
   test("a passthrough command's words belong to its program", async () => {

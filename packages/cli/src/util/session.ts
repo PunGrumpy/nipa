@@ -91,6 +91,7 @@ export const resolveProfile = async (input: {
       found?.link.profile === name ? ` in ${displayPath(found.file)}` : "";
     throw new CliError(`no profile named "${name}"${from}`, {
       hint: `Your profiles: ${known}. Add one with \`nipa profile add ${name}\`.`,
+      reason: "not_found",
     });
   }
   const link = found?.link.profile === name ? found : undefined;
@@ -579,6 +580,7 @@ export const connect = (input: {
         if (error instanceof NetworkError) {
           throw new CliError(error.message, {
             hint: "Check your network connection, or the profile's Space API URL.",
+            reason: "network_error",
           });
         }
         throw error;

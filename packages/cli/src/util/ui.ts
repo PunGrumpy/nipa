@@ -230,22 +230,44 @@ export const oneLine = (text: string): string =>
     { newline: false, sgr: false }
   );
 
+let jsonMode = false;
+
+/**
+ * run() decides once per run. In JSON mode stderr carries no progress,
+ * receipts, notes or tables, so a failure's error document is its only
+ * content. Debug lines are the exception: they ask for themselves.
+ */
+export const setJsonMode = (on: boolean): void => {
+  jsonMode = on;
+};
+
+export const isJsonMode = (): boolean => jsonMode;
+
 // Bun's console.error turns the whole line red on a terminal.
 export const writeStderr = (line: string): void => {
   process.stderr.write(`${printable(line)}\n`);
 };
 
 export const log = (message: string): void => {
+  if (jsonMode) {
+    return;
+  }
   writeStderr(`${dim(">")} ${message}`);
 };
 
 export const success = (message: string, elapsedMs?: number): void => {
+  if (jsonMode) {
+    return;
+  }
   const time = elapsedMs === undefined ? "" : `[${formatElapsed(elapsedMs)}]`;
   const elapsed = time ? ` ${dim(time)}` : "";
   writeStderr(`${cyan("> Success!")} ${message}${elapsed}`);
 };
 
 export const note = (message: string): void => {
+  if (jsonMode) {
+    return;
+  }
   writeStderr(`${bold(yellow("> NOTE:"))} ${message}`);
 };
 
@@ -271,7 +293,7 @@ export const withSpinner = async <T>(
   message: string,
   task: () => Promise<T>
 ): Promise<T> => {
-  if (!animating) {
+  if (!animating || jsonMode) {
     return task();
   }
   let frame = 0;
@@ -529,6 +551,9 @@ export const printTable = (table: {
   rows: readonly (readonly Cell[])[];
   marks?: readonly string[];
 }): void => {
+  if (jsonMode) {
+    return;
+  }
   const { headings, marks } = table;
   const rows = table.rows.map((row) => row.map(safeCell));
   const widths = headings.map((text, column) =>
@@ -559,6 +584,9 @@ const painted = (cell: Cell): string => cell.paint?.(cell.text) ?? cell.text;
 
 /** One resource's details, laid out like `printTable`. */
 export const printFields = (given: readonly Field[]): void => {
+  if (jsonMode) {
+    return;
+  }
   const fields = given.map((field) => ({
     ...field,
     lines: field.lines.map(safeCell),
