@@ -369,7 +369,7 @@ export const saveLogin = async (input: {
 
 /**
  * Asks for the password and OTP code, saves the session and says who logged
- * in. Throws when there is no terminal.
+ * in. Throws when nipa can't prompt.
  */
 export const interactiveLogin = async (input: {
   active: ActiveProfile;
@@ -381,9 +381,9 @@ export const interactiveLogin = async (input: {
   const { active, prompts } = input;
   if (!prompts.interactive) {
     throw new CliError(
-      "`nipa login` needs a terminal to ask for your password",
+      "`nipa login` needs to ask for your password, and nipa can't prompt here",
       {
-        hint: "Run it in a terminal, then run this command again.",
+        hint: "Run it in a terminal without `--non-interactive` or `CI`, then run this command again.",
       }
     );
   }

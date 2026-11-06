@@ -239,7 +239,10 @@ describe("without a session", () => {
   test("login fails fast without a terminal", async () => {
     const { code, stderr } = await run(["login"]);
     expect(code).toBe(1);
-    expect(stderr).toContain("needs a terminal");
+    expect(stderr).toContain("needs to ask for your password");
+    expect(stderr).toContain("nipa can't prompt here");
+    expect(stderr).toContain("without `--non-interactive` or `CI`");
+    expect(stderr).not.toContain("needs a terminal");
   });
 
   test("logout is a no-op", async () => {
@@ -375,6 +378,17 @@ describe("profiles", () => {
     const { code, stderr } = await run(["profile", "add", "dev"]);
     expect(code).toBe(2);
     expect(stderr).toContain("missing --auth-url");
+    expect(stderr).toContain(
+      "Pass every value as a flag when nipa can't prompt."
+    );
+    expect(stderr).not.toContain("no terminal");
+  });
+
+  test("--non-interactive is accepted before and after the command", async () => {
+    const before = await run(["--non-interactive", "profile", "ls", "--json"]);
+    const after = await run(["profile", "ls", "--json", "--non-interactive"]);
+    expect(before.code).toBe(0);
+    expect(after.stdout).toBe(before.stdout);
   });
 
   test("use switches the current profile", async () => {
@@ -1621,7 +1635,7 @@ describe("saved passwords and session expiry", () => {
   test("login --remember without a terminal fails before the keychain", async () => {
     const { code, stderr } = await run(["login", "--remember"]);
     expect(code).toBe(1);
-    expect(stderr).toContain("`nipa login` needs a terminal");
+    expect(stderr).toContain("`nipa login` needs to ask for your password");
     expect(await readFakeKeychain(dir)).toEqual({});
   });
 

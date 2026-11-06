@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { stripVTControlCharacters } from "node:util";
 
+import { z } from "zod";
+
 import { program as realProgram } from "../../../src/commands";
 import type { GlobalValues } from "../../../src/util/arg-common";
 import type { Client } from "../../../src/util/client";
@@ -148,11 +150,16 @@ const spy: Program = {
 };
 
 let lastGlobals: GlobalValues | null = null;
+let lastJson: boolean | null = null;
 let out = "";
 const fail = () => Promise.reject(new Error("no cloud in tests"));
 
-const fakeClient = (input: { globals: GlobalValues }): Client => {
+const fakeClient = (input: {
+  globals: GlobalValues;
+  json: boolean;
+}): Client => {
   lastGlobals = input.globals;
+  lastJson = input.json;
   return {
     cloud: fail,
     profile: fail,
@@ -186,9 +193,18 @@ const fakeClient = (input: { globals: GlobalValues }): Client => {
 const go = (argv: string[], program: Program = spy) => {
   seen.length = 0;
   lastGlobals = null;
+  lastJson = null;
   out = "";
   return run({ argv, createClient: fakeClient, program, version: "9.9.9" });
 };
+
+const SeenSchema = z.object({
+  flags: z.object({ json: z.boolean().optional() }),
+});
+
+/** What the leaf parsed for --json, or false when it has no such flag. */
+const parsedJson = (): boolean =>
+  SeenSchema.safeParse(seen[0]).data?.flags.json === true;
 
 const usage = async (argv: string[], program: Program = spy) => {
   try {
@@ -201,6 +217,47 @@ const usage = async (argv: string[], program: Program = spy) => {
   }
   throw new Error(`no error for ${argv.join(" ")}`);
 };
+
+describe("the interaction mode a run starts with", () => {
+  test.each([
+    [["whoami"]],
+    [["whoami", "--json"]],
+    [["server", "ls", "--json"]],
+    [["server", "--json"]],
+    [["servers", "list", "--json"]],
+    [["-P", "staging", "whoami", "--json"]],
+    [["whoami", "--json", "-P", "staging"]],
+    [["--non-interactive", "whoami", "--json"]],
+    [["server", "rm", "web", "-y"]],
+    [["switch", "--", "--json"]],
+    [["login", "-u", "me@example.com"]],
+  ])("asksForJson matches the parsed --json for %j", async (argv) => {
+    await go(argv);
+    expect(lastJson).toBe(parsedJson());
+  });
+
+  test("--json before the command isn't an option, so it is an error and no client", async () => {
+    const error = await usage(["--json", "whoami"]);
+    expect(error.code).toBe(2);
+    expect(lastJson).toBeNull();
+  });
+
+  test("a passthrough command's words belong to its program", async () => {
+    await go(["exec", "--json", "ls"]);
+    expect(lastJson).toBe(false);
+    await go(["os", "--json", "server", "list"]);
+    expect(lastJson).toBe(false);
+  });
+
+  test("--non-interactive works before and after the command", async () => {
+    await go(["--non-interactive", "whoami"]);
+    expect(lastGlobals).toEqual({ "non-interactive": true });
+    await go(["whoami", "--non-interactive"]);
+    expect(lastGlobals).toEqual({ "non-interactive": true });
+    await go(["--non-interactive", "exec", "ls"]);
+    expect(lastGlobals).toEqual({ "non-interactive": true });
+  });
+});
 
 describe("dispatch", () => {
   test("globals before the command, the group and the subcommand, and flags after", async () => {
@@ -385,6 +442,11 @@ describe("help and version, on the real table", () => {
     expect(await text(["login", "-u", "--help"])).toBe(login);
     expect(await text(["whoami", "--nope", "--help"])).toBe(
       await text(["help", "whoami"])
+    );
+  });
+  test("--non-interactive shows in a subcommand's help", async () => {
+    expect(await text(["--non-interactive", "server", "ls", "--help"])).toMatch(
+      /--non-interactive +Never prompt; fail with the flag to pass/u
     );
   });
   test("-h inside a cluster of short flags asks for help", async () => {

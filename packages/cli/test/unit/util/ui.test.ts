@@ -222,11 +222,41 @@ const streams = () => {
   return { answer, output: () => output, stderr, stdin };
 };
 
+const modes = { env: {}, json: false, nonInteractive: false };
+
+const terminal = (): { isTTY: true } & PassThrough =>
+  Object.assign(new PassThrough(), { isTTY: true as const });
+
+const canPrompt = (
+  over: Partial<typeof modes> & { stdin?: boolean; stderr?: boolean }
+) =>
+  createPrompts({
+    ...modes,
+    ...over,
+    stderr: over.stderr === false ? new PassThrough() : terminal(),
+    stdin: over.stdin === false ? new PassThrough() : terminal(),
+  }).interactive;
+
+describe("when nipa can prompt", () => {
+  test.each([
+    ["stdin and stderr are terminals", {}, true],
+    ["stdin is not a terminal", { stdin: false }, false],
+    ["stderr is not a terminal", { stderr: false }, false],
+    ["--non-interactive", { nonInteractive: true }, false],
+    ["--json", { json: true }, false],
+    ["CI is set", { env: { CI: "1" } }, false],
+    ["CI is empty", { env: { CI: "" } }, true],
+    ["NO_COLOR is set", { env: { NO_COLOR: "1" } }, true],
+  ])("%s", (_name, over, expected) => {
+    expect(canPrompt(over)).toBe(expected);
+  });
+});
+
 describe("prompts", () => {
   test("a confirmation can't carry a remote escape sequence", async () => {
     const { answer: press, output, stderr, stdin } = streams();
     press("n\r");
-    const answer = createPrompts({ stderr, stdin }).confirm({
+    const answer = createPrompts({ ...modes, stderr, stdin }).confirm({
       default: false,
       message: `Stop server evil${ESC}]0;t${BEL}${ESC}[2J?`,
     });
@@ -238,7 +268,7 @@ describe("prompts", () => {
   test("a choice's name can't carry a remote escape sequence", async () => {
     const { answer: press, output, stderr, stdin } = streams();
     press("\r");
-    const answer = createPrompts({ stderr, stdin }).choice({
+    const answer = createPrompts({ ...modes, stderr, stdin }).choice({
       choices: [{ name: `evil${ESC}]0;t${BEL}`, value: 1 }],
       message: "Switch to:",
     });

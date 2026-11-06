@@ -315,8 +315,9 @@ interface ConfirmPrompt {
 /** Questions for the person at the terminal. Each one throws exit 130 on Ctrl-C. */
 export interface Prompts {
   /**
-   * True when stdin and stderr are terminals. Ask only then. Without one, a
-   * command fails with a hint naming the flag or argument to pass instead.
+   * True when stdin and stderr are terminals and nothing said not to ask:
+   * not `--non-interactive`, not `--json`, and no CI variable. Ask only then.
+   * Otherwise a command fails with a hint naming the flag or argument to pass.
    */
   readonly interactive: boolean;
   readonly text: (options: TextPrompt) => Promise<string>;
@@ -333,8 +334,16 @@ const promptLine = (text: string): string =>
 export const createPrompts = (streams: {
   stdin: NodeJS.ReadableStream & { isTTY?: boolean };
   stderr: NodeJS.WritableStream & { isTTY?: boolean };
+  env: NodeJS.ProcessEnv;
+  /** `--non-interactive` was given. */
+  nonInteractive: boolean;
+  /** The command line asks for `--json`, whose stdout is for a program. */
+  json: boolean;
 }): Prompts => {
   const context = { input: streams.stdin, output: streams.stderr };
+  const refused = streams.nonInteractive || streams.json || !!streams.env.CI;
+  const interactive =
+    !refused && streams.stdin.isTTY === true && streams.stderr.isTTY === true;
   return {
     choice: (options) =>
       prompt(() =>
@@ -358,7 +367,7 @@ export const createPrompts = (streams: {
       prompt(() =>
         confirm({ ...options, message: promptLine(options.message) }, context)
       ),
-    interactive: streams.stdin.isTTY === true && streams.stderr.isTTY === true,
+    interactive,
     secret: (message) =>
       prompt(() =>
         password({ mask: "*", message: promptLine(message) }, context)

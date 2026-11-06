@@ -56,14 +56,19 @@ const once = <T>(task: () => Promise<T>): (() => Promise<T>) => {
 
 export const createClient = (input: {
   globals: GlobalValues;
+  /** The command line asks for `--json`. False for a passthrough command. */
+  json: boolean;
   program: ProgramSpec;
 }): Client => {
-  const { globals, program } = input;
+  const { globals, json, program } = input;
   // util/http.ts reads NIPA_DEBUG on each request.
   if (globals.debug) {
     process.env.NIPA_DEBUG = "1";
   }
   const prompts = createPrompts({
+    env: process.env,
+    json,
+    nonInteractive: globals["non-interactive"] === true,
     stderr: process.stderr,
     stdin: process.stdin,
   });

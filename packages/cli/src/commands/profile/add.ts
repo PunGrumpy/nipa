@@ -81,7 +81,7 @@ const valueOrAsk = (input: {
   if (!input.prompts.interactive) {
     throw usageError(
       `missing ${input.flag}`,
-      "Pass every value as a flag when there is no terminal."
+      "Pass every value as a flag when nipa can't prompt."
     );
   }
   return input.ask();

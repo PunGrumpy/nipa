@@ -51,6 +51,11 @@ export const GLOBAL_FLAGS = [
     long: "no-color",
     value: { kind: "none" },
   },
+  {
+    description: "Never prompt; fail with the flag to pass",
+    long: "non-interactive",
+    value: { kind: "none" },
+  },
   helpFlag,
   {
     description: "Show the version",
@@ -60,5 +65,5 @@ export const GLOBAL_FLAGS = [
   },
 ] as const satisfies readonly FlagSpec[];
 
-/** `{ profile?: string; debug?: true; "no-color"?: true; help?: true; version?: true }` */
+/** `{ profile?: string; debug?: true; "no-color"?: true; "non-interactive"?: true; help?: true; version?: true }` */
 export type GlobalValues = FlagValues<typeof GLOBAL_FLAGS>;

@@ -9,7 +9,7 @@ import type { Client } from "./client";
 import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
 import { commandHelp, mainHelp } from "./help";
-import { asksForHelp, takeGlobals } from "./parse";
+import { asksForHelp, asksForJson, takeGlobals } from "./parse";
 import { namesOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
 import { CliError, usageError } from "./ui";
@@ -31,6 +31,7 @@ export interface RunInput {
   /** Makes the run's client once every global option is known. Tests can pass a fake. */
   readonly createClient: (input: {
     globals: GlobalValues;
+    json: boolean;
     program: ProgramSpec;
   }) => Client;
   readonly program: Program;
@@ -203,8 +204,10 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     if (front.globals.help) {
       return print(commandHelp([command.spec]));
     }
+    // The words after a passthrough command belong to its program.
     const client = input.createClient({
       globals: front.globals,
+      json: false,
       program: spec,
     });
     return ran(await command.run({ client, words: after }), [command.spec]);
@@ -228,6 +231,10 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     words: resolved.words,
   });
   const globals = { ...front.globals, ...prepared.globals };
-  const client = input.createClient({ globals, program: spec });
+  const client = input.createClient({
+    globals,
+    json: asksForJson(resolved.words),
+    program: spec,
+  });
   return ran(await prepared.run(client), resolved.path);
 };
