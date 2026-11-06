@@ -242,6 +242,18 @@ const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "
 const SPINNER_DELAY_MS = 300;
 const ERASE_LINE = "\r\u001B[2K";
 
+/** What a run says about itself, whatever its streams are. */
+interface RunMode {
+  env: NodeJS.ProcessEnv;
+  /** `--non-interactive` was given. */
+  nonInteractive: boolean;
+  /** The command line asks for `--json`, whose stdout is for a program. */
+  json: boolean;
+}
+
+const isUnattended = (run: RunMode): boolean =>
+  run.nonInteractive || run.json || !!run.env.CI;
+
 let animating = false;
 
 /**
@@ -250,15 +262,12 @@ let animating = false;
  * terminal doesn't matter: `echo x | nipa server ls` still has someone
  * watching stderr.
  */
-export const canAnimate = (run: {
-  stderr: { isTTY?: boolean };
-  env: NodeJS.ProcessEnv;
-  nonInteractive: boolean;
-  json: boolean;
-}): boolean => {
-  const refused = run.nonInteractive || run.json || !!run.env.CI;
-  return !refused && run.stderr.isTTY === true && run.env.TERM !== "dumb";
-};
+export const canAnimate = (
+  run: RunMode & {
+    stderr: { isTTY?: boolean };
+  }
+): boolean =>
+  !isUnattended(run) && run.stderr.isTTY === true && run.env.TERM !== "dumb";
 
 export const setAnimation = (on: boolean): void => {
   animating = on;
@@ -375,19 +384,17 @@ const promptTheme = {
 };
 
 /** The prompts for one run, on these terminal streams. */
-export const createPrompts = (streams: {
-  stdin: NodeJS.ReadableStream & { isTTY?: boolean };
-  stderr: NodeJS.WritableStream & { isTTY?: boolean };
-  env: NodeJS.ProcessEnv;
-  /** `--non-interactive` was given. */
-  nonInteractive: boolean;
-  /** The command line asks for `--json`, whose stdout is for a program. */
-  json: boolean;
-}): Prompts => {
+export const createPrompts = (
+  streams: RunMode & {
+    stdin: NodeJS.ReadableStream & { isTTY?: boolean };
+    stderr: NodeJS.WritableStream & { isTTY?: boolean };
+  }
+): Prompts => {
   const context = { input: streams.stdin, output: streams.stderr };
-  const refused = streams.nonInteractive || streams.json || !!streams.env.CI;
   const interactive =
-    !refused && streams.stdin.isTTY === true && streams.stderr.isTTY === true;
+    !isUnattended(streams) &&
+    streams.stdin.isTTY === true &&
+    streams.stderr.isTTY === true;
   return {
     choice: (options) =>
       prompt(() =>

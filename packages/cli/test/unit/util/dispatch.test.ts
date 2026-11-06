@@ -418,7 +418,7 @@ describe("dispatch", () => {
 
 /**
  * What nipa prints for help or the version, with the real command table.
- * FORCE_COLOR turns colors on, so the text loses them here.
+ * Help has colors when these tests run on a terminal, so the text loses them.
  */
 const text = async (argv: string[]) => {
   const outcome = await go(argv, realProgram);

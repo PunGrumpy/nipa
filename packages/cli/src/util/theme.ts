@@ -5,13 +5,13 @@
 
 import { createColors } from "picocolors";
 
-export type Colors = ReturnType<typeof createColors>;
+type Colors = ReturnType<typeof createColors>;
 
 interface StreamLike {
   isTTY?: boolean;
 }
 
-export interface ColorInput {
+interface ColorInput {
   /** The words after `nipa`. Only those before `--` can turn colors off. */
   argv: readonly string[];
   env: NodeJS.ProcessEnv;
@@ -47,7 +47,7 @@ export const colorEnabled = (input: ColorInput): boolean => {
   return terminal;
 };
 
-export interface Theme {
+interface Theme {
   readonly stdout: Colors;
   readonly stderr: Colors;
 }
