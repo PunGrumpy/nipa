@@ -50,9 +50,9 @@ The profile's Keystone isn't production's, and nobody gave it a Space portal URL
 
 The profile's `spaceUrl` answers with something other than JSON, such as the portal's web page. The portal does that for a path it doesn't know. Check the URL with `nipa profile ls --json`. It's the portal URL with `/api`, such as `https://space.nipa.cloud/api`. To change it, remove the profile with `nipa profile rm` and add it again with `--space-url`.
 
-## "`nipa login` needs a terminal to ask for your password"
+## "`nipa login` needs to ask for your password, and nipa can't prompt here"
 
-You ran `nipa login` where nothing can type the answers, such as in continuous integration (CI) or with stdin redirected. nipa never reads a password from a pipe. Log in from a terminal first.
+You ran `nipa login` where nipa doesn't prompt: stdin or stderr isn't a terminal, `CI` has a value, or you passed `--non-interactive`. nipa never reads a password from a pipe. Log in from a terminal without those, then run the command again.
 
 ## "the macOS Keychain didn't save your password" or "nipa can't save your password on …"
 

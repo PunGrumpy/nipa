@@ -65,6 +65,7 @@ Reject or fix a change that:
 - prints anything but data to stdout, or prints data only to stderr
 - writes to `process.stderr` instead of `writeStderr`, or follows a redirect, reads a response body without `readText` or its own catch, or puts a remote name in a cell without going through `printTable` or `printFields`
 - adds color, a spinner or a note to `--json` output
+- imports `picocolors` outside `src/util/theme.ts`, or paints stderr text with the stdout palette
 - prints more than one `success` line for one change, or a `success` line before the change is saved
 - writes local files before the remote call they depend on succeeds
 - throws a plain `Error` for a case the person can fix, instead of a `CliError` with a hint

@@ -19,7 +19,7 @@ Resolution order:
 
 Rules:
 
-- Login needs a terminal. Without one, `interactiveLogin` fails with a hint to run `nipa login` in a terminal first
+- Login needs to prompt. When `client.prompts.interactive` is false, `interactiveLogin` fails with `nipa can't prompt here` and a hint to run `nipa login` in a terminal without `--non-interactive` or `CI`
 - A command that needs a session prompts for login only when `client.prompts.interactive` is true. Without a terminal, it fails with `your <profile> session expired` or `you aren't logged in to <profile>`, and the hint names `loginLine(profile)`
 - A wrong OTP code gets up to 3 attempts. After a wrong code, nipa says each code works once and asks for the next one
 - A 401 from an API call means Keystone revoked the token. `guardSession` turns it into `your <profile> session expired or was revoked` with the login command as the hint

@@ -79,7 +79,8 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | --- | --- | --- |
 | `-P, --profile <name>` | `NIPA_PROFILE` | Uses this profile instead of the current one |
 | `-d, --debug` | `NIPA_DEBUG=1` | Logs each HTTP request: method, URL, status and time. Never headers or bodies |
-| `--no-color` | `NO_COLOR=1` | Turns off colors |
+| `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on when nipa writes to a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
+| `--non-interactive` |  | Never prompts. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
 | `-h, --help` |  | Prints help |
 | `-v, --version` |  | Prints the version |
 
@@ -95,7 +96,8 @@ These variables change where nipa keeps files and when it checks for updates:
 | `XDG_CACHE_HOME` | The parent of `nipa/update.json` and `nipa/openstack.json`. The default is `~/.cache` |
 | `XDG_DATA_HOME` | The parent of `bash-completion/completions/nipa`, where `nipa completion --install` saves the bash script. The default is `~/.local/share` |
 | `NIPA_NO_UPDATE_CHECK` | Turns off the update check when set to any value |
-| `CI` | Turns off the update check when set to any value |
+| `NO_UPDATE_NOTIFIER` | Turns off the update check when set to any value |
+| `CI` | Turns off prompts and the update check when set to any value |
 
 ## Files
 
