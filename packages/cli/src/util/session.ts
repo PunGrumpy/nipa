@@ -152,10 +152,21 @@ const findProject = (input: {
   wanted: string;
 }): Project => {
   const { projects, wanted } = input;
-  const match = projects.find((p) => p.id === wanted || p.name === wanted);
+  const byId = projects.filter((p) => p.id === wanted);
+  const [match, ...others] =
+    byId.length > 0 ? byId : projects.filter((p) => p.name === wanted);
   if (!match) {
     throw new CliError(`no project named or with ID "${wanted}"`, {
+      exitCode: 2,
       hint: `Your projects: ${projects.map((p) => p.name).join(", ")}`,
+      reason: "not_found",
+    });
+  }
+  if (others.length > 0) {
+    const ids = [match, ...others].map((p) => p.id).join(", ");
+    throw new CliError(`${others.length + 1} projects are named "${wanted}"`, {
+      hint: `Name one by its ID instead: ${ids}.`,
+      reason: "ambiguous_name",
     });
   }
   return match;

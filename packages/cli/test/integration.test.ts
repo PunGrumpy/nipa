@@ -1049,7 +1049,7 @@ describe("with a session", () => {
 
   test("words after -- go to the command, not to nipa", async () => {
     const { code, stderr } = await run(["switch", "--", "--help"]);
-    expect(code).toBe(1);
+    expect(code).toBe(2);
     expect(stderr).toContain('no project named or with ID "--help"');
   });
 
