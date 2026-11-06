@@ -20,6 +20,7 @@ import {
   log,
   note,
   printFields,
+  oneLine,
   withDetail,
   withSpinner,
 } from "../../util/ui";
@@ -39,12 +40,13 @@ const withPort = (address: string, port: number | null): string =>
 // A status dot and label, then a name and a dim detail, such as
 // "● Completed  nightly (0.2 GB, 1d ago)".
 const statusLine = (status: string, name: string, detail: string): Cell => {
-  const cell = statusCell(status);
+  const cell = statusCell(oneLine(status));
   const dot = cell.paint?.(cell.text) ?? cell.text;
-  const named = name ? `  ${name}` : "";
+  const named = name ? `  ${oneLine(name)}` : "";
+  const safeDetail = oneLine(detail);
   return {
-    paint: () => `${dot}${named}${dim(detail)}`,
-    text: `${cell.text}${named}${detail}`,
+    paint: () => `${dot}${named}${dim(safeDetail)}`,
+    text: `${cell.text}${named}${safeDetail}`,
   };
 };
 

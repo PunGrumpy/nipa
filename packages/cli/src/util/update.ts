@@ -48,7 +48,9 @@ export const shouldCheck = (input: {
 
 const fetchLatest = async (): Promise<string | undefined> => {
   try {
+    // GitHub may redirect the API URL, and this call carries no secret.
     const res = await request(LATEST_API, {
+      redirect: "follow",
       signal: AbortSignal.timeout(1500),
     });
     const parsed = ReleaseSchema.safeParse(await res.json());

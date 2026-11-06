@@ -103,6 +103,18 @@ Rules:
 - For a server-side or network failure, the hint points to `--debug` or to the Keystone URL
 - Never print a stack trace, a raw response body, or an upstream error object. `src/index.ts` rethrows anything that isn't a known error, so wrap new error types there
 
+### Remote boundary
+
+Anything a server sends is untrusted: resource names, API error text, a release's `tag_name`. Keep it in bounds:
+
+- Make every request through `request()` in `src/util/http.ts`. It refuses a redirect, because `fetch` re-sends the body and headers, such as `X-Auth-Token`, to the new host, and it gives up after 30 seconds unless the caller passes its own `signal`. Pass `redirect: "follow"` only for a call that carries no secret, as the update check does. Don't add retries
+- Read a response body through `readText` in `http.ts`, a reader built on it, or a reader that catches its own failures, as `readError` and the update check do. A stall or a dropped connection while the body streams is then a `NetworkError`, and a body that isn't the expected JSON is a `KeystoneError` or `ApiError`, never a raw `TimeoutError` or `SyntaxError`
+- Write every human message through `writeStderr` or the helpers on it, and never to `process.stderr` directly. `writeStderr` runs `printable()`, which removes control characters, escape sequences and format characters such as bidi overrides, and keeps newlines, combining marks and the SGR codes nipa's own color helpers write
+- A remote value in a table or field cell can't carry an escape. `printTable`, `printFields` and `withDetail` print it on one line, with `\n`, `\r` and `\t` shown as text. Put a remote name in a cell when you can. A `paint` closure must use the `text` it's given, or a value that went through `oneLine`, because the table can't clean what a closure captured
+- `createPrompts` cleans each prompt's message and choices, because inquirer writes to the stream itself
+- A remote value inside a `log`, `note` or error message still passes `printable()`, which lets through the few color codes nipa writes. Quote it, and never build a line from remote text and a color code you chose for it
+- Raw output is for `client.stdout` only, as `server logs` writes the console log. Filtering applies to human text on stderr, not to JSON or piped values
+
 ## Secrets
 
 nipa handles passwords, OTP codes and Keystone tokens:

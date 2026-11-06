@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { request } from "./http";
+import { readText, request } from "./http";
 
 export const ProjectSchema = z.object({
   domainId: z.string().optional(),
@@ -183,19 +183,40 @@ const postToken = (
   });
 };
 
+/**
+ * A success body that is JSON in the shape of `schema`, or a KeystoneError
+ * that says what wasn't. A gateway can answer 200 with a web page.
+ */
+const readBody = async <T>(
+  res: Response,
+  what: string,
+  schema: z.ZodType<T>
+): Promise<T> => {
+  const text = await readText(res);
+  let parsed: z.ZodSafeParseResult<T>;
+  try {
+    parsed = schema.safeParse(JSON.parse(text));
+  } catch {
+    throw new KeystoneError(
+      `unexpected ${what}: the body isn't JSON`,
+      res.status
+    );
+  }
+  if (!parsed.success) {
+    throw new KeystoneError(
+      `unexpected ${what}: ${z.prettifyError(parsed.error)}`,
+      res.status
+    );
+  }
+  return parsed.data;
+};
+
 const readToken = async (res: Response): Promise<Token> => {
   const value = res.headers.get("X-Subject-Token");
   if (!value) {
     throw new KeystoneError("Keystone didn't return a token", res.status);
   }
-  const parsed = TokenSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new KeystoneError(
-      `unexpected token response: ${z.prettifyError(parsed.error)}`,
-      res.status
-    );
-  }
-  return toToken(value, parsed.data);
+  return toToken(value, await readBody(res, "token response", TokenSchema));
 };
 
 type PasswordResult =
@@ -288,14 +309,7 @@ export const listProjects = async ({
   if (!res.ok) {
     return fail(res, SESSION_GONE);
   }
-  const parsed = ProjectsSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new KeystoneError(
-      `unexpected project list: ${z.prettifyError(parsed.error)}`,
-      res.status
-    );
-  }
-  return toProjects(parsed.data);
+  return toProjects(await readBody(res, "project list", ProjectsSchema));
 };
 
 export const revoke = async ({
