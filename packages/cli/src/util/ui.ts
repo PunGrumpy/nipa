@@ -503,6 +503,8 @@ export type Paint = (text: string) => string;
 export interface Cell {
   text: string;
   paint?: Paint;
+  /** A shorter form for a table that is too wide, such as "(worker)". */
+  short?: Cell;
 }
 
 /** `text` with a dim `detail` after it, such as "m1.small (2 vCPUs)". */
@@ -541,24 +543,122 @@ const safeCell = (cell: Cell): Cell => ({ ...cell, text: oneLine(cell.text) });
 
 const heading: Paint = (text) => bold(cyan(text));
 
+/** Where a table may give way when the terminal is narrower than it is. */
+export interface TableFit {
+  /** The terminal's width in columns. */
+  width: number;
+  /**
+   * Indexes of the columns to drop, first to go first. The others are
+   * required. The first column names a row and is never droppable.
+   */
+  droppable: readonly number[];
+}
+
+const LEAD = 2;
+
+interface Layout {
+  headings: readonly string[];
+  rows: readonly (readonly Cell[])[];
+}
+
+const columnWidths = ({ headings, rows }: Layout): number[] =>
+  headings.map((text, column) =>
+    Math.max(text.length, ...rows.map((row) => row[column]?.text.length ?? 0))
+  );
+
+const layoutWidth = (layout: Layout): number => {
+  const widths = columnWidths(layout);
+  return (
+    LEAD +
+    widths.reduce((sum, width) => sum + width, 0) +
+    COLUMN_GAP.length * Math.max(0, widths.length - 1)
+  );
+};
+
+const keep = (layout: Layout, columns: readonly number[]): Layout => ({
+  headings: columns.map((column) => layout.headings[column] ?? ""),
+  rows: layout.rows.map((row) =>
+    columns.map((column) => row[column] ?? { text: "" })
+  ),
+});
+
+const shorten = (layout: Layout): Layout => ({
+  headings: layout.headings,
+  rows: layout.rows.map((row) => row.map((cell) => cell.short ?? cell)),
+});
+
+/**
+ * The first layout that fits `fit.width`: all columns, then without each
+ * droppable column in turn, then with the cells' short forms. Undefined when
+ * nothing fits, and the table prints as records. Names, IDs and addresses
+ * never truncate.
+ */
+const fitLayout = (table: Layout, fit: TableFit): Layout | undefined => {
+  let kept = table.headings.map((_, column) => column);
+  const candidates = [keep(table, kept)];
+  for (const column of fit.droppable) {
+    kept = kept.filter((index) => index !== column);
+    candidates.push(keep(table, kept));
+  }
+  candidates.push(shorten(candidates.at(-1) ?? table));
+  return candidates.find((layout) => layoutWidth(layout) <= fit.width);
+};
+
+const paintedCell = (cell: Cell): string =>
+  cell.paint?.(cell.text) ?? cell.text;
+
+// One short block per row, for a terminal too narrow for any column layout.
+const printRecords = (
+  layout: Layout,
+  droppable: readonly number[],
+  marks?: readonly string[]
+): void => {
+  const required = layout.headings
+    .map((_, column) => column)
+    .filter((column) => column > 0 && !droppable.includes(column));
+  writeStderr("");
+  for (const [index, row] of layout.rows.entries()) {
+    const [name = { text: "" }] = row;
+    writeStderr(`${marks?.[index] ?? " "} ${paintedCell(name)}`);
+    const details = required.map((column) =>
+      paintedCell(row[column] ?? { text: "" })
+    );
+    writeStderr(`    ${details.join("   ")}`);
+  }
+  writeStderr("");
+};
+
 /**
  * Prints rows the way the Vercel CLI prints a list: between blank lines, 2
  * spaces in, under bold cyan headings, with columns 5 spaces apart. A mark,
  * such as ✔ for the current profile, replaces a row's first space.
+ *
+ * With `fit`, a table wider than the terminal drops its droppable columns
+ * one at a time, then uses its cells' short forms, then prints a record per
+ * row: the first column on one line, the required columns indented beneath.
  */
 export const printTable = (table: {
   headings: readonly string[];
   rows: readonly (readonly Cell[])[];
   marks?: readonly string[];
+  fit?: TableFit;
 }): void => {
   if (jsonMode) {
     return;
   }
-  const { headings, marks } = table;
-  const rows = table.rows.map((row) => row.map(safeCell));
-  const widths = headings.map((text, column) =>
-    Math.max(text.length, ...rows.map((row) => row[column]?.text.length ?? 0))
-  );
+  const { marks } = table;
+  const full: Layout = {
+    headings: table.headings,
+    rows: table.rows.map((row) => row.map(safeCell)),
+  };
+  const { fit } = table;
+  const fitted = fit ? fitLayout(full, fit) : full;
+  if (!fitted) {
+    printRecords(shorten(full), fit?.droppable ?? [], marks);
+    return;
+  }
+  const { headings, rows } = fitted;
+  const widths = columnWidths(fitted);
   const line = (cells: readonly Cell[]): string =>
     cells
       .map((cell, column) => {

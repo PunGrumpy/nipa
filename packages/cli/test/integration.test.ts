@@ -1189,10 +1189,11 @@ describe("server ls", () => {
     const { code, stderr, stdout } = await run(["servers", "list"]);
     expect(code).toBe(0);
     expect(stderr).toMatch(/> Servers in Alpha \[\d+(?:ms|s)\]/u);
-    expect(stderr).toMatch(/Name\s+Status\s+Address\s+Flavor\s+Age/u);
-    expect(stderr).toMatch(
-      /web-1\s+● Active\s+203\.0\.113\.10\s+csa\.large\.v2\s+3d/u
-    );
+    // The width is unknown on a pipe, so the table fits 80 columns: it drops
+    // Flavor and Age, and the Kubernetes role stays long while it fits.
+    expect(stderr).toMatch(/Name\s+Status\s+Address\n/u);
+    expect(stderr).not.toMatch(/Flavor|Age/u);
+    expect(stderr).toMatch(/web-1\s+● Active\s+203\.0\.113\.10\n/u);
     expect(stderr).toMatch(
       /k8s-control-plane-1 \(Kubernetes master\)\s+● Active\s+198\.51\.100\.9/u
     );

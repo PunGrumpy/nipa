@@ -15,8 +15,21 @@ import {
 import { lsSubcommand } from "./command";
 import { mainAddress, nameCell } from "./format";
 
-const printServers = (servers: readonly Server[], now: number): void => {
+const FLAVOR = 3;
+const AGE = 4;
+const DEFAULT_WIDTH = 80;
+
+/**
+ * Fits the terminal by dropping Flavor, then Age, then shortening the
+ * Kubernetes role, then printing a record per server.
+ */
+export const printServers = (
+  servers: readonly Server[],
+  now: number,
+  width: number
+): void => {
   printTable({
+    fit: { droppable: [FLAVOR, AGE], width },
     headings: ["Name", "Status", "Address", "Flavor", "Age"],
     rows: servers.map((server) => [
       nameCell(server),
@@ -46,7 +59,7 @@ export const ls = handle(lsSubcommand, async ({ client, flags }) => {
     return 0;
   }
   log(`Servers in ${bold(project.name)} ${elapsed}`);
-  printServers(servers, Date.now());
+  printServers(servers, Date.now(), process.stderr.columns || DEFAULT_WIDTH);
   // A pipe gets one ID per line, because two servers can share a name.
   if (!client.stdout.isTTY) {
     client.stdout.line(servers.map((server) => server.id).join("\n"));
