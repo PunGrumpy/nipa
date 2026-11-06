@@ -43,7 +43,9 @@ try {
           program: programSpec(program),
           version: pkg.version,
         });
-        await checkForUpdate(pkg.version);
+        await checkForUpdate(pkg.version, {
+          interactive: outcome.interactive,
+        });
       }
       break;
     }

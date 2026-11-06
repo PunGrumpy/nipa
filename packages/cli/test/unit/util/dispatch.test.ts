@@ -398,11 +398,13 @@ describe("dispatch", () => {
   test("update notice follows the spec", async () => {
     expect(await go(["whoami"])).toEqual({
       exitCode: 0,
+      interactive: false,
       kind: "ran",
       updateNotice: true,
     });
     expect(await go(["__complete", "profiles"])).toEqual({
       exitCode: 0,
+      interactive: false,
       kind: "ran",
       updateNotice: false,
     });
