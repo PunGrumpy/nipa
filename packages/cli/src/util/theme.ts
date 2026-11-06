@@ -58,9 +58,6 @@ export const createTheme = (input: {
   };
 };
 
-/** A palette that is on or off whatever the streams are, for tests. */
-export const palette = (enabled: boolean): Colors => createColors(enabled);
-
 export const theme: Theme = createTheme({
   argv: process.argv.slice(2),
   env: process.env,

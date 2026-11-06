@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { PassThrough } from "node:stream";
 
+import { createColors } from "picocolors";
+
 import { nameCell } from "../../../src/commands/server/format";
 import type { Server } from "../../../src/util/compute";
-import { palette } from "../../../src/util/theme";
 import {
   createPrompts,
   printable,
@@ -46,7 +47,7 @@ describe("printable", () => {
   });
 
   test("keeps the colors nipa's helpers write", () => {
-    const colors = palette(true);
+    const colors = createColors(true);
     const line = `${colors.bold("x")} ${colors.dim("y")} ${colors.red("r")} ${colors.green("g")} ${colors.yellow("y")} ${colors.cyan("c")} ${colors.gray("z")}`;
     expect(line).toContain(ESC);
     expect(printable(line)).toBe(line);
