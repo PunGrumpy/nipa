@@ -61,6 +61,60 @@ export const runWithClosedStdout = async (
   return { code, stderr };
 };
 
+type Stream = "stdin" | "stdout" | "stderr";
+
+const FAKE_TERMINALS = path.join(import.meta.dir, "fake-terminals.ts");
+
+/**
+ * Runs the CLI with the named streams reporting `isTTY`, so one can be a
+ * terminal while the others are pipes. `keys` is what the terminal types: a
+ * lone Ctrl-C cancels the first prompt, which is all a test needs to read
+ * what the prompt printed. Without a stdin terminal, stdin is closed.
+ */
+export const runOnTerminals = async (input: {
+  args: string[];
+  env: Record<string, string>;
+  terminals: readonly Stream[];
+  keys?: string;
+}): Promise<RunResult> => {
+  const typing = input.terminals.includes("stdin");
+  const proc = Bun.spawn([process.execPath, FAKE_TERMINALS, ...input.args], {
+    env: { ...input.env, NIPA_TEST_TTY: input.terminals.join(",") },
+    stderr: "pipe",
+    stdin: typing ? "pipe" : "ignore",
+    stdout: "pipe",
+  });
+  if (typing && proc.stdin) {
+    proc.stdin.write(input.keys ?? "\u0003");
+    await proc.stdin.end();
+  }
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { code, stderr, stdout };
+};
+
+/** Like runWithClosedStdout, for a reader that quits on stderr. */
+export const runWithClosedStderr = async (
+  cmd: string[],
+  env: Record<string, string>
+): Promise<Pick<RunResult, "code" | "stdout">> => {
+  const proc = Bun.spawn(cmd, {
+    env,
+    stderr: "pipe",
+    stdin: "ignore",
+    stdout: "pipe",
+  });
+  await proc.stderr.cancel();
+  const [stdout, code] = await Promise.all([
+    new Response(proc.stdout).text(),
+    proc.exited,
+  ]);
+  return { code, stdout };
+};
+
 export const testEnv = (dir: string) => ({
   HOME: dir,
   NIPA_CONFIG_DIR: dir,

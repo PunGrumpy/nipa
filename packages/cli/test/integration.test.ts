@@ -22,6 +22,7 @@ import path from "node:path";
 import pkg from "../package.json" with { type: "json" };
 import {
   ENTRY,
+  runOnTerminals,
   runProcess,
   runWithClosedStdout,
   seedLegacySession,
@@ -213,6 +214,63 @@ describe("streams and colors", () => {
     expect(help.stdout).not.toContain(ESC);
     const error = await run(["logn"], colorEnv({ CI: "1" }));
     expect(error.stderr).not.toContain(ESC);
+  });
+});
+
+// The color codes in text, not the cursor movements that a prompt also writes.
+const colorCodes = (text: string): string[] =>
+  text
+    .split("\u001B[")
+    .slice(1)
+    .filter((rest) => /^[\d;]*m/u.test(rest));
+
+const onTerminals = (
+  terminals: ("stdin" | "stdout" | "stderr")[],
+  args: string[]
+) =>
+  // NO_COLOR is empty, so it doesn't count.
+  runOnTerminals({ args, env: { ...testEnv(dir), NO_COLOR: "" }, terminals });
+
+// A terminal on some streams and a pipe on the others, as `nipa ... | cat`
+// in a terminal, or `nipa ... 2>log`, leave them.
+describe("what a terminal changes", () => {
+  const ESC = "\u001B";
+  beforeAll(freshDir);
+
+  test("help follows stdout and messages follow stderr", async () => {
+    const stdoutOnly = ["stdout" as const];
+    const help = await onTerminals(stdoutOnly, ["--help"]);
+    expect(help.stdout).toContain(ESC);
+    const error = await onTerminals(stdoutOnly, ["logn"]);
+    expect(error.stderr).not.toContain(ESC);
+
+    const stderrOnly = ["stderr" as const];
+    const piped = await onTerminals(stderrOnly, ["--help"]);
+    expect(piped.stdout).not.toContain(ESC);
+    const colorful = await onTerminals(stderrOnly, ["logn"]);
+    expect(colorful.stderr).toContain(ESC);
+  });
+
+  test("a prompt follows the colors of the lines around it", async () => {
+    // stdout is a pipe, as in `nipa profile add dev | cat`.
+    const piped = await onTerminals(
+      ["stdin", "stderr"],
+      ["profile", "add", "dev"]
+    );
+    expect(piped.stderr).toContain("Keystone URL");
+    expect(piped.stderr).toContain(`${ESC}[34m?`);
+    expect(piped.stderr).toContain(`${ESC}[1mKeystone URL`);
+  });
+
+  test("--no-color leaves a prompt plain", async () => {
+    const { code, stderr } = await onTerminals(
+      ["stdin", "stdout", "stderr"],
+      ["--no-color", "profile", "add", "dev"]
+    );
+    expect(stderr).toContain("Keystone URL");
+    // The prompt still moves the cursor, which is not color.
+    expect(colorCodes(stderr)).toEqual([]);
+    expect(code).toBe(130);
   });
 });
 

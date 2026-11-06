@@ -330,6 +330,28 @@ export interface Prompts {
 const promptLine = (text: string): string =>
   clean(text, { newline: false, sgr: true });
 
+// inquirer paints with node:util's styleText, which asks stdout about color
+// and ignores --no-color. This theme repaints every part the four prompts
+// use from the stderr palette, so a prompt follows the same decision as the
+// lines around it.
+const promptTheme = {
+  prefix: { done: green("✔"), idle: theme.stderr.blue("?") },
+  spinner: { frames: FRAMES.map((frame) => yellow(frame)), interval: 80 },
+  style: {
+    answer: cyan,
+    defaultAnswer: (text: string) => dim(`(${text})`),
+    description: cyan,
+    error: (text: string) => red(`> ${text}`),
+    help: dim,
+    highlight: cyan,
+    keysHelpTip: (keys: readonly (readonly [string, string])[]) =>
+      keys
+        .map(([key, action]) => `${bold(key)} ${dim(action)}`)
+        .join(dim(" • ")),
+    message: bold,
+  },
+};
+
 /** The prompts for one run, on these terminal streams. */
 export const createPrompts = (streams: {
   stdin: NodeJS.ReadableStream & { isTTY?: boolean };
@@ -359,18 +381,29 @@ export const createPrompts = (streams: {
               name: promptLine(choice.name),
             })),
             message: promptLine(options.message),
+            theme: promptTheme,
           },
           context
         )
       ),
     confirm: (options) =>
       prompt(() =>
-        confirm({ ...options, message: promptLine(options.message) }, context)
+        confirm(
+          {
+            ...options,
+            message: promptLine(options.message),
+            theme: promptTheme,
+          },
+          context
+        )
       ),
     interactive,
     secret: (message) =>
       prompt(() =>
-        password({ mask: "*", message: promptLine(message) }, context)
+        password(
+          { mask: "*", message: promptLine(message), theme: promptTheme },
+          context
+        )
       ),
     text: (options) =>
       prompt(() =>
@@ -379,6 +412,7 @@ export const createPrompts = (streams: {
             ...options,
             message: promptLine(options.message),
             required: options.required ?? true,
+            theme: promptTheme,
           },
           context
         )
