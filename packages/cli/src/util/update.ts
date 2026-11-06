@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { debug, request } from "./http";
 import { readCache, writeCache } from "./store";
-import { cyan, dim, green, writeStderr } from "./ui";
+import { writeStderr } from "./ui";
 
 const RELEASES = "https://github.com/PunGrumpy/nipa/releases";
 const LATEST_API =
@@ -81,8 +81,8 @@ export const knownUpdate = async (
 export const updateNotice = (latest: string, current: string): string =>
   [
     "",
-    `nipa ${green(latest)} is available. You have ${dim(current)}.`,
-    `Release notes: ${cyan(releaseNotes(latest))}`,
+    `nipa ${latest} is available. You have ${current}.`,
+    `Release notes: ${releaseNotes(latest)}`,
   ].join("\n");
 
 interface CheckOptions {

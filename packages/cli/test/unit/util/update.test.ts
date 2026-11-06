@@ -70,6 +70,10 @@ describe("updateNotice", () => {
     ]);
   });
 
+  test("carries no paint, so a terminal or FORCE_COLOR changes nothing", () => {
+    expect(notice).not.toContain("\u001B");
+  });
+
   test("is not the old box", async () => {
     const source = await Bun.file(
       path.join(import.meta.dir, "../../../src/util/update.ts")
