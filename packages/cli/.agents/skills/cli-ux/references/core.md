@@ -41,7 +41,7 @@ Use the helpers in `src/util/ui.ts` instead of hand-built lines:
 | `log(message)` | `> message`, with a dim `>` | State, context and next steps |
 | `success(message, elapsedMs?)` | `> Success! message [1s]` | The one line that confirms a completed change |
 | `note(message)` | `> NOTE: message`, in bold yellow | A no-op or a condition the person should know about |
-| `withSpinner(message, task)` | A spinner after 300 ms, erased when `task` ends. Only on a stderr terminal, and never with `--json`, `--non-interactive`, `CI` or `TERM=dumb` | Network calls and other waits |
+| `withSpinner(message, task)` | A spinner after 300 ms, erased when `task` ends. Only where nipa can prompt, and never with `TERM=dumb` | Network calls and other waits |
 | `printTable({ headings, rows, marks })` | A borderless table between blank lines, 2 spaces in | Lists of resources |
 | `throw new CliError(message, options)` | `Error: message`, then `> hint`, through `printError` in `src/index.ts` | Failures |
 

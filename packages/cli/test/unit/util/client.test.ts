@@ -6,11 +6,25 @@ import { createClient } from "../../../src/util/client";
 import { programSpec } from "../../../src/util/command";
 import { setAnimation, withSpinner } from "../../../src/util/ui";
 
+const setTerminal = (name: "stderr" | "stdin", value: boolean) => {
+  Object.defineProperty(process[name], "isTTY", {
+    configurable: true,
+    value,
+  });
+};
+
 // What a run does once createClient has read the command line: whether a
 // task slower than the spinner's delay draws frames on stderr.
 describe("whether a run animates", () => {
-  const savedEnv = { CI: process.env.CI, TERM: process.env.TERM };
-  const tty = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
+  const savedEnv = {
+    CI: process.env.CI,
+    NO_COLOR: process.env.NO_COLOR,
+    TERM: process.env.TERM,
+  };
+  const ttys = {
+    stderr: Object.getOwnPropertyDescriptor(process.stderr, "isTTY"),
+    stdin: Object.getOwnPropertyDescriptor(process.stdin, "isTTY"),
+  };
   let written: string[];
   let spy: ReturnType<typeof spyOn>;
 
@@ -22,10 +36,8 @@ describe("whether a run animates", () => {
     });
     Reflect.deleteProperty(process.env, "CI");
     process.env.TERM = "xterm-256color";
-    Object.defineProperty(process.stderr, "isTTY", {
-      configurable: true,
-      value: true,
-    });
+    setTerminal("stderr", true);
+    setTerminal("stdin", true);
   });
 
   afterEach(() => {
@@ -38,10 +50,13 @@ describe("whether a run animates", () => {
         process.env[name] = value;
       }
     }
-    if (tty) {
-      Object.defineProperty(process.stderr, "isTTY", tty);
-    } else {
-      Reflect.deleteProperty(process.stderr, "isTTY");
+    for (const name of ["stderr", "stdin"] as const) {
+      const tty = ttys[name];
+      if (tty) {
+        Object.defineProperty(process[name], "isTTY", tty);
+      } else {
+        Reflect.deleteProperty(process[name], "isTTY");
+      }
     }
   });
 
@@ -59,28 +74,18 @@ describe("whether a run animates", () => {
     expect(await drawn({})).toBe(true);
   });
 
-  test("a stdin that isn't a terminal doesn't stop it", async () => {
-    const stdin = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
-    Object.defineProperty(process.stdin, "isTTY", {
-      configurable: true,
-      value: false,
-    });
-    try {
-      expect(await drawn({})).toBe(true);
-    } finally {
-      if (stdin) {
-        Object.defineProperty(process.stdin, "isTTY", stdin);
-      } else {
-        Reflect.deleteProperty(process.stdin, "isTTY");
-      }
-    }
+  test("a stdin that isn't a terminal draws nothing", async () => {
+    setTerminal("stdin", false);
+    expect(await drawn({})).toBe(false);
+  });
+
+  test("NO_COLOR removes color, not the frames", async () => {
+    process.env.NO_COLOR = "1";
+    expect(await drawn({})).toBe(true);
   });
 
   test("a stderr that isn't a terminal draws nothing", async () => {
-    Object.defineProperty(process.stderr, "isTTY", {
-      configurable: true,
-      value: false,
-    });
+    setTerminal("stderr", false);
     expect(await drawn({})).toBe(false);
   });
 

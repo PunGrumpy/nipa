@@ -6,7 +6,6 @@ import { createColors } from "picocolors";
 import { nameCell } from "../../../src/commands/server/format";
 import type { Server } from "../../../src/util/compute";
 import {
-  canAnimate,
   createPrompts,
   printable,
   printFields,
@@ -249,32 +248,6 @@ describe("when nipa can prompt", () => {
     ["NO_COLOR is set", { env: { NO_COLOR: "1" } }, true],
   ])("%s", (_name, over, expected) => {
     expect(canPrompt(over)).toBe(expected);
-  });
-});
-
-describe("when nipa animates", () => {
-  const stderr = { isTTY: true };
-  const animates = (over: Partial<Parameters<typeof canAnimate>[0]>) =>
-    canAnimate({
-      env: {},
-      json: false,
-      nonInteractive: false,
-      stderr,
-      ...over,
-    });
-
-  test.each([
-    ["stderr is a terminal", {}, true],
-    ["stderr is not a terminal", { stderr: { isTTY: false } }, false],
-    ["TERM is dumb", { env: { TERM: "dumb" } }, false],
-    ["TERM is something else", { env: { TERM: "xterm-256color" } }, true],
-    ["CI is set", { env: { CI: "1" } }, false],
-    ["CI is empty", { env: { CI: "" } }, true],
-    ["--non-interactive", { nonInteractive: true }, false],
-    ["--json", { json: true }, false],
-    ["NO_COLOR is set", { env: { NO_COLOR: "1" } }, true],
-  ])("%s", (_name, over, expected) => {
-    expect(animates(over)).toBe(expected);
   });
 });
 
