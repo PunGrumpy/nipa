@@ -238,9 +238,11 @@ export const asksForHelp = (words: readonly string[]): boolean => {
 };
 
 /**
- * True when a word before `--` is `--json`. Read from the words, not from the
- * parsed flags, because a line that fails to parse must still keep nipa from
- * prompting on its way to the error.
+ * True when a word before `--` is `--json`. Read from the words because the
+ * dispatcher builds the client from a `Prepared`, which holds the global
+ * values and a closure over the handler: the leaf's own flags, `json` among
+ * them, stay inside that closure. dispatch.test.ts checks that this agrees
+ * with the parsed `flags.json`.
  */
 export const asksForJson = (words: readonly string[]): boolean => {
   const spellings = new Set(flagWords(jsonFlag));
