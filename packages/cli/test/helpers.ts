@@ -67,15 +67,14 @@ const FAKE_TERMINALS = path.join(import.meta.dir, "fake-terminals.ts");
 
 /**
  * Runs the CLI with the named streams reporting `isTTY`, so one can be a
- * terminal while the others are pipes. `keys` is what the terminal types: a
- * lone Ctrl-C cancels the first prompt, which is all a test needs to read
- * what the prompt printed. Without a stdin terminal, stdin is closed.
+ * terminal while the others are pipes. The stdin terminal types a lone Ctrl-C,
+ * which cancels the first prompt: all a test needs to read what it printed.
+ * Without a stdin terminal, stdin is closed.
  */
 export const runOnTerminals = async (input: {
   args: string[];
   env: Record<string, string>;
   terminals: readonly Stream[];
-  keys?: string;
 }): Promise<RunResult> => {
   const typing = input.terminals.includes("stdin");
   const proc = Bun.spawn([process.execPath, FAKE_TERMINALS, ...input.args], {
@@ -85,7 +84,7 @@ export const runOnTerminals = async (input: {
     stdout: "pipe",
   });
   if (typing && proc.stdin) {
-    proc.stdin.write(input.keys ?? "\u0003");
+    proc.stdin.write("\u0003");
     await proc.stdin.end();
   }
   const [stdout, stderr, code] = await Promise.all([

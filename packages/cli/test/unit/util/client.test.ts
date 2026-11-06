@@ -76,6 +76,14 @@ describe("whether a run animates", () => {
     }
   });
 
+  test("a stderr that isn't a terminal draws nothing", async () => {
+    Object.defineProperty(process.stderr, "isTTY", {
+      configurable: true,
+      value: false,
+    });
+    expect(await drawn({})).toBe(false);
+  });
+
   test("--json draws nothing", async () => {
     expect(await drawn({ json: true })).toBe(false);
   });

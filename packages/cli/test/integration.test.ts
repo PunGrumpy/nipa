@@ -292,6 +292,17 @@ describe("what a terminal changes", () => {
     expect(code).toBe(1);
   });
 
+  test("CI never asks, even at a terminal", async () => {
+    const { code, stderr } = await runOnTerminals({
+      args: ["server", "ls"],
+      env: { ...testEnv(dir), CI: "1", NO_COLOR: "" },
+      terminals: ["stdin", "stdout", "stderr"],
+    });
+    expect(stderr).toContain("you aren't logged in to prod");
+    expect(stderr).not.toContain("Email");
+    expect(code).toBe(1);
+  });
+
   test.each([
     ["after the command", ["server", "ls", "--non-interactive"]],
     ["before the command", ["--non-interactive", "server", "ls"]],
@@ -343,15 +354,41 @@ describe("what a terminal changes", () => {
     });
   });
 
-  test("--no-color leaves a prompt plain", async () => {
-    const { code, stderr } = await onTerminals(
-      ["stdin", "stdout", "stderr"],
-      ["--no-color", "profile", "add", "dev"]
-    );
-    expect(stderr).toContain("Keystone URL");
-    // The prompt still moves the cursor, which is not color.
-    expect(colorCodes(stderr)).toEqual([]);
-    expect(code).toBe(130);
+  describe("--no-color leaves each kind of prompt plain", () => {
+    beforeAll(async () => {
+      const profile = {
+        authUrl: "https://keystone.example/v3",
+        region: "NCP-TH",
+        userDomain: "nipacloud",
+      };
+      await writeFile(
+        inDir("config.json"),
+        JSON.stringify({
+          currentProfile: "prod",
+          profiles: { dev: profile, prod: profile },
+        })
+      );
+    });
+
+    test.each([
+      ["text", ["profile", "add", "staging"], "Keystone URL"],
+      ["choice", ["profile", "use"], "Use profile:"],
+      ["confirm", ["profile", "rm", "dev"], "Remove profile dev"],
+      [
+        "password",
+        ["login", "--username", "a@example.com", "--project", "a".repeat(32)],
+        "Password",
+      ],
+    ])("%s", async (_kind, args, message) => {
+      const { code, stderr } = await onTerminals(
+        ["stdin", "stdout", "stderr"],
+        ["--no-color", ...args]
+      );
+      expect(stderr).toContain(message);
+      // The prompt still moves the cursor, which is not color.
+      expect(colorCodes(stderr)).toEqual([]);
+      expect(code).toBe(130);
+    });
   });
 });
 
