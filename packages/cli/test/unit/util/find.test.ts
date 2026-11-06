@@ -41,6 +41,7 @@ describe("findServer", () => {
     await expect(attempt).rejects.toThrow('2 servers in Alpha are named "web"');
     await expect(attempt).rejects.toMatchObject({
       hint: "Name one by its ID instead: s1, s2.",
+      reason: "ambiguous_name",
     });
   });
 
@@ -51,6 +52,8 @@ describe("findServer", () => {
     );
     await expect(attempt).rejects.toMatchObject({
       hint: "Run `nipa server ls` to see your servers.",
+      next: ["nipa server ls"],
+      reason: "not_found",
     });
   });
 });

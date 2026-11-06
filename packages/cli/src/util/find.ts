@@ -89,14 +89,21 @@ export const findResource = async <T extends Named>(input: {
   if (!match) {
     throw new CliError(
       `no ${kind.noun} named or with ID "${ref}" in ${projectName}`,
-      { hint: `Run \`${kind.lsCommand}\` to see your ${kind.plural}.` }
+      {
+        hint: `Run \`${kind.lsCommand}\` to see your ${kind.plural}.`,
+        next: [kind.lsCommand],
+        reason: "not_found",
+      }
     );
   }
   if (others.length > 0) {
     const ids = [match, ...others].map((item) => item.id).join(", ");
     throw new CliError(
       `${others.length + 1} ${kind.plural} in ${projectName} are named "${ref}"`,
-      { hint: `Name one by its ID instead: ${ids}.` }
+      {
+        hint: `Name one by its ID instead: ${ids}.`,
+        reason: "ambiguous_name",
+      }
     );
   }
   return match;

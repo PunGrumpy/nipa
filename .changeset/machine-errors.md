@@ -1,0 +1,5 @@
+---
+"nipa-cli": patch
+---
+
+A failed command with `--json` now writes exactly one line of JSON to stderr and nothing to stdout, so a script can tell "log in" from "retry later" without matching English. The document has a `status` (`action_required` when a person has to act first, such as logging in or fixing the command line, otherwise `error`), a stable `reason` such as `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `unknown_option` or `unknown_command`, the `message`, and a `hint` and `next` commands when there are any, for example `nipa login` for an expired session. A bug in nipa under `--json` writes an `internal_error` document in place of a stack trace. A successful `--json` command no longer writes notes, such as the session expiry warning, or the `Using profile` line to stderr, and `nipa whoami --json` logged out now prints its `{ "loggedIn": false }` document and exits 1 without an error message after it. Without `--json`, errors look the same as before.

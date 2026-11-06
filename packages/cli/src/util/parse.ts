@@ -184,7 +184,8 @@ const readGlobal = (input: {
   if (!read && input.unknown === "reject") {
     throw usageError(
       `unknown option "${word}"`,
-      "Run `nipa --help` to see the options."
+      "Run `nipa --help` to see the options.",
+      "unknown_option"
     );
   }
   return read;
@@ -272,7 +273,8 @@ const tokenize = (input: {
       if (!read) {
         throw usageError(
           `unknown option "${word}"`,
-          `Run \`${hints.command} --help\` to see the options.`
+          `Run \`${hints.command} --help\` to see the options.`,
+          "unknown_option"
         );
       }
       for (const { flag, value } of read.options) {

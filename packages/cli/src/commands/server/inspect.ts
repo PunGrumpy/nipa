@@ -147,7 +147,6 @@ export const inspect = handle(
       }
     };
     if (flags.json) {
-      logFailures();
       client.stdout.json({
         profile: active.name,
         project,

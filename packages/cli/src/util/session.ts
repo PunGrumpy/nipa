@@ -91,6 +91,7 @@ export const resolveProfile = async (input: {
       found?.link.profile === name ? ` in ${displayPath(found.file)}` : "";
     throw new CliError(`no profile named "${name}"${from}`, {
       hint: `Your profiles: ${known}. Add one with \`nipa profile add ${name}\`.`,
+      reason: "not_found",
     });
   }
   const link = found?.link.profile === name ? found : undefined;
@@ -436,11 +437,20 @@ const savedSession = async (input: {
     warnBeforeExpiry({ profile: active.name, session });
     return session;
   }
-  const hint = `Run \`${loginLine(active.name)}\`.`;
+  const login = loginLine(active.name);
+  const hint = `Run \`${login}\`.`;
   if (!prompts.interactive) {
     throw session
-      ? new CliError(`your ${active.name} session expired`, { hint })
-      : new CliError(`you aren't logged in to ${active.name}`, { hint });
+      ? new CliError(`your ${active.name} session expired`, {
+          hint,
+          next: [login],
+          reason: "token_expired",
+        })
+      : new CliError(`you aren't logged in to ${active.name}`, {
+          hint,
+          next: [login],
+          reason: "login_required",
+        });
   }
   log(session ? "Your session expired." : "You aren't logged in yet.");
   return interactiveLogin({ active, prompts });
@@ -519,6 +529,8 @@ const guardSession =
       if (status === 401) {
         throw new CliError(`your ${profile} session expired or was revoked`, {
           hint: `Run \`${loginLine(profile)}\`.`,
+          next: [loginLine(profile)],
+          reason: "token_expired",
         });
       }
       throw error;
@@ -568,6 +580,7 @@ export const connect = (input: {
         if (error instanceof NetworkError) {
           throw new CliError(error.message, {
             hint: "Check your network connection, or the profile's Space API URL.",
+            reason: "network_error",
           });
         }
         throw error;

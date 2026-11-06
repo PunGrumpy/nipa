@@ -72,6 +72,7 @@ A change isn't done until:
 - the before and after transcript is easier to scan
 - every prompt has a flag or argument, and the path where nipa can't prompt fails with a hint naming it
 - `--json` and piped stdout carry only data, with no color codes, spinners or notes
+- under `--json`, a failure leaves stdout empty and writes one error document to stderr, with a `reason` a script can read
 - errors say what failed and how to fix it, and exit with the right code
 - the copy review covered every string the command prints, not only the edited line
 - tests assert the new output and reject the old one

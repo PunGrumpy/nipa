@@ -8,8 +8,9 @@ import { createClient } from "./util/client";
 import { programSpec } from "./util/command";
 import { refreshCompletions } from "./util/completion-install";
 import { run } from "./util/dispatch";
-import { toCliError } from "./util/errors";
-import { printError } from "./util/ui";
+import { internalError, toCliError, writeErrorDocument } from "./util/errors";
+import { debug } from "./util/http";
+import { isJsonMode, printError } from "./util/ui";
 import { checkForUpdate } from "./util/update";
 
 // A reader that quits early, as `nipa server ls | head -1` does, closes the
@@ -56,9 +57,21 @@ try {
   }
 } catch (error) {
   const cliError = error instanceof Error ? toCliError(error) : undefined;
-  if (!cliError) {
+  if (isJsonMode()) {
+    // A script gets one document either way. A bug has no message worth
+    // reading, so it says so in place of a stack, which --debug still shows.
+    if (!cliError) {
+      debug(
+        error instanceof Error ? (error.stack ?? error.message) : `${error}`
+      );
+    }
+    const reported = cliError ?? internalError();
+    writeErrorDocument(reported);
+    process.exitCode = reported.exitCode;
+  } else if (cliError) {
+    printError(cliError);
+    process.exitCode = cliError.exitCode;
+  } else {
     throw error;
   }
-  printError(cliError);
-  process.exitCode = cliError.exitCode;
 }

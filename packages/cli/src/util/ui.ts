@@ -8,6 +8,7 @@ import input from "@inquirer/input";
 import password from "@inquirer/password";
 import select from "@inquirer/select";
 
+import type { Reason } from "./errors";
 import { theme } from "./theme";
 
 // Everything these paint goes to stderr, so stderr decides the colors.
@@ -16,21 +17,38 @@ export const { bold, cyan, dim, gray, green, red, yellow } = theme.stderr;
 export class CliError extends Error {
   readonly hint?: string;
   readonly exitCode: number;
+  /** The stable code a script reads in place of the message. */
+  readonly reason: Reason;
+  /** Recovery commands, whole and static, such as `nipa login -P staging`. */
+  readonly next?: readonly string[];
 
   constructor(
     message: string,
-    options: { hint?: string; exitCode?: number } = {}
+    options: {
+      hint?: string;
+      exitCode?: number;
+      reason?: Reason;
+      next?: readonly string[];
+    } = {}
   ) {
     super(message);
     this.name = "CliError";
     this.hint = options.hint;
     this.exitCode = options.exitCode ?? 1;
+    // A wrong command line is exit 2. Any other failure is a generic one
+    // until its throw site names a better reason.
+    this.reason =
+      options.reason ?? (this.exitCode === 2 ? "invalid_arguments" : "failed");
+    this.next = options.next;
   }
 }
 
 /** Exit code 2: the command line was wrong. The hint says how to write it. */
-export const usageError = (message: string, hint: string): CliError =>
-  new CliError(message, { exitCode: 2, hint });
+export const usageError = (
+  message: string,
+  hint: string,
+  reason?: Reason
+): CliError => new CliError(message, { exitCode: 2, hint, reason });
 
 export const formatElapsed = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${Math.round(ms / 1000)}s`;
@@ -212,22 +230,44 @@ export const oneLine = (text: string): string =>
     { newline: false, sgr: false }
   );
 
+let jsonMode = false;
+
+/**
+ * run() decides once per run. In JSON mode stderr carries no progress,
+ * receipts, notes or tables, so a failure's error document is its only
+ * content. Debug lines are the exception: they ask for themselves.
+ */
+export const setJsonMode = (on: boolean): void => {
+  jsonMode = on;
+};
+
+export const isJsonMode = (): boolean => jsonMode;
+
 // Bun's console.error turns the whole line red on a terminal.
 export const writeStderr = (line: string): void => {
   process.stderr.write(`${printable(line)}\n`);
 };
 
 export const log = (message: string): void => {
+  if (jsonMode) {
+    return;
+  }
   writeStderr(`${dim(">")} ${message}`);
 };
 
 export const success = (message: string, elapsedMs?: number): void => {
+  if (jsonMode) {
+    return;
+  }
   const time = elapsedMs === undefined ? "" : `[${formatElapsed(elapsedMs)}]`;
   const elapsed = time ? ` ${dim(time)}` : "";
   writeStderr(`${cyan("> Success!")} ${message}${elapsed}`);
 };
 
 export const note = (message: string): void => {
+  if (jsonMode) {
+    return;
+  }
   writeStderr(`${bold(yellow("> NOTE:"))} ${message}`);
 };
 
@@ -253,7 +293,7 @@ export const withSpinner = async <T>(
   message: string,
   task: () => Promise<T>
 ): Promise<T> => {
-  if (!animating) {
+  if (!animating || jsonMode) {
     return task();
   }
   let frame = 0;
@@ -511,6 +551,9 @@ export const printTable = (table: {
   rows: readonly (readonly Cell[])[];
   marks?: readonly string[];
 }): void => {
+  if (jsonMode) {
+    return;
+  }
   const { headings, marks } = table;
   const rows = table.rows.map((row) => row.map(safeCell));
   const widths = headings.map((text, column) =>
@@ -541,6 +584,9 @@ const painted = (cell: Cell): string => cell.paint?.(cell.text) ?? cell.text;
 
 /** One resource's details, laid out like `printTable`. */
 export const printFields = (given: readonly Field[]): void => {
+  if (jsonMode) {
+    return;
+  }
   const fields = given.map((field) => ({
     ...field,
     lines: field.lines.map(safeCell),

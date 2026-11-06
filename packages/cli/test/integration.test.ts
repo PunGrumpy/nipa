@@ -402,9 +402,11 @@ describe("without a session", () => {
     expect(stderr).toContain("nipa login");
   });
 
-  test("whoami --json reports loggedIn false", async () => {
-    const { stdout } = await run(["whoami", "--json"]);
+  test("whoami --json reports loggedIn false and exits 1 with stderr empty", async () => {
+    const { code, stderr, stdout } = await run(["whoami", "--json"]);
     expect(JSON.parse(stdout)).toEqual({ loggedIn: false, profile: "prod" });
+    expect(stderr).toBe("");
+    expect(code).toBe(1);
   });
 
   test("exec doesn't prompt without a terminal", async () => {
@@ -433,6 +435,312 @@ describe("without a session", () => {
     expect(code).toBe(1);
     expect(stderr).toContain('no profile named "nope"');
     expect(stderr).toContain("nipa profile add nope");
+  });
+});
+
+/** A failed `--json` run: stdout empty, and stderr one line holding one document. */
+const failure = (result: { code: number; stderr: string; stdout: string }) => {
+  expect(result.stdout).toBe("");
+  expect(result.stderr.endsWith("\n")).toBe(true);
+  expect(result.stderr.trimEnd().split("\n")).toHaveLength(1);
+  return JSON.parse(result.stderr);
+};
+
+describe("a failed --json command", () => {
+  beforeEach(freshDir);
+
+  test("logged out: login_required, with the command to run", async () => {
+    const result = await run(["server", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toEqual({
+      message: "you aren't logged in to prod",
+      next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+      reason: "login_required",
+      status: "action_required",
+    });
+    expect(result.stderr).not.toContain("Error:");
+  });
+
+  test("an expired session: token_expired, with the profile in the command", async () => {
+    await seedSession(dir, keystone.url);
+    const file = path.join(dir, "auth.json");
+    const auth = JSON.parse(await readFile(file, "utf-8"));
+    auth.sessions.prod.expiresAt = new Date(Date.now() - 1000).toISOString();
+    await writeFile(file, JSON.stringify(auth));
+    const result = await run(["server", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      message: "your prod session expired",
+      next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+      reason: "token_expired",
+      status: "action_required",
+    });
+  });
+
+  test("a command that doesn't exist: unknown_command, exit 2", async () => {
+    const result = await run(["bogus", "--json"]);
+    expect(result.code).toBe(2);
+    expect(failure(result)).toMatchObject({
+      message: 'unknown command "bogus"',
+      reason: "unknown_command",
+      status: "action_required",
+    });
+  });
+
+  test("a subcommand that doesn't exist: unknown_command, exit 2", async () => {
+    const result = await run(["server", "nope", "--json"]);
+    expect(result.code).toBe(2);
+    expect(failure(result)).toMatchObject({
+      hint: "Use ls, inspect, history, logs, start, stop or restart.",
+      reason: "unknown_command",
+    });
+  });
+
+  test("an option that doesn't exist: unknown_option, exit 2", async () => {
+    const result = await run(["server", "ls", "--json", "--bogus"]);
+    expect(result.code).toBe(2);
+    expect(failure(result)).toMatchObject({
+      message: 'unknown option "--bogus"',
+      reason: "unknown_option",
+      status: "action_required",
+    });
+  });
+
+  test("a missing argument: invalid_arguments, exit 2", async () => {
+    const result = await run(["server", "inspect", "--json"]);
+    expect(result.code).toBe(2);
+    expect(failure(result)).toMatchObject({
+      message: "missing <server>",
+      reason: "invalid_arguments",
+    });
+  });
+
+  test("an unknown profile: not_found, and still a document", async () => {
+    const result = await run(["-P", "nope", "whoami", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      message: 'no profile named "nope"',
+      reason: "not_found",
+      status: "error",
+    });
+  });
+
+  test("an unreachable Space API: network_error", async () => {
+    await seedSession(dir, keystone.url);
+    const config = await readJsonFile("config.json");
+    config.profiles.prod.spaceUrl = "http://127.0.0.1:1/api";
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    const result = await run(["server", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      reason: "network_error",
+      status: "error",
+    });
+    expect(failure(result).message).toContain("can't reach 127.0.0.1:1");
+  });
+
+  test("a broken config file: invalid_config", async () => {
+    await writeFile(path.join(dir, "config.json"), "{ nope");
+    const result = await run(["server", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      reason: "invalid_config",
+      status: "error",
+    });
+  });
+
+  test("a bug: internal_error, with no stack and no detail", async () => {
+    await seedSession(dir, keystone.url);
+    const preload = path.join(dir, "bug.ts");
+    await writeFile(
+      preload,
+      'Date.now = () => { throw new TypeError("secret detail"); };\n'
+    );
+    const result = await runProcess(
+      ["bun", "--preload", preload, ENTRY, "whoami", "--json"],
+      testEnv(dir)
+    );
+    expect(result.code).toBe(1);
+    expect(failure(result)).toEqual({
+      message: "Unexpected error in nipa. This is a bug.",
+      reason: "internal_error",
+      status: "error",
+    });
+    expect(result.stderr).not.toContain("secret detail");
+    expect(result.stderr).not.toContain("at ");
+    const plain = await runProcess(
+      ["bun", "--preload", preload, ENTRY, "whoami"],
+      testEnv(dir)
+    );
+    // Without --json, a bug still crashes with its stack.
+    expect(plain.code).not.toBe(0);
+    expect(plain.stderr).toContain("secret detail");
+    const debugged = await runProcess(
+      ["bun", "--preload", preload, ENTRY, "whoami", "--json", "--debug"],
+      testEnv(dir)
+    );
+    expect(debugged.stderr).toContain("secret detail");
+    expect(
+      JSON.parse(debugged.stderr.trimEnd().split("\n").at(-1) ?? "")
+    ).toEqual({
+      message: "Unexpected error in nipa. This is a bug.",
+      reason: "internal_error",
+      status: "error",
+    });
+  });
+});
+
+describe("a failed --json command that names a resource", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("no match: not_found, with the list command in next", async () => {
+    const result = await run(["server", "inspect", "nope", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toEqual({
+      message: 'no server named or with ID "nope" in Alpha',
+      next: [{ argv: ["nipa", "server", "ls"], command: "nipa server ls" }],
+      reason: "not_found",
+      status: "error",
+    });
+  });
+
+  test("a remote name can't drive the terminal through the document", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.prod.project.name = "Al\u009B2Jpha\u007F\u202E";
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const result = await run(["server", "inspect", "nope", "--json"]);
+    expect(result.stderr).not.toMatch(/[\u007F-\u009F\u202E]/u);
+    expect(failure(result).reason).toBe("not_found");
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("next keeps the profile the run named", async () => {
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    config.profiles.staging = config.profiles.prod;
+    auth.sessions.staging = auth.sessions.prod;
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const result = await run([
+      "-P",
+      "staging",
+      "server",
+      "inspect",
+      "nope",
+      "--json",
+    ]);
+    expect(failure(result).next).toEqual([
+      {
+        argv: ["nipa", "-P", "staging", "server", "ls"],
+        command: "nipa -P staging server ls",
+      },
+    ]);
+  });
+
+  test("a revoked session: token_expired, with the command to run", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const auth = await readJsonFile("auth.json");
+    const { token } = auth.sessions.prod;
+    await fetch(`${keystone.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const result = await run(["server", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+      reason: "token_expired",
+    });
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("two servers with one name: ambiguous_name, with no next", async () => {
+    const web1 = FAKE_SERVERS.find((server) => server.name === "web-1");
+    if (!web1) {
+      throw new Error("the fixtures lost web-1");
+    }
+    FAKE_SERVERS.push({ ...web1, id: "twin-0000" });
+    try {
+      const result = await run(["server", "inspect", "web-1", "--json"]);
+      expect(result.code).toBe(1);
+      const document = failure(result);
+      expect(document).toMatchObject({
+        message: '2 servers in Alpha are named "web-1"',
+        reason: "ambiguous_name",
+        status: "action_required",
+      });
+      expect(document).not.toHaveProperty("next");
+    } finally {
+      FAKE_SERVERS.pop();
+    }
+  });
+
+  test("without --json the same failure prints the human error", async () => {
+    const { code, stderr, stdout } = await run(["server", "inspect", "nope"]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toContain('Error: no server named or with ID "nope"');
+    expect(stderr).toContain("> Run `nipa server ls` to see your servers.");
+    expect(stderr).not.toContain('"reason"');
+  });
+
+  test("a success keeps stderr empty, even on a profile that isn't prod", async () => {
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    config.profiles.staging = config.profiles.prod;
+    auth.sessions.staging = auth.sessions.prod;
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const plain = await run(["-P", "staging", "server", "ls"]);
+    expect(plain.stderr).toContain("Using profile staging");
+    const json = await run(["-P", "staging", "server", "ls", "--json"]);
+    expect(json.code).toBe(0);
+    expect(json.stderr).toBe("");
+    expect(JSON.parse(json.stdout)).toBeDefined();
+  });
+
+  test("whoami --json logged out in another profile leaves stderr empty", async () => {
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    config.profiles.staging = config.profiles.prod;
+    delete auth.sessions.staging;
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const { code, stderr, stdout } = await run([
+      "-P",
+      "staging",
+      "whoami",
+      "--json",
+    ]);
+    expect(code).toBe(1);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toEqual({ loggedIn: false, profile: "staging" });
+  });
+
+  test("os --json goes to openstack untouched", async () => {
+    await mkdir(inDir("bin"), { recursive: true });
+    await writeFile(
+      inDir("bin", "openstack"),
+      '#!/bin/sh\necho "out:$*"\necho "err:$*" >&2\nexit 3\n'
+    );
+    await chmod(inDir("bin", "openstack"), 0o755);
+    const { code, stderr, stdout } = await run([
+      "os",
+      "--json",
+      "server",
+      "list",
+    ]);
+    expect(code).toBe(3);
+    expect(stdout).toBe("out:--json server list\n");
+    expect(stderr).toBe("err:--json server list\n");
   });
 });
 
