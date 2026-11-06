@@ -1,12 +1,13 @@
 // The errors nipa's modules throw, turned into the one nipa prints: a
 // message, a hint, a reason and an exit code. An error that isn't one of
-// them is a nipa bug, so the caller lets it crash with its stack.
+// them is a nipa bug, so without `--json` the caller lets it crash with its
+// stack.
 
 import { ApiError } from "./api";
 import { isDebug, NetworkError } from "./http";
 import { KeystoneError } from "./keystone";
 import { StoreError } from "./store";
-import { CliError } from "./ui";
+import { CliError, writeStderr } from "./ui";
 
 /**
  * Why a command failed, for a script that must not match English. A code is
@@ -83,8 +84,18 @@ const blockedBeforeAnyEffect = (error: CliError): boolean =>
   error.reason === "login_required" ||
   error.reason === "token_expired";
 
+// A recovery command runs in the profile the failed run named, because the
+// one `-P` chose isn't the one a bare command would use.
+const inProfile = (command: string, profile: string | undefined): string =>
+  profile === undefined || command.includes(" -P ")
+    ? command
+    : command.replace(/^nipa /u, `nipa -P ${profile} `);
+
 /** The machine-readable form of an error. Optional fields appear only when they apply. */
-export const jsonErrorDocument = (error: CliError): ErrorDocument => {
+export const jsonErrorDocument = (
+  error: CliError,
+  profile?: string
+): ErrorDocument => {
   const document: ErrorDocument = {
     message: error.message,
     reason: error.reason,
@@ -94,41 +105,24 @@ export const jsonErrorDocument = (error: CliError): ErrorDocument => {
     document.hint = error.hint;
   }
   if (error.next && error.next.length > 0) {
-    document.next = error.next.map((command) => ({
-      argv: command.split(" "),
-      command,
-    }));
+    document.next = error.next.map((next) => {
+      const command = inProfile(next, profile);
+      return { argv: command.split(" "), command };
+    });
   }
   return document;
 };
 
-// JSON.stringify escapes control characters but not format ones such as the
-// bidi overrides, which a remote name in a message could carry.
-const FORMAT_CHARS = /[\p{Cf}\p{Zl}\p{Zp}]/gu;
+let profileOption: string | undefined;
 
-const escapeUnit = (unit: number): string =>
-  `\\u${unit.toString(16).padStart(4, "0")}`;
-
-// JSON escapes with UTF-16 units, so a character beyond U+FFFF takes a pair.
-const escapeChar = (char: string): string => {
-  const code = char.codePointAt(0) ?? 0;
-  if (code <= 0xff_ff) {
-    return escapeUnit(code);
-  }
-  const offset = code - 0x1_00_00;
-  return (
-    escapeUnit(0xd8_00 + Math.floor(offset / 0x4_00)) +
-    escapeUnit(0xdc_00 + (offset % 0x4_00))
-  );
+/** Records this run's `--profile`, which the error document's `next` keeps. */
+export const setProfileOption = (profile: string | undefined): void => {
+  profileOption = profile;
 };
-
-/** One line of JSON, with no styling and nothing a terminal would act on. */
-export const formatErrorDocument = (error: CliError): string =>
-  JSON.stringify(jsonErrorDocument(error)).replaceAll(FORMAT_CHARS, escapeChar);
 
 /** Writes the error document: one line, and the only thing on stderr. */
 export const writeErrorDocument = (error: CliError): void => {
-  process.stderr.write(`${formatErrorDocument(error)}\n`);
+  writeStderr(JSON.stringify(jsonErrorDocument(error, profileOption)));
 };
 
 /** The error document nipa writes for a bug under `--json`, in place of a stack. */

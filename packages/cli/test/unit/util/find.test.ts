@@ -43,7 +43,6 @@ describe("findServer", () => {
       hint: "Name one by its ID instead: s1, s2.",
       reason: "ambiguous_name",
     });
-    await expect(attempt).rejects.toHaveProperty("next");
   });
 
   test("no match points to server ls", async () => {

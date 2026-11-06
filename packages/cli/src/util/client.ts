@@ -3,6 +3,7 @@
 // run, made by the dispatcher after it has read every global option.
 
 import type { GlobalValues } from "./arg-common";
+import { setProfileOption } from "./errors";
 import { findLink, LinkError } from "./link";
 import {
   announceProfile,
@@ -61,6 +62,7 @@ export const createClient = (input: {
   program: ProgramSpec;
 }): Client => {
   const { globals, json, program } = input;
+  setProfileOption(globals.profile);
   // util/http.ts reads NIPA_DEBUG on each request.
   if (globals.debug) {
     process.env.NIPA_DEBUG = "1";

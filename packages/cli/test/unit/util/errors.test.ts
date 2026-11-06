@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 
 import { ApiError } from "../../../src/util/api";
 import {
-  formatErrorDocument,
   internalError,
   jsonErrorDocument,
   toCliError,
@@ -117,21 +116,26 @@ describe("jsonErrorDocument", () => {
   });
 });
 
-describe("formatErrorDocument", () => {
-  test("is one line that parses", () => {
-    const error = new CliError("two\nlines", { hint: "tab\there" });
-    const line = formatErrorDocument(error);
-    expect(line).not.toContain("\n");
-    expect(JSON.parse(line)).toMatchObject({
-      hint: "tab\there",
-      message: "two\nlines",
-    });
+describe("next in the error document", () => {
+  const error = new CliError("m", { next: ["nipa server ls"] });
+
+  test("keeps the profile the run named", () => {
+    expect(jsonErrorDocument(error, "staging").next).toEqual([
+      {
+        argv: ["nipa", "-P", "staging", "server", "ls"],
+        command: "nipa -P staging server ls",
+      },
+    ]);
   });
 
-  test("escapes format characters that JSON leaves alone, and still round-trips", () => {
-    const text = `evil‮fdp${String.fromCodePoint(0xe_00_41)}​x`;
-    const line = formatErrorDocument(new CliError(text));
-    expect(line).not.toMatch(/[\p{Cf}\p{Zl}\p{Zp}]/u);
-    expect(JSON.parse(line).message).toBe(text);
+  test("stays as written when the run named no profile", () => {
+    expect(jsonErrorDocument(error).next?.[0]?.command).toBe("nipa server ls");
+  });
+
+  test("doesn't name a profile twice", () => {
+    const login = new CliError("m", { next: ["nipa login -P staging"] });
+    expect(jsonErrorDocument(login, "staging").next?.[0]?.command).toBe(
+      "nipa login -P staging"
+    );
   });
 });

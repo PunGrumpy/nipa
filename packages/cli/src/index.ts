@@ -9,6 +9,7 @@ import { programSpec } from "./util/command";
 import { refreshCompletions } from "./util/completion-install";
 import { run } from "./util/dispatch";
 import { internalError, toCliError, writeErrorDocument } from "./util/errors";
+import { debug } from "./util/http";
 import { isJsonMode, printError } from "./util/ui";
 import { checkForUpdate } from "./util/update";
 
@@ -58,7 +59,12 @@ try {
   const cliError = error instanceof Error ? toCliError(error) : undefined;
   if (isJsonMode()) {
     // A script gets one document either way. A bug has no message worth
-    // reading, so it says so, in place of a stack.
+    // reading, so it says so in place of a stack, which --debug still shows.
+    if (!cliError) {
+      debug(
+        error instanceof Error ? (error.stack ?? error.message) : `${error}`
+      );
+    }
     const reported = cliError ?? internalError();
     writeErrorDocument(reported);
     process.exitCode = reported.exitCode;

@@ -273,6 +273,8 @@ describe("the interaction mode a run starts with", () => {
   test("a run that fails on the command line is still in JSON mode", async () => {
     await usage(["whoami", "--json", "--nope"]);
     expect(isJsonMode()).toBe(true);
+    await usage(["--bogus", "--json"]);
+    expect(isJsonMode()).toBe(true);
     await usage(["bogus", "--json"]);
     expect(isJsonMode()).toBe(true);
     await usage(["bogus"]);

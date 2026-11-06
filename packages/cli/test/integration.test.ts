@@ -576,6 +576,18 @@ describe("a failed --json command", () => {
     // Without --json, a bug still crashes with its stack.
     expect(plain.code).not.toBe(0);
     expect(plain.stderr).toContain("secret detail");
+    const debugged = await runProcess(
+      ["bun", "--preload", preload, ENTRY, "whoami", "--json", "--debug"],
+      testEnv(dir)
+    );
+    expect(debugged.stderr).toContain("secret detail");
+    expect(
+      JSON.parse(debugged.stderr.trimEnd().split("\n").at(-1) ?? "")
+    ).toEqual({
+      message: "Unexpected error in nipa. This is a bug.",
+      reason: "internal_error",
+      status: "error",
+    });
   });
 });
 
@@ -595,6 +607,61 @@ describe("a failed --json command that names a resource", () => {
       reason: "not_found",
       status: "error",
     });
+  });
+
+  test("a remote name can't drive the terminal through the document", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.prod.project.name = "Al\u009B2Jpha\u007F\u202E";
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const result = await run(["server", "inspect", "nope", "--json"]);
+    expect(result.stderr).not.toMatch(/[\u007F-\u009F\u202E]/u);
+    expect(failure(result).reason).toBe("not_found");
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("next keeps the profile the run named", async () => {
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    config.profiles.staging = config.profiles.prod;
+    auth.sessions.staging = auth.sessions.prod;
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const result = await run([
+      "-P",
+      "staging",
+      "server",
+      "inspect",
+      "nope",
+      "--json",
+    ]);
+    expect(failure(result).next).toEqual([
+      {
+        argv: ["nipa", "-P", "staging", "server", "ls"],
+        command: "nipa -P staging server ls",
+      },
+    ]);
+  });
+
+  test("a revoked session: token_expired, with the command to run", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const auth = await readJsonFile("auth.json");
+    const { token } = auth.sessions.prod;
+    await fetch(`${keystone.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const result = await run(["server", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+      reason: "token_expired",
+    });
+    await freshDir();
+    await seedSession(dir, keystone.url);
   });
 
   test("two servers with one name: ambiguous_name, with no next", async () => {

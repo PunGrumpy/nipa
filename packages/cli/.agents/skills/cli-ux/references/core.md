@@ -135,7 +135,8 @@ With `--json`, a failure writes nothing to stdout and exactly one single-line JS
 - `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `api_error`, `invalid_config`, `internal_error` and `failed`. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
 - `message` and `hint` are the human error's text. `hint` appears only when the error has one
 - `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
-- The document is a single line, `JSON.stringify` output with the format characters it leaves alone escaped, and it bypasses the styling helpers
+- The document is a single line of `JSON.stringify` output written through `writeStderr`, which drops anything a terminal would act on, and it bypasses the styling helpers
+- `next` keeps the run's `--profile`, because a bare command would use another profile
 - `whoami --json` is the one exception to "a failure writes nothing to stdout": logged out, it prints its `{ "loggedIn": false, "profile": ... }` document to stdout, leaves stderr empty and returns 1, as `doctor --json` does for failing checks
 
 ### Remote boundary
