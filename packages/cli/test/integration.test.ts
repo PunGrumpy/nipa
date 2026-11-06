@@ -24,6 +24,7 @@ import {
   ENTRY,
   runOnTerminals,
   runProcess,
+  runWithClosedStderr,
   runWithClosedStdout,
   seedLegacySession,
   seedSession,
@@ -169,6 +170,16 @@ describe("a closed pipe", () => {
   });
 });
 
+describe("a closed stderr", () => {
+  test("keeps the exit code of the error it could not print", async () => {
+    const { code } = await runWithClosedStderr(
+      ["bun", ENTRY, "logn"],
+      testEnv(dir)
+    );
+    expect(code).toBe(2);
+  });
+});
+
 // NO_COLOR is empty, so it doesn't count and FORCE_COLOR can speak.
 const colorEnv = (extra: Record<string, string>) => ({
   NO_COLOR: "",
@@ -260,6 +271,77 @@ describe("what a terminal changes", () => {
     expect(piped.stderr).toContain("Keystone URL");
     expect(piped.stderr).toContain(`${ESC}[34m?`);
     expect(piped.stderr).toContain(`${ESC}[1mKeystone URL`);
+  });
+
+  test("a terminal can be asked to log in", async () => {
+    const { code, stderr } = await onTerminals(
+      ["stdin", "stderr"],
+      ["server", "ls"]
+    );
+    expect(stderr).toContain("You aren't logged in yet");
+    expect(stderr).toContain("Email");
+    expect(code).toBe(130);
+  });
+
+  test("--json never asks, even at a terminal", async () => {
+    const { code, stderr } = await onTerminals(
+      ["stdin", "stdout", "stderr"],
+      ["server", "ls", "--json"]
+    );
+    expect(stderr).toContain("you aren't logged in to prod");
+    expect(stderr).not.toContain("Email");
+    expect(code).toBe(1);
+  });
+
+  test.each([
+    ["after the command", ["server", "ls", "--non-interactive"]],
+    ["before the command", ["--non-interactive", "server", "ls"]],
+  ])(
+    "--non-interactive %s never asks, even at a terminal",
+    async (_where, args) => {
+      const { code, stderr } = await onTerminals(["stdin", "stderr"], args);
+      expect(stderr).toContain("you aren't logged in to prod");
+      expect(stderr).not.toContain("Email");
+      expect(code).toBe(1);
+    }
+  );
+
+  describe("the update notice", () => {
+    const NOTICE = "nipa 99.0.0 is available";
+
+    beforeAll(async () => {
+      await mkdir(inDir(".cache", "nipa"), { recursive: true });
+      await writeFile(
+        inDir(".cache", "nipa", "update.json"),
+        JSON.stringify({
+          checkedAt: new Date().toISOString(),
+          latest: "99.0.0",
+        })
+      );
+    });
+
+    test("shows where nipa can prompt", async () => {
+      const { stderr } = await onTerminals(
+        ["stdin", "stderr"],
+        ["profile", "ls"]
+      );
+      expect(stderr).toContain(NOTICE);
+    });
+
+    test("stays away from a run that can't prompt", async () => {
+      const closedStdin = await onTerminals(["stderr"], ["profile", "ls"]);
+      expect(closedStdin.stderr).not.toContain(NOTICE);
+      const json = await onTerminals(
+        ["stdin", "stderr"],
+        ["profile", "ls", "--json"]
+      );
+      expect(json.stderr).not.toContain(NOTICE);
+      const quiet = await onTerminals(
+        ["stdin", "stderr"],
+        ["profile", "ls", "--non-interactive"]
+      );
+      expect(quiet.stderr).not.toContain(NOTICE);
+    });
   });
 
   test("--no-color leaves a prompt plain", async () => {

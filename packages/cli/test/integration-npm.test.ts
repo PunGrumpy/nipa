@@ -10,6 +10,7 @@ import pkg from "../package.json" with { type: "json" };
 import {
   ENTRY,
   runProcess,
+  runWithClosedStderr,
   runWithClosedStdout,
   seedSession,
   testEnv,
@@ -62,6 +63,14 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
     );
     expect(stderr).toBe("");
     expect(code).toBe(0);
+  });
+
+  test("a closed stderr keeps the exit code of the error", async () => {
+    const { code } = await runWithClosedStderr(
+      ["node", bundle, "logn"],
+      testEnv(dir)
+    );
+    expect(code).toBe(2);
   });
 
   test("lists servers through the Space API", async () => {
