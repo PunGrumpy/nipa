@@ -15,6 +15,7 @@ import {
   formatElapsed,
   gray,
   log,
+  oneLine,
   printFields,
   red,
   withDetail,
@@ -27,7 +28,8 @@ import { addressCells, volumeCells } from "./format";
 /** "create failed 26m ago by Ann", with "create failed" in red. */
 const actionCell = (action: ServerAction, now: number): Cell => {
   const failed = actionFailed(action);
-  const head = failed ? `${action.action} failed` : action.action;
+  const name = oneLine(action.action);
+  const head = failed ? `${name} failed` : name;
   const remark = failed || action.remark === null ? "" : ` (${action.remark})`;
   const by = action.user === null ? "" : ` by ${action.user}`;
   const age = formatAge(now - Date.parse(action.startedAt));

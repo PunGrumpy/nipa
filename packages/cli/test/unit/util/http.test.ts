@@ -1,9 +1,6 @@
 import { afterAll, describe, expect, spyOn, test } from "bun:test";
 
-import {
-  NetworkError,
-  request,
-} from "../../../src/util/http";
+import { NetworkError, request } from "../../../src/util/http";
 
 const seenByTarget: { token: string | null; body: string }[] = [];
 

@@ -74,9 +74,143 @@ export const formatDuration = (ms: number): string => {
   return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 };
 
+const ESC = "\u001B";
+const BEL = "\u0007";
+// The SGR codes behind the bold, dim, red, green, yellow, cyan and gray
+// helpers, and the codes that close them. They are the only escape sequences
+// nipa writes itself.
+const NIPA_SGR = new Set([
+  "1m",
+  "2m",
+  "22m",
+  "31m",
+  "32m",
+  "33m",
+  "36m",
+  "39m",
+  "90m",
+]);
+const CONTROL_OR_FORMAT = /^[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]$/u;
+const isCsiParameter = (char: string): boolean => char >= "0" && char <= "?";
+const isIntermediate = (char: string): boolean => char >= " " && char <= "/";
+const isFinal = (char: string): boolean => char >= "@" && char <= "~";
+
+const skipWhile = (
+  chars: readonly string[],
+  from: number,
+  test: (char: string) => boolean
+): number => {
+  let index = from;
+  while (index < chars.length && test(chars[index] ?? "")) {
+    index += 1;
+  }
+  return index;
+};
+
+// ESC [ parameters intermediates final
+const csiEnd = (chars: readonly string[], start: number): number => {
+  const intermediates = skipWhile(
+    chars,
+    skipWhile(chars, start + 2, isCsiParameter),
+    isIntermediate
+  );
+  return isFinal(chars[intermediates] ?? "") ? intermediates + 1 : start + 1;
+};
+
+// OSC, DCS, SOS, PM and APC carry a string that ends at BEL or ESC \.
+const stringEnd = (chars: readonly string[], start: number): number => {
+  for (let index = start + 2; index < chars.length; index += 1) {
+    if (chars[index] === BEL) {
+      return index + 1;
+    }
+    if (chars[index] === ESC && chars[index + 1] === "\\") {
+      return index + 2;
+    }
+  }
+  return start + 1;
+};
+
+// ESC intermediates final, such as ESC c, which resets the terminal.
+const shortEnd = (chars: readonly string[], start: number): number => {
+  const intermediates = skipWhile(chars, start + 1, isIntermediate);
+  return isFinal(chars[intermediates] ?? "") ? intermediates + 1 : start + 1;
+};
+
+/** The index after the escape sequence that starts at `start`, or `start + 1` for a bare ESC. */
+const escapeEnd = (chars: readonly string[], start: number): number => {
+  const kind = chars[start + 1] ?? "";
+  if (kind === "[") {
+    return csiEnd(chars, start);
+  }
+  return "]PX^_".includes(kind) && kind !== ""
+    ? stringEnd(chars, start)
+    : shortEnd(chars, start);
+};
+
+interface Keep {
+  /** Keep the SGR codes nipa's own helpers write. */
+  sgr: boolean;
+  newline: boolean;
+}
+
+/**
+ * Removes what could drive the terminal: control characters, escape
+ * sequences of every kind, and format characters such as the bidi overrides
+ * and zero-width characters. Marks that combine, such as Thai vowels, stay.
+ */
+const clean = (text: string, keep: Keep): string => {
+  const chars = [...text];
+  let out = "";
+  let index = 0;
+  while (index < chars.length) {
+    const char = chars[index] ?? "";
+    if (char === ESC) {
+      const end = escapeEnd(chars, index);
+      const sequence = chars.slice(index, end).join("");
+      if (
+        keep.sgr &&
+        sequence.startsWith(`${ESC}[`) &&
+        NIPA_SGR.has(sequence.slice(2))
+      ) {
+        out += sequence;
+      }
+      index = end;
+    } else {
+      if (!CONTROL_OR_FORMAT.test(char) || (keep.newline && char === "\n")) {
+        out += char;
+      }
+      index += 1;
+    }
+  }
+  return out;
+};
+
+/**
+ * Text that is safe to write to a terminal: nipa's own colors and newlines
+ * stay, and everything else that could move the cursor, set the title or
+ * hide text is gone. Remote text, such as a resource name, must never reach
+ * the terminal any other way.
+ */
+export const printable = (text: string): string =>
+  clean(text, { newline: true, sgr: true });
+
+/**
+ * A remote value on one line: \n, \r and \t show as text, and no escape
+ * survives. Use it on a value a cell's `paint` captures, because the table
+ * only cleans the `text` it passes in.
+ */
+export const oneLine = (text: string): string =>
+  clean(
+    text
+      .replaceAll("\n", String.raw`\n`)
+      .replaceAll("\r", String.raw`\r`)
+      .replaceAll("\t", String.raw`\t`),
+    { newline: false, sgr: false }
+  );
+
 // Bun's console.error turns the whole line red on a terminal.
 export const writeStderr = (line: string): void => {
-  process.stderr.write(`${line}\n`);
+  process.stderr.write(`${printable(line)}\n`);
 };
 
 export const log = (message: string): void => {
@@ -118,7 +252,9 @@ export const withSpinner = async <T>(
     drawn = true;
     const symbol = FRAMES[frame % FRAMES.length] ?? "";
     frame += 1;
-    process.stderr.write(`\r${pc.dim(symbol)} ${message}`);
+    process.stderr.write(
+      `\r${pc.dim(symbol)} ${clean(message, { newline: false, sgr: true })}`
+    );
   };
   const delay = setTimeout(() => {
     draw();
@@ -185,21 +321,54 @@ export interface Prompts {
   readonly confirm: (options: ConfirmPrompt) => Promise<boolean>;
 }
 
+// inquirer writes to the stream itself, so a prompt skips writeStderr.
+const promptLine = (text: string): string =>
+  clean(text, { newline: false, sgr: true });
+
 /** The prompts for one run, on these terminal streams. */
 export const createPrompts = (streams: {
-  stdin: { isTTY?: boolean };
-  stderr: NodeJS.WriteStream;
+  stdin: NodeJS.ReadableStream & { isTTY?: boolean };
+  stderr: NodeJS.WritableStream & { isTTY?: boolean };
 }): Prompts => {
-  const context = { output: streams.stderr };
+  const context = { input: streams.stdin, output: streams.stderr };
   return {
-    choice: (options) => prompt(() => select(options, context)),
-    confirm: (options) => prompt(() => confirm(options, context)),
+    choice: (options) =>
+      prompt(() =>
+        select(
+          {
+            ...options,
+            choices: options.choices.map((choice) => ({
+              ...choice,
+              description:
+                choice.description === undefined
+                  ? undefined
+                  : promptLine(choice.description),
+              name: promptLine(choice.name),
+            })),
+            message: promptLine(options.message),
+          },
+          context
+        )
+      ),
+    confirm: (options) =>
+      prompt(() =>
+        confirm({ ...options, message: promptLine(options.message) }, context)
+      ),
     interactive: streams.stdin.isTTY === true && streams.stderr.isTTY === true,
     secret: (message) =>
-      prompt(() => password({ mask: "*", message }, context)),
+      prompt(() =>
+        password({ mask: "*", message: promptLine(message) }, context)
+      ),
     text: (options) =>
       prompt(() =>
-        input({ ...options, required: options.required ?? true }, context)
+        input(
+          {
+            ...options,
+            message: promptLine(options.message),
+            required: options.required ?? true,
+          },
+          context
+        )
       ),
   };
 };
@@ -245,10 +414,14 @@ export interface Cell {
 }
 
 /** `text` with a dim `detail` after it, such as "m1.small (2 vCPUs)". */
-export const withDetail = (text: string, detail: string): Cell => ({
-  paint: () => `${text}${dim(detail)}`,
-  text: `${text}${detail}`,
-});
+export const withDetail = (text: string, detail: string): Cell => {
+  const safeText = oneLine(text);
+  const safeDetail = oneLine(detail);
+  return {
+    paint: (padded) => `${safeText}${dim(padded.slice(safeText.length))}`,
+    text: `${safeText}${safeDetail}`,
+  };
+};
 
 /** A flavor and its dim size, such as "m1.small (2 vCPUs, 4 GB RAM)". */
 export const flavorCell = (sized: {
@@ -270,6 +443,10 @@ export const flavorCell = (sized: {
 
 const COLUMN_GAP = " ".repeat(5);
 
+// A cell's text is a remote value more often than not. It prints on one line
+// and carries no escape, so a name can't forge a row or recolor the screen.
+const safeCell = (cell: Cell): Cell => ({ ...cell, text: oneLine(cell.text) });
+
 const heading: Paint = (text) => bold(cyan(text));
 
 /**
@@ -282,7 +459,8 @@ export const printTable = (table: {
   rows: readonly (readonly Cell[])[];
   marks?: readonly string[];
 }): void => {
-  const { headings, marks, rows } = table;
+  const { headings, marks } = table;
+  const rows = table.rows.map((row) => row.map(safeCell));
   const widths = headings.map((text, column) =>
     Math.max(text.length, ...rows.map((row) => row[column]?.text.length ?? 0))
   );
@@ -310,7 +488,11 @@ export interface Field {
 const painted = (cell: Cell): string => cell.paint?.(cell.text) ?? cell.text;
 
 /** One resource's details, laid out like `printTable`. */
-export const printFields = (fields: readonly Field[]): void => {
+export const printFields = (given: readonly Field[]): void => {
+  const fields = given.map((field) => ({
+    ...field,
+    lines: field.lines.map(safeCell),
+  }));
   const width = Math.max(...fields.map((field) => field.label.length));
   const indent = " ".repeat(2 + width) + COLUMN_GAP;
   writeStderr("");
