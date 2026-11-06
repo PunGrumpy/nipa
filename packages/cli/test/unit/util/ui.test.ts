@@ -190,6 +190,20 @@ describe("what reaches stderr", () => {
     expect(lines[3]).toContain("db-1");
   });
 
+  test("a cell's short form can't forge a row either", () => {
+    printTable({
+      fit: { droppable: [], width: 10 },
+      headings: ["Name", "Status"],
+      rows: [
+        [
+          { short: { text: "a\nFORGED" }, text: "a-long-name-here" },
+          { text: "up" },
+        ],
+      ],
+    });
+    expect(written.join("")).not.toContain("\nFORGED");
+  });
+
   test("a table cell can't carry an escape, even SGR, from a remote name", () => {
     printTable({
       headings: ["Name"],

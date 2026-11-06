@@ -122,6 +122,11 @@ export const serverCommand = defineGroup({
       description: "Print each server's ID",
     },
     {
+      command:
+        "nipa server ls | grep web | cut -f1 | xargs -n1 nipa server stop --yes",
+      description: "Stop the servers that match, by ID",
+    },
+    {
       command: "nipa server ls --json | jq -r '.servers[].name'",
       description: "Print each server's name",
     },

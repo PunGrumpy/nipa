@@ -61,6 +61,12 @@ describe("server ls at the terminal's width", () => {
     expect(out.join("\n")).toContain("csa.large.v2");
   });
 
+  test("keeps a column up to the exact width", () => {
+    expect(lines([server("web-1")], 62)[1]).toContain("Flavor");
+    written = [];
+    expect(lines([server("web-1")], 61)[1]).not.toContain("Flavor");
+  });
+
   test("drops Flavor, then Age, before it shortens a name", () => {
     const noFlavor = lines([server("web-1")], 50);
     expect(noFlavor[1]).toMatch(/Name\s+Status\s+Address\s+Age$/u);

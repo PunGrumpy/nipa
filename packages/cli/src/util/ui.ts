@@ -248,6 +248,9 @@ export const writeStderr = (line: string): void => {
   process.stderr.write(`${printable(line)}\n`);
 };
 
+/** How wide the messages' terminal is, or 80 when nipa can't tell. */
+export const stderrWidth = (): number => process.stderr.columns || 80;
+
 export const log = (message: string): void => {
   if (jsonMode) {
     return;
@@ -539,7 +542,11 @@ const COLUMN_GAP = " ".repeat(5);
 
 // A cell's text is a remote value more often than not. It prints on one line
 // and carries no escape, so a name can't forge a row or recolor the screen.
-const safeCell = (cell: Cell): Cell => ({ ...cell, text: oneLine(cell.text) });
+const safeCell = (cell: Cell): Cell => ({
+  ...cell,
+  short: cell.short && safeCell(cell.short),
+  text: oneLine(cell.text),
+});
 
 const heading: Paint = (text) => bold(cyan(text));
 
@@ -604,24 +611,19 @@ const fitLayout = (table: Layout, fit: TableFit): Layout | undefined => {
   return candidates.find((layout) => layoutWidth(layout) <= fit.width);
 };
 
-const paintedCell = (cell: Cell): string =>
-  cell.paint?.(cell.text) ?? cell.text;
+const painted = (cell: Cell): string => cell.paint?.(cell.text) ?? cell.text;
 
 // One short block per row, for a terminal too narrow for any column layout.
-const printRecords = (
-  layout: Layout,
-  droppable: readonly number[],
-  marks?: readonly string[]
-): void => {
+const printRecords = (layout: Layout, droppable: readonly number[]): void => {
   const required = layout.headings
     .map((_, column) => column)
     .filter((column) => column > 0 && !droppable.includes(column));
   writeStderr("");
-  for (const [index, row] of layout.rows.entries()) {
+  for (const row of layout.rows) {
     const [name = { text: "" }] = row;
-    writeStderr(`${marks?.[index] ?? " "} ${paintedCell(name)}`);
+    writeStderr(`  ${painted(name)}`);
     const details = required.map((column) =>
-      paintedCell(row[column] ?? { text: "" })
+      painted(row[column] ?? { text: "" })
     );
     writeStderr(`    ${details.join("   ")}`);
   }
@@ -652,10 +654,14 @@ export const printTable = (table: {
     rows: table.rows.map((row) => row.map(safeCell)),
   };
   const { fit } = table;
-  const fitted = fit ? fitLayout(full, fit) : full;
-  if (!fitted) {
-    printRecords(shorten(full), fit?.droppable ?? [], marks);
-    return;
+  let fitted = full;
+  if (fit) {
+    const found = fitLayout(full, fit);
+    if (!found) {
+      printRecords(shorten(full), fit.droppable);
+      return;
+    }
+    fitted = found;
   }
   const { headings, rows } = fitted;
   const widths = columnWidths(fitted);
@@ -692,8 +698,6 @@ export interface Field {
   label: string;
   lines: readonly Cell[];
 }
-
-const painted = (cell: Cell): string => cell.paint?.(cell.text) ?? cell.text;
 
 /** One resource's details, laid out like `printTable`. */
 export const printFields = (given: readonly Field[]): void => {

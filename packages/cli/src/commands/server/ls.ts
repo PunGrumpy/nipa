@@ -10,6 +10,7 @@ import {
   gray,
   log,
   printTable,
+  stderrWidth,
   tabSeparated,
   withSpinner,
 } from "../../util/ui";
@@ -19,7 +20,6 @@ import { mainAddress, nameCell } from "./format";
 const PIPE_HEADINGS = ["ID", "Name", "Status", "Address", "Flavor", "Created"];
 const FLAVOR = 3;
 const AGE = 4;
-const DEFAULT_WIDTH = 80;
 
 /**
  * Fits the terminal by dropping Flavor, then Age, then shortening the
@@ -82,7 +82,7 @@ export const ls = handle(lsSubcommand, async ({ client, flags }) => {
     // A pipe gets the table's rows, so grep and cut see one server per line.
     client.stdout.line(tabSeparated(PIPE_HEADINGS, pipeRows(servers)));
   } else if (servers.length > 0) {
-    printServers(servers, Date.now(), process.stderr.columns || DEFAULT_WIDTH);
+    printServers(servers, Date.now(), stderrWidth());
   }
   return 0;
 });

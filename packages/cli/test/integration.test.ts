@@ -1142,6 +1142,18 @@ describe("server ls", () => {
     await seedSession(dir, keystone.url);
   });
 
+  test("a terminal gets the table, fitted to 80 columns when its width is unknown", async () => {
+    const { code, stderr, stdout } = await runOnTerminals({
+      args: ["server", "ls"],
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/Name\s+Status\s+Address/u);
+    expect(stderr).not.toContain("Flavor");
+  });
+
   test("--json lists the project's servers through the Space API", async () => {
     const before = serverLists();
     const { code, stdout } = await run(["server", "ls", "--json"]);
