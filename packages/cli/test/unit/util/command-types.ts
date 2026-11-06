@@ -74,6 +74,7 @@ export const derived: [
       readonly "no-color"?: true;
       readonly "non-interactive"?: true;
       readonly profile?: string;
+      readonly project?: string;
       readonly version?: true;
     }
   >,

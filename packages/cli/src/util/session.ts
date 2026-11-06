@@ -49,7 +49,7 @@ export interface ActiveProfile {
   readonly name: string;
   readonly profile: Profile;
   readonly source: ProfileSource;
-  /** The folder's link, when it names this profile. Its project wins. */
+  /** The folder's link, when it names this profile. Its project wins, unless `--project` is given. */
   readonly link: FoundLink | undefined;
 }
 
@@ -468,61 +468,118 @@ const savedSession = async (input: {
 };
 
 /**
- * A token for the linked project, for this run only, so the saved session
+ * The project a run uses in place of the saved one, and where it came from.
+ * A `--project` beats the folder's link.
+ */
+type RunProject =
+  | { readonly from: "flag"; readonly wanted: string }
+  | { readonly from: "link"; readonly link: FoundLink };
+
+const runProject = async (input: {
+  active: ActiveProfile;
+  session: Session;
+  target: RunProject;
+}): Promise<Project> => {
+  const { target } = input;
+  if (target.from === "link") {
+    return target.link.link.project;
+  }
+  // A 32-character ID needs no lookup. The token Keystone returns names the project.
+  if (PROJECT_ID_PATTERN.test(target.wanted)) {
+    return { id: target.wanted, name: target.wanted };
+  }
+  const projects = await withSpinner("Loading your projects…", () =>
+    listProjects({
+      authUrl: input.active.profile.authUrl,
+      token: input.session.token,
+    })
+  );
+  return findProject({ projects, wanted: target.wanted });
+};
+
+const unusableProject = (input: {
+  active: ActiveProfile;
+  project: Project;
+  target: RunProject;
+}): CliError => {
+  const { active, project, target } = input;
+  const revoked = `If Keystone revoked your session, run \`${loginLine(active.name)}\`.`;
+  return target.from === "link"
+    ? new CliError(
+        `can't use project ${project.name}, which ${displayPath(target.link.file)} links to`,
+        { hint: `Run \`nipa link\` to pick another project. ${revoked}` }
+      )
+    : new CliError(`can't use project ${project.name}`, {
+        hint: `Check the name or ID of the project. ${revoked}`,
+      });
+};
+
+/**
+ * A token for the run's project, for this run only, so the saved session
  * and other folders keep their project.
  */
-const linkedSession = async (input: {
+const projectSession = async (input: {
   active: ActiveProfile;
-  link: FoundLink;
   session: Session;
+  target: RunProject;
 }): Promise<Session> => {
-  const { active, session } = input;
-  const { file, link } = input.link;
+  const { active, session, target } = input;
+  const project = await runProject(input);
+  if (project.id === session.project.id) {
+    return session;
+  }
   let token: Token;
   try {
-    token = await withSpinner(`Switching to ${link.project.name}…`, () =>
+    token = await withSpinner(`Switching to ${project.name}…`, () =>
       rescope({
         authUrl: active.profile.authUrl,
-        projectId: link.project.id,
+        projectId: project.id,
         token: session.token,
       })
     );
   } catch (error) {
     if (error instanceof KeystoneError && error.status === 401) {
-      throw new CliError(
-        `can't use project ${link.project.name}, which ${displayPath(file)} links to`,
-        {
-          hint: `Run \`nipa link\` to pick another project. If Keystone revoked your session, run \`${loginLine(active.name)}\`.`,
-        }
-      );
+      throw unusableProject({ active, project, target });
     }
     throw error;
   }
+  const scoped = toSession(token, project);
+  const name = bold(scoped.project.name);
   log(
-    `Using project ${bold(link.project.name)} from ${dim(displayPath(file))}`
+    target.from === "link"
+      ? `Using project ${name} from ${dim(displayPath(target.link.file))}`
+      : `Using project ${name}`
   );
-  return toSession(token, link.project);
+  return scoped;
 };
 
 /**
  * The profile's live session. Logs in first when it expired and nipa can
- * prompt, and throws "run nipa login" when it can't. In a linked folder, the
- * token is for the linked project, unless `linked` is false.
+ * prompt, and throws "run nipa login" when it can't. The token is for the
+ * run's project: `project` (a name or ID), else the folder's link. With
+ * `saved`, it is for the saved project whatever either says.
  */
 export const requireSession = async (input: {
   active: ActiveProfile;
   prompts: Prompts;
-  linked?: boolean;
+  project?: string;
+  saved?: boolean;
 }): Promise<SignedIn> => {
   const { active, prompts } = input;
   const session = await savedSession({ active, prompts });
-  const link = input.linked === false ? undefined : active.link;
-  if (!link || link.link.project.id === session.project.id) {
-    return { active, session };
+  let target: RunProject | undefined;
+  if (!input.saved) {
+    if (input.project !== undefined) {
+      target = { from: "flag", wanted: input.project };
+    } else if (active.link) {
+      target = { from: "link", link: active.link };
+    }
   }
   return {
     active,
-    session: await linkedSession({ active, link, session }),
+    session: target
+      ? await projectSession({ active, session, target })
+      : session,
   };
 };
 

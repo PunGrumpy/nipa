@@ -90,12 +90,6 @@ const loginSpec = defineCommand({
       short: "u",
       value: { kind: "text", name: "email" },
     },
-    {
-      description: "p",
-      long: "project",
-      short: "p",
-      value: { kind: "project" },
-    },
   ],
   name: "login",
   summary: "login",
@@ -165,6 +159,7 @@ const fakeClient = (input: {
     profile: fail,
     profileWithoutBrokenLink: fail,
     program: { examples: [], hidden: [], sections: [], summary: "" },
+    project: input.globals.project,
     prompts: {
       choice: fail,
       confirm: fail,
@@ -298,6 +293,23 @@ describe("the interaction mode a run starts with", () => {
   });
 });
 
+describe("--project", () => {
+  test("is a global option before or after the command", async () => {
+    await go(["-p", "Beta", "server", "ls"]);
+    expect(lastGlobals).toEqual({ project: "Beta" });
+    await go(["server", "ls", "--project=Beta"]);
+    expect(lastGlobals).toEqual({ project: "Beta" });
+  });
+
+  test("before a passthrough command is nipa's, and after it is the program's", async () => {
+    await go(["-p", "Beta", "exec", "ls"]);
+    expect(lastGlobals).toEqual({ project: "Beta" });
+    await go(["exec", "ls", "-p", "x"]);
+    expect(lastGlobals).toEqual({});
+    expect(seen).toEqual([{ args: ["-p", "x"], command: "ls", name: "exec" }]);
+  });
+});
+
 describe("dispatch", () => {
   test("globals before the command, the group and the subcommand, and flags after", async () => {
     await go(["-P", "staging", "server", "ls", "--json"]);
@@ -379,12 +391,9 @@ describe("dispatch", () => {
     });
     await go(["login", "-u", "a@b.c", "-p", "Beta"]);
     expect(seen).toEqual([
-      {
-        args: {},
-        flags: { project: "Beta", username: "a@b.c" },
-        name: "login",
-      },
+      { args: {}, flags: { username: "a@b.c" }, name: "login" },
     ]);
+    expect(lastGlobals).toEqual({ project: "Beta" });
     expect(await usage(["__complete", "nope"])).toEqual({
       code: 2,
       hint: "Use one of: projects, profiles, openstack.",

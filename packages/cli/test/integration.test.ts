@@ -36,7 +36,7 @@ import {
   readFakeKeychain,
   writeFakeKeychain,
 } from "./mocks/keychain";
-import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
+import { FAKE_USER, startFakeKeystone, TWIN_BETA_ID } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import {
   FAKE_CONSOLE_LOG,
@@ -81,6 +81,9 @@ const readJsonFile = async (name: string) =>
 
 const serverLists = () =>
   keystone.requests.filter((r) => r === "GET /api/v3/instances").length;
+
+const projectLists = () =>
+  keystone.requests.filter((r) => r === "GET /v3/auth/projects").length;
 
 const serverChecks = () =>
   keystone.requests.filter((r) => r.startsWith("GET /api/v4/instances/"))
@@ -2078,6 +2081,185 @@ describe("doctor", () => {
       /^✖ Linked folder {3}\S+\/infra\/\.nipa\/project\.json isn't valid JSON\n {18}> Fix the file, or run `nipa unlink` and `nipa link` again\.\n/mu
     );
     expect(stderr).toContain("> 8 passed, 1 failed\n");
+  });
+});
+
+describe("--project", () => {
+  const BETA_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    await mkdir(modules(), { recursive: true });
+    await mkdir(inDir("bin"), { recursive: true });
+    await writeFile(
+      inDir("bin", "openstack"),
+      '#!/bin/sh\necho "project:$OS_PROJECT_ID"\n'
+    );
+    await chmod(inDir("bin", "openstack"), 0o755);
+  });
+
+  test("a name uses that project for the run, and the saved one stays", async () => {
+    const before = await readFile(path.join(dir, "auth.json"), "utf-8");
+    const lists = projectLists();
+    const { code, stderr, stdout } = await run(["-p", "Beta", "env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${BETA_ID}'`);
+    expect(stderr).toContain("Using project Beta");
+    expect(stderr).not.toContain(" from ");
+    expect(projectLists()).toBe(lists + 1);
+    expect(await readFile(path.join(dir, "auth.json"), "utf-8")).toBe(before);
+    expect(await readJsonFile("config.json")).toMatchObject({
+      profiles: { prod: { project: { id: ALPHA_ID } } },
+    });
+  });
+
+  test("an ID needs no project list", async () => {
+    const lists = projectLists();
+    const { code, stderr, stdout } = await run(["--project", BETA_ID, "env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${BETA_ID}'`);
+    expect(stderr).toContain("Using project Beta");
+    expect(projectLists()).toBe(lists);
+  });
+
+  test("the saved project needs no switch and prints no project line", async () => {
+    const { code, stderr, stdout } = await run(["-p", "Alpha", "env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${ALPHA_ID}'`);
+    expect(stderr).not.toContain("Using project");
+  });
+
+  test("before or after the command, it gives the same result", async () => {
+    const before = await run(["-p", "Beta", "server", "ls", "--json"]);
+    const after = await run(["server", "ls", "-p", "Beta", "--json"]);
+    expect(before.code).toBe(0);
+    expect(JSON.parse(before.stdout).project.name).toBe("Beta");
+    expect(after.stdout).toBe(before.stdout);
+  });
+
+  test("before os, openstack runs in that project, and an -p after os is openstack's", async () => {
+    const { code, stdout } = await run(["-p", "Beta", "os", "server", "list"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(`project:${BETA_ID}\n`);
+    const after = await run(["os", "-p", "Beta"]);
+    expect(after.stdout).toBe(`project:${ALPHA_ID}\n`);
+  });
+
+  test("beats the folder's link, and neither file changes", async () => {
+    await runIn(infra(), ["link", "Beta"]);
+    const linkFile = path.join(infra(), ".nipa", "project.json");
+    const link = await readFile(linkFile, "utf-8");
+    const auth = await readFile(path.join(dir, "auth.json"), "utf-8");
+    const linked = await runIn(modules(), ["env"]);
+    expect(linked.stdout).toContain(`OS_PROJECT_ID='${BETA_ID}'`);
+    const { code, stderr, stdout } = await runIn(modules(), [
+      "-p",
+      "Alpha",
+      "env",
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${ALPHA_ID}'`);
+    expect(stderr).not.toContain("project.json");
+    expect(await readFile(linkFile, "utf-8")).toBe(link);
+    expect(await readFile(path.join(dir, "auth.json"), "utf-8")).toBe(auth);
+    await runIn(infra(), ["unlink"]);
+  });
+
+  test("an unknown name fails with exit 2 and lists the projects, without a fallback", async () => {
+    const { code, stderr, stdout } = await run(["-p", "Nope", "server", "ls"]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(stderr).toContain('no project named or with ID "Nope"');
+    expect(stderr).toContain("Your projects: Alpha, Beta");
+    expect(stderr).not.toContain("Using project");
+  });
+
+  test("under --json, an unknown name writes one error document", async () => {
+    const { code, stderr, stdout } = await run([
+      "-p",
+      "Nope",
+      "server",
+      "ls",
+      "--json",
+    ]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(JSON.parse(stderr)).toMatchObject({
+      message: 'no project named or with ID "Nope"',
+      reason: "not_found",
+      status: "action_required",
+    });
+  });
+
+  test("an ID the account can't use fails under --json with one document", async () => {
+    const { code, stderr, stdout } = await run([
+      "-p",
+      "e".repeat(32),
+      "server",
+      "ls",
+      "--json",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(JSON.parse(stderr).message).toBe(
+      `can't use project ${"e".repeat(32)}`
+    );
+  });
+
+  test("-p with -P uses that profile's session and the named project", async () => {
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        ...config,
+        profiles: { ...config.profiles, staging: config.profiles.prod },
+      })
+    );
+    await writeFile(
+      path.join(dir, "auth.json"),
+      JSON.stringify({
+        sessions: { ...auth.sessions, staging: auth.sessions.prod },
+      })
+    );
+    const { code, stderr, stdout } = await run([
+      "-P",
+      "staging",
+      "-p",
+      "Beta",
+      "os",
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(`project:${BETA_ID}\n`);
+    expect(stderr).toContain("Using profile staging");
+    expect(stderr).toContain("Using project Beta");
+    const saved = await readJsonFile("auth.json");
+    expect(saved.sessions.staging.project.id).toBe(ALPHA_ID);
+  });
+
+  test("two projects with one name fail and list their IDs", async () => {
+    const twin = startFakeKeystone({ gateway: true, twinBeta: true });
+    try {
+      await freshDir();
+      await seedSession(dir, twin.url);
+      const { code, stderr, stdout } = await run(["-p", "Beta", "env"]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain('2 projects are named "Beta"');
+      expect(stderr).toContain(`${BETA_ID}, ${TWIN_BETA_ID}`);
+      const json = await run(["-p", "Beta", "server", "ls", "--json"]);
+      expect(JSON.parse(json.stderr)).toMatchObject({
+        reason: "ambiguous_name",
+        status: "action_required",
+      });
+      const byId = await run(["-p", TWIN_BETA_ID, "env"]);
+      expect(byId.code).toBe(0);
+      expect(byId.stdout).toContain(`OS_PROJECT_ID='${TWIN_BETA_ID}'`);
+    } finally {
+      twin.stop();
+    }
   });
 });
 

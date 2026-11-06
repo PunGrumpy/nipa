@@ -16,6 +16,8 @@ export const FAKE_PASSWORD = "secret";
 export const FAKE_PASSCODE = "123456";
 export const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+export const TWIN_BETA_ID = "dddddddddddddddddddddddddddddddd";
+
 const PROJECTS = [
   {
     domain_id: "d1",
@@ -100,7 +102,17 @@ const throughGateway = async (
     : res;
 };
 
-export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
+// With twinBeta, a second enabled project is named Beta too.
+export const startFakeKeystone = ({
+  gateway = false,
+  twinBeta = false,
+} = {}): FakeKeystone => {
+  const projects = twinBeta
+    ? [
+        ...PROJECTS,
+        { domain_id: "d1", enabled: true, id: TWIN_BETA_ID, name: "Beta" },
+      ]
+    : PROJECTS;
   const tokens = new Map<string, typeof FAKE_USER>();
   const receipts = new Map<string, typeof FAKE_USER>();
   const requests: string[] = [];
@@ -111,7 +123,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
     user: typeof FAKE_USER,
     projectId: string | undefined
   ): Response => {
-    const project = PROJECTS.find((p) => p.id === projectId);
+    const project = projects.find((p) => p.id === projectId);
     if (projectId && !project) {
       return unauthorized();
     }
@@ -224,9 +236,7 @@ export const startFakeKeystone = ({ gateway = false } = {}): FakeKeystone => {
       return new Response("not found", { status: 404 });
     }
     const token = req.headers.get("X-Auth-Token") ?? "";
-    return tokens.has(token)
-      ? Response.json({ projects: PROJECTS })
-      : unauthorized();
+    return tokens.has(token) ? Response.json({ projects }) : unauthorized();
   };
 
   const server = Bun.serve({

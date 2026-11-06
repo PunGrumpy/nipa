@@ -166,7 +166,7 @@ nipa handles passwords, OTP codes and Keystone tokens:
 
 Treat these as contracts. Change them only with a migration, tests, and a changeset when users see it:
 
-- Command names, aliases, flags and their short forms. The global flags are `--profile`, `--debug`, `--no-color`, `--non-interactive`, `--help` and `--version`
+- Command names, aliases, flags and their short forms. The global flags are `--profile`, `--project`, `--debug`, `--no-color`, `--non-interactive`, `--help` and `--version`
 - Exit codes: 0 for success, 1 for a failure, 2 for a wrong command line, 127 when `os`, `tf` or `exec` can't find the program, 130 for Ctrl-C or a declined confirmation, and the child's code for passthrough commands
 - Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
 - The files in the config directory and their JSON shape

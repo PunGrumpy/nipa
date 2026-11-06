@@ -55,7 +55,6 @@ These options belong to one command:
 | Option | Command | What it does |
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
-| `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
 | `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
@@ -78,13 +77,16 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | Option | Variable | What it does |
 | --- | --- | --- |
 | `-P, --profile <name>` | `NIPA_PROFILE` | Uses this profile instead of the current one |
+| `-p, --project <project>` |  | Uses this project, by name or ID, for this run only. nipa never saves it, and it beats a folder's link. A name costs one request to list your projects, and a 32-character ID costs none. It fails when no project has the name, and when two do, with their IDs. For `login`, it names the project to scope the token to and save, instead of the last one. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up. `switch` and `link` ignore it and take the project as an argument |
 | `-d, --debug` | `NIPA_DEBUG=1` | Logs each HTTP request: method, URL, status and time. Never headers or bodies |
 | `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on for the messages nipa writes to a pipe, but help stays plain in a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
 | `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
 | `-h, --help` |  | Prints help |
 | `-v, --version` |  | Prints the version |
 
-nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`.
+nipa picks the project in this order: `--project`, then the folder's link, then the project of the saved session. `nipa -p Beta server ls` and `nipa server ls -p Beta` list the servers in Beta, and `nipa -p Beta os server list` runs `openstack` in Beta. For each, nipa exchanges the saved token for one in that project, without saving it, and prints `> Using project Beta`.
+
+nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`. `--project` beats the link.
 
 ## Other environment variables
 
