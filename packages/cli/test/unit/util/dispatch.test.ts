@@ -218,6 +218,15 @@ const usage = async (argv: string[], program: Program = spy) => {
   throw new Error(`no error for ${argv.join(" ")}`);
 };
 
+const reasonOf = async (argv: string[]) => {
+  try {
+    await go(argv);
+  } catch (error) {
+    return error instanceof CliError ? error.reason : "not a CliError";
+  }
+  return "no error";
+};
+
 describe("the interaction mode a run starts with", () => {
   test.each([
     [["whoami"]],
@@ -394,6 +403,14 @@ describe("dispatch", () => {
       code: 2,
       hint: "Did you mean `nipa login`?",
     });
+  });
+  test("usage errors name a reason a script can read", async () => {
+    expect(await reasonOf(["--nope"])).toBe("unknown_option");
+    expect(await reasonOf(["whoami", "--nope"])).toBe("unknown_option");
+    expect(await reasonOf(["server", "nope"])).toBe("unknown_command");
+    expect(await reasonOf(["logn"])).toBe("unknown_command");
+    expect(await reasonOf(["-P"])).toBe("invalid_arguments");
+    expect(await reasonOf(["exec"])).toBe("invalid_arguments");
   });
   test("update notice follows the spec", async () => {
     expect(await go(["whoami"])).toEqual({

@@ -88,7 +88,8 @@ const orList = (words: readonly string[]): string => {
 const unknownSubcommand = (group: Group, word: string): CliError =>
   usageError(
     `unknown subcommand "${group.spec.name} ${word}"`,
-    `Use ${orList(group.spec.subcommands.map((sub) => sub.name))}.`
+    `Use ${orList(group.spec.subcommands.map((sub) => sub.name))}.`,
+    "unknown_command"
   );
 
 /**
@@ -173,6 +174,7 @@ const unknownCommand = (input: {
   return new CliError(`unknown command "${input.word}"`, {
     exitCode: 2,
     hint,
+    reason: "unknown_command",
   });
 };
 

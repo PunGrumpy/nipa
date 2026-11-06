@@ -8,6 +8,7 @@ import input from "@inquirer/input";
 import password from "@inquirer/password";
 import select from "@inquirer/select";
 
+import type { Reason } from "./errors";
 import { theme } from "./theme";
 
 // Everything these paint goes to stderr, so stderr decides the colors.
@@ -16,21 +17,38 @@ export const { bold, cyan, dim, gray, green, red, yellow } = theme.stderr;
 export class CliError extends Error {
   readonly hint?: string;
   readonly exitCode: number;
+  /** The stable code a script reads in place of the message. */
+  readonly reason: Reason;
+  /** Recovery commands, whole and static, such as `nipa login -P staging`. */
+  readonly next?: readonly string[];
 
   constructor(
     message: string,
-    options: { hint?: string; exitCode?: number } = {}
+    options: {
+      hint?: string;
+      exitCode?: number;
+      reason?: Reason;
+      next?: readonly string[];
+    } = {}
   ) {
     super(message);
     this.name = "CliError";
     this.hint = options.hint;
     this.exitCode = options.exitCode ?? 1;
+    // A wrong command line is exit 2. Any other failure is a generic one
+    // until its throw site names a better reason.
+    this.reason =
+      options.reason ?? (this.exitCode === 2 ? "invalid_arguments" : "failed");
+    this.next = options.next;
   }
 }
 
 /** Exit code 2: the command line was wrong. The hint says how to write it. */
-export const usageError = (message: string, hint: string): CliError =>
-  new CliError(message, { exitCode: 2, hint });
+export const usageError = (
+  message: string,
+  hint: string,
+  reason?: Reason
+): CliError => new CliError(message, { exitCode: 2, hint, reason });
 
 export const formatElapsed = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${Math.round(ms / 1000)}s`;
