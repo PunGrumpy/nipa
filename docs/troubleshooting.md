@@ -36,7 +36,7 @@ If it happens again right after a login, the profile's Space API may belong to a
 
 ## "no project named or with ID …"
 
-`--project`, `nipa switch` or `nipa link` got a name or ID that none of your projects has. nipa matches the whole name or ID, so copy one from the list the error prints under `Your projects`. It exits with code `2`, and never falls back to your saved project.
+`--project`, `nipa switch` or `nipa link` got a name or ID that none of your projects has. nipa matches the whole name or ID, so copy one from the list the error prints under `Your projects`. It exits with code `1`, and never falls back to your saved project.
 
 ## "2 projects are named …"
 

@@ -259,9 +259,9 @@ describe("pickProject with a wanted project", () => {
     });
   });
 
-  test("a name that matches nothing is a wrong command line", () => {
+  test("a name that matches nothing is not found, which exits 1", () => {
     expect(failure("Nope")).toMatchObject({
-      exitCode: 2,
+      exitCode: 1,
       hint: "Your projects: Alpha, Beta, Beta",
       reason: "not_found",
     });

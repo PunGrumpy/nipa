@@ -2167,9 +2167,9 @@ describe("--project", () => {
     await runIn(infra(), ["unlink"]);
   });
 
-  test("an unknown name fails with exit 2 and lists the projects, without a fallback", async () => {
+  test("an unknown name fails with exit 1 and lists the projects, without a fallback", async () => {
     const { code, stderr, stdout } = await run(["-p", "Nope", "server", "ls"]);
-    expect(code).toBe(2);
+    expect(code).toBe(1);
     expect(stdout).toBe("");
     expect(stderr).toContain('no project named or with ID "Nope"');
     expect(stderr).toContain("Your projects: Alpha, Beta");
@@ -2184,12 +2184,12 @@ describe("--project", () => {
       "ls",
       "--json",
     ]);
-    expect(code).toBe(2);
+    expect(code).toBe(1);
     expect(stdout).toBe("");
     expect(JSON.parse(stderr)).toMatchObject({
       message: 'no project named or with ID "Nope"',
       reason: "not_found",
-      status: "action_required",
+      status: "error",
     });
   });
 

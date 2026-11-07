@@ -157,7 +157,6 @@ const findProject = (input: {
     byId.length > 0 ? byId : projects.filter((p) => p.name === wanted);
   if (!match) {
     throw new CliError(`no project named or with ID "${wanted}"`, {
-      exitCode: 2,
       hint: `Your projects: ${projects.map((p) => p.name).join(", ")}`,
       reason: "not_found",
     });
