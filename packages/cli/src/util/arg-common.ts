@@ -41,7 +41,8 @@ export const helpFlag = {
 export const GLOBAL_FLAGS = [
   profileFlag,
   {
-    description: "Use this project, by name or ID, for this run only",
+    description:
+      "Use this project, by name or ID, for this run only; login saves it",
     long: "project",
     short: "p",
     value: { kind: "project" },

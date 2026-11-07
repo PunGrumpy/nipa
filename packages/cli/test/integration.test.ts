@@ -145,6 +145,21 @@ describe("help and usage", () => {
     expect(stdout).not.toContain("__complete");
   });
 
+  test("login's help says --project saves, and every other page says it doesn't", async () => {
+    const login = await run(["login", "--help"]);
+    // The page wraps its paragraphs.
+    expect(login.stdout.replaceAll(/\s+/gu, " ")).toContain(
+      "`--project` names the project to scope the token to and save, instead of the last one. It is the one command where the option saves the project"
+    );
+    expect(login.stdout).toMatch(
+      /-p, --project <project>\s+Use this project, by name or ID, for this run only; login saves it/u
+    );
+    const server = await run(["server", "ls", "--help"]);
+    expect(server.stdout).toMatch(
+      /-p, --project <project>\s+Use this project, by name or ID, for this run only/u
+    );
+  });
+
   test("help for one command, as `help <command>` or `<command> --help`", async () => {
     const a = await run(["help", "login"]);
     const b = await run(["login", "--help"]);
