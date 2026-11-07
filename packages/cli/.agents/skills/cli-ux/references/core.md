@@ -201,3 +201,4 @@ The help pages come from the specs in each `command.ts`:
 - Only the main page lists the global options. Every other page ends its options with `Global Options: nipa --help`. Options are in alphabetical order of their long names, once per page
 - Titles are Title Case with a colon, and bold magenta on a terminal. An example is its description, then its command two columns further in with no `$`, cyan on a terminal. A page has no "run --help" trailer
 - Put the summary directly under the usage line, and the description paragraph after it
+- A suggestion in an error for a help request, `nipa help logot` or `nipa logot --help`, is to read help: ``Did you mean `nipa help logout`?``. A command the person asked about but did not ask to run is never one they can paste and run

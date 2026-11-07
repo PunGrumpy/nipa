@@ -235,6 +235,34 @@ describe("help and usage", () => {
     expect(stderr).toContain("Did you mean `nipa login`?");
   });
 
+  test("a typo in a help request suggests reading help, never running the command", async () => {
+    const results = await Promise.all(
+      [
+        ["help", "logot"],
+        ["logot", "--help"],
+        ["logot", "-h"],
+        ["--help", "logot"],
+      ].map((words) => run(words))
+    );
+    for (const { code, stderr, stdout } of results) {
+      expect(code).toBe(2);
+      expect(stdout).toBe("");
+      expect(stderr).toContain("Did you mean `nipa help logout`?");
+      expect(stderr).not.toContain("`nipa logout`");
+    }
+    const nope = await run(["help", "nope"]);
+    expect(nope.stderr).toContain("Did you mean `nipa help open`?");
+    expect(nope.stderr).not.toContain("`nipa open`");
+    const far = await run(["help", "xylophone"]);
+    expect(far.stderr).toContain("Run `nipa --help` to see the commands.");
+  });
+
+  test("a typo in a help request keeps -P from the front", async () => {
+    const { code, stderr } = await run(["-P", "staging", "help", "logot"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain("Did you mean `nipa -P staging help logout`?");
+  });
+
   test("bad options exit 2", async () => {
     expect(await exitCode(["--nope"])).toBe(2);
     expect(await exitCode(["whoami", "--nope"])).toBe(2);

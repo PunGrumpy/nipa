@@ -135,6 +135,26 @@ describe("suggest", () => {
   });
 });
 
+describe("suggest, for a help page", () => {
+  test("`nipa help <command>` keeps -P and -p like any command", () => {
+    expect(
+      suggest("nipa help logout", scope({ profile: "staging" })).command
+    ).toBe("nipa -P staging help logout");
+    expect(
+      suggest("nipa help logout", scope({ project: "My Project" })).command
+    ).toBe("nipa -p 'My Project' help logout");
+    expect(
+      suggest("nipa help logout", scope({ profile: "a", project: "b" })).argv
+    ).toEqual(["nipa", "-P", "a", "-p", "b", "help", "logout"]);
+  });
+
+  test("a line that already names the profile keeps it as it is", () => {
+    expect(
+      suggest("nipa -P dev help logout", scope({ profile: "staging" })).command
+    ).toBe("nipa -P dev help logout");
+  });
+});
+
 describe("shellQuote", () => {
   test("leaves safe words bare", () => {
     expect(shellQuote("Beta-2/x.y:z")).toBe("Beta-2/x.y:z");

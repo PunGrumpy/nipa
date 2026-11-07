@@ -161,8 +161,14 @@ const editDistance = (a: string, b: string): number => {
   return previous[b.length] ?? 0;
 };
 
-/** Suggests the closest command that help lists. */
+/**
+ * Suggests the closest command that help lists. A person who asked for help
+ * (`nipa help logot`, `nipa logot --help`) is told to read that command's
+ * help, never to run the command: pasting `nipa logout` would revoke the
+ * session.
+ */
 const unknownCommand = (input: {
+  help: boolean;
   program: ProgramSpec;
   word: string;
 }): CliError => {
@@ -170,9 +176,10 @@ const unknownCommand = (input: {
     .flatMap((s) => s.commands)
     .map((c) => ({ name: c.name, score: editDistance(input.word, c.name) }))
     .toSorted((a, b) => a.score - b.score);
+  const verb = input.help ? "help " : "";
   const hint =
     closest && closest.score <= 2
-      ? `Did you mean \`nipa ${closest.name}\`?`
+      ? `Did you mean \`nipa ${verb}${closest.name}\`?`
       : "Run `nipa --help` to see the commands.";
   return new CliError(`unknown command "${input.word}"`, {
     exitCode: 2,
@@ -201,7 +208,7 @@ const helpPath = (input: {
   }
   const command = table.get(first);
   if (!command) {
-    throw unknownCommand({ program, word: first });
+    throw unknownCommand({ help: true, program, word: first });
   }
   if (command.kind !== "group" || second === undefined) {
     return [command.spec];
@@ -259,7 +266,11 @@ export const run = async (input: RunInput): Promise<Outcome> => {
         program: spec,
       })
     );
-    throw unknownCommand({ program: spec, word });
+    throw unknownCommand({
+      help: front.globals.help === true || asksForHelp(after),
+      program: spec,
+      word,
+    });
   }
   if (command.kind === "passthrough") {
     // `nipa --help os` shows nipa's page. `nipa os --help` goes to openstack.

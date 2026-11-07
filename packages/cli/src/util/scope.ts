@@ -104,6 +104,8 @@ const findCommand = (
   );
 
 interface Named {
+  /** `nipa help …`: a page to read, in any profile and project. */
+  readonly help: boolean;
   readonly path: CommandPath | null;
   readonly profile: boolean;
   readonly project: boolean;
@@ -127,7 +129,8 @@ const nameCommand = (program: ProgramSpec, words: readonly string[]): Named => {
       !word.includes("=");
     at += takesValue ? 2 : 1;
   }
-  const command = findCommand(program, words[at]);
+  const isHelp = words[at] === "help";
+  const command = isHelp ? undefined : findCommand(program, words[at]);
   const scanned = command?.kind === "passthrough" ? at : words.length;
   const seen = words.slice(0, scanned);
   const given = {
@@ -135,15 +138,15 @@ const nameCommand = (program: ProgramSpec, words: readonly string[]): Named => {
     project: seen.some((word) => givesFlag(word, PROJECT_WORDS)),
   };
   if (!command) {
-    return { path: null, ...given };
+    return { help: isHelp, path: null, ...given };
   }
   if (command.kind !== "group") {
-    return { path: [command], ...given };
+    return { help: false, path: [command], ...given };
   }
   const sub = command.subcommands.find((leaf) =>
     namesOf(leaf).includes(words[at + 1] ?? "")
   );
-  return { path: sub ? [command, sub] : [command], ...given };
+  return { help: false, path: sub ? [command, sub] : [command], ...given };
 };
 
 /** The options to insert after `nipa`, as words. Empty for a text that isn't a nipa command. */
@@ -153,19 +156,23 @@ const optionWords = (flag: string, long: string, value: string): string[] =>
   value.startsWith("-") ? [`${long}=${value}`] : [flag, value];
 
 const optionsFor = (scope: RunScope, words: readonly string[]): string[] => {
-  const { path, profile, project } = nameCommand(scope.program, words);
-  if (!path) {
+  const { help, path, profile, project } = nameCommand(scope.program, words);
+  if (!path && !help) {
     return [];
   }
   const options: string[] = [];
-  if (scope.profile !== undefined && !profile && profileUseOf(path) !== false) {
+  if (
+    scope.profile !== undefined &&
+    !profile &&
+    (!path || profileUseOf(path) !== false)
+  ) {
     options.push(...optionWords("-P", "--profile", scope.profile));
   }
   // `login -p` saves the project, so a suggestion of it never repeats the run's.
   if (
     scope.project !== undefined &&
     !project &&
-    projectUseOf(path) === undefined
+    (!path || projectUseOf(path) === undefined)
   ) {
     options.push(...optionWords("-p", "--project", scope.project));
   }

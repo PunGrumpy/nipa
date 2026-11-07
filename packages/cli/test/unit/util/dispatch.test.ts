@@ -529,6 +529,32 @@ describe("help and version, on the real table", () => {
     await go(["exec", "sh", "-v"]);
     expect(seen).toEqual([{ args: ["-v"], command: "sh", name: "exec" }]);
   });
+  test.each([
+    [["help", "logot"], "Did you mean `nipa help logout`?"],
+    [["help", "whoam"], "Did you mean `nipa help whoami`?"],
+    [["logot", "--help"], "Did you mean `nipa help logout`?"],
+    [["logot", "-h"], "Did you mean `nipa help logout`?"],
+    [["--help", "logot"], "Did you mean `nipa help logout`?"],
+    [["logot", "-dh"], "Did you mean `nipa help logout`?"],
+    [["logot"], "Did you mean `nipa logout`?"],
+    [["logot", "--", "--help"], "Did you mean `nipa logout`?"],
+  ])("a typo %j suggests %s", async (argv, hint) => {
+    expect(await usage(argv, realProgram)).toMatchObject({ code: 2, hint });
+  });
+  test("a typo in a help request never suggests running a command", async () => {
+    expect(await usage(["help", "nope"], realProgram)).toMatchObject({
+      hint: "Did you mean `nipa help open`?",
+    });
+    expect(await usage(["help", "xylophone"], realProgram)).toMatchObject({
+      hint: "Run `nipa --help` to see the commands.",
+    });
+    expect(await usage(["xylophone", "--help"], realProgram)).toMatchObject({
+      hint: "Run `nipa --help` to see the commands.",
+    });
+    // An unknown subcommand lists the names; it suggests no command at all.
+    const sub = await usage(["help", "server", "stap"], realProgram);
+    expect(sub.hint).not.toContain("`");
+  });
   test("help names only commands that exist", async () => {
     expect(await usage(["help", "nope"], realProgram)).toMatchObject({
       code: 2,
