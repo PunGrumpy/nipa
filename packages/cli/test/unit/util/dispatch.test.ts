@@ -624,6 +624,20 @@ describe("help and version, on the real table", () => {
   ])("help has no page of its own: %j is the main page", async (argv) => {
     expect(await text(argv)).toBe(await text([]));
   });
+  test("extra words after a leaf are ignored by help, in both forms", async () => {
+    expect(await text(["help", "whoami", "nope"])).toBe(
+      await text(["whoami", "nope", "--help"])
+    );
+    expect(await text(["help", "whoami", "nope"])).toBe(
+      await text(["help", "whoami"])
+    );
+    expect(await text(["help", "server", "ls", "nope"])).toBe(
+      await text(["server", "ls", "nope", "--help"])
+    );
+    expect(await text(["help", "server", "ls", "nope"])).toBe(
+      await text(["help", "server", "ls"])
+    );
+  });
   test("a name after the options is checked like any other", async () => {
     expect(await usage(["help", "--json", "nope"], realProgram)).toMatchObject({
       code: 2,

@@ -203,3 +203,4 @@ The help pages come from the specs in each `command.ts`:
 - Put the summary directly under the usage line, and the description paragraph after it
 - A suggestion in an error for a help request, `nipa help logot` or `nipa logot --help`, is to read help: ``Did you mean `nipa help logout`?``. A command the person asked about but did not ask to run is never one they can paste and run
 - `nipa help` skips the options before the first name, known or not, so `help --json server` and `help --bogus server` name the server page. A word after an unknown option is read as a name. Options after the names end the path, and a `--` ends the options
+- Extra words after a command with no subcommands, or after a subcommand, are not names: `help whoami nope` and `help server ls nope` print the page and exit 0, as `whoami nope --help` does

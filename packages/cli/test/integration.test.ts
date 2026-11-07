@@ -241,6 +241,20 @@ describe("help and usage", () => {
     }
   );
 
+  test.each([
+    [["help", "whoami", "nope"], "Usage: nipa whoami"],
+    [["help", "server", "ls", "nope"], "Usage: nipa server ls"],
+    [["whoami", "nope", "--help"], "Usage: nipa whoami"],
+  ])(
+    "extra words after a leaf are ignored by help: %j",
+    async (args, usage) => {
+      const { code, stderr, stdout } = await run(args);
+      expect(code).toBe(0);
+      expect(stderr).toBe("");
+      expect(stdout).toContain(usage);
+    }
+  );
+
   test("help help is the main page", async () => {
     const { code, stderr, stdout } = await run(["help", "help"]);
     expect(code).toBe(0);
