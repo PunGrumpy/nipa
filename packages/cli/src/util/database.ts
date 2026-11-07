@@ -93,6 +93,11 @@ export interface DatabaseInstance {
   allowedCidrs: string[];
 }
 
+/** The address to connect from outside, else the private one. */
+export const databaseAddress = (
+  instance: Pick<DatabaseInstance, "address" | "externalAddress">
+): string => instance.externalAddress ?? instance.address;
+
 export interface Database {
   id: string;
   name: string;

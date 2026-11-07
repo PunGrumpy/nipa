@@ -112,7 +112,7 @@ Error: you aren't logged in to prod
 Rules:
 
 - The message is a lowercase fragment without a final period. It names the object, quoting values the person typed: `no profile named "staging"`
-- The hint is a full sentence that ends with a period. It names the exact command, flag or file to fix it, in backticks
+- The hint is a full sentence that ends with a period. It names the exact command, flag or file to fix it, in backticks. One exception: a name that matches several items lists up to 5 of them, one per line, with what tells them apart, and then how to get the rest
 - Use `usageError(message, hint)` when the command line was wrong. It exits with 2
 - Suggest the closest command when a word is unknown, as the dispatcher does: ``Did you mean `nipa server`?``
 - For a server-side or network failure, the hint points to `--debug` or to the Keystone URL
@@ -134,6 +134,7 @@ With `--json`, a failure writes nothing to stdout and exactly one single-line JS
 
 - `status` is `action_required` for exit 2 and for `ambiguous_name`, `login_required` and `token_expired`: a person has to act before the command can run. Everything else is `error`
 - `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `api_error`, `invalid_config`, `internal_error` and `failed`. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
+- `data` holds facts a script needs, and appears only where a throw site sets it. `ambiguous_name` has `data.ids`, every ID the name matches. Read IDs from there, never from `hint`, which shows at most 5
 - `message` and `hint` are the human error's text. `hint` appears only when the error has one and no `next`, which says the same thing in the profile the run named
 - `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
 - The document is a single line of `JSON.stringify` output written through `writeStderr`, which drops anything a terminal would act on, and it bypasses the styling helpers

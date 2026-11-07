@@ -1,7 +1,7 @@
 import type { Space } from "./api";
-import { listServers } from "./compute";
+import { listServers, mainAddress } from "./compute";
 import type { Server } from "./compute";
-import { listDatabases } from "./database";
+import { databaseAddress, listDatabases } from "./database";
 import type { Database } from "./database";
 import { listLoadBalancers } from "./load-balancer";
 import type { LoadBalancer } from "./load-balancer";
@@ -9,7 +9,8 @@ import { listNetworks } from "./network";
 import type { Network } from "./network";
 import { listSecurityGroups } from "./security-group";
 import type { SecurityGroup } from "./security-group";
-import { CliError, withSpinner } from "./ui";
+import { statusCell } from "./status";
+import { CliError, oneLine, withSpinner } from "./ui";
 import { listVolumes } from "./volume";
 import type { Volume } from "./volume";
 
@@ -27,9 +28,20 @@ export interface Findable<T extends Named> {
   /** The command that lists them, such as `nipa server ls`. */
   readonly lsCommand: string;
   readonly list: (space: Space) => Promise<T[]>;
+  /**
+   * What tells two items of one name apart, such as a status and an address,
+   * shown after the ID when a name matches more than one, in the columns its
+   * `ls` shows, so a row can be matched to it.
+   */
+  readonly describe?: (item: T) => readonly string[];
 }
 
 export const SERVERS: Findable<Server> = {
+  describe: (server) => {
+    const status = statusCell(server.status).text;
+    const address = mainAddress(server);
+    return address === undefined ? [status] : [status, address];
+  },
   list: listServers,
   lsCommand: "nipa server ls",
   noun: "server",
@@ -37,6 +49,7 @@ export const SERVERS: Findable<Server> = {
 };
 
 export const VOLUMES: Findable<Volume> = {
+  describe: (volume) => [statusCell(volume.status).text, `${volume.sizeGb} GB`],
   list: listVolumes,
   lsCommand: "nipa volume ls",
   noun: "volume",
@@ -44,6 +57,11 @@ export const VOLUMES: Findable<Volume> = {
 };
 
 export const NETWORKS: Findable<Network> = {
+  describe: (network) => [
+    statusCell(network.status).text,
+    network.external ? "external" : "VPC",
+    network.zone ?? "",
+  ],
   list: listNetworks,
   lsCommand: "nipa network ls",
   noun: "network",
@@ -58,6 +76,7 @@ export const SECURITY_GROUPS: Findable<SecurityGroup> = {
 };
 
 export const LOAD_BALANCERS: Findable<LoadBalancer> = {
+  describe: (lb) => [statusCell(lb.status).text, lb.address],
   list: listLoadBalancers,
   lsCommand: "nipa lb ls",
   noun: "load balancer",
@@ -65,10 +84,43 @@ export const LOAD_BALANCERS: Findable<LoadBalancer> = {
 };
 
 export const DATABASES: Findable<Database> = {
+  describe: ({ primary }) =>
+    primary ? [statusCell(primary.status).text, databaseAddress(primary)] : [],
   list: listDatabases,
   lsCommand: "nipa db ls",
   noun: "database",
   plural: "databases",
+};
+
+const MAX_CANDIDATES = 5;
+
+// One line per candidate with its columns aligned, so the IDs can be read and
+// copied whole. Every part is remote text and shows on one line.
+const candidateLines = <T extends Named>(
+  kind: Findable<T>,
+  items: readonly T[]
+): string[] => {
+  const rows = items
+    .slice(0, MAX_CANDIDATES)
+    .map((item) => [item.id, ...(kind.describe?.(item) ?? [])].map(oneLine));
+  const widths = Array.from(
+    { length: Math.max(...rows.map((row) => row.length)) },
+    (_, column) => Math.max(...rows.map((row) => row[column]?.length ?? 0))
+  );
+  const lines = rows.map(
+    (row) =>
+      `    ${row
+        .map((cell, column) => cell.padEnd(widths[column] ?? 0))
+        .join("  ")
+        .trimEnd()}`
+  );
+  const more = items.length - MAX_CANDIDATES;
+  return more > 0
+    ? [
+        ...lines,
+        `    and ${more} more. Run \`${kind.lsCommand} --json\` to get their IDs.`,
+      ]
+    : lines;
 };
 
 /** The item whose ID is `ref`, or else the one item named `ref`. */
@@ -97,11 +149,14 @@ export const findResource = async <T extends Named>(input: {
     );
   }
   if (others.length > 0) {
-    const ids = [match, ...others].map((item) => item.id).join(", ");
+    const candidates = [match, ...others];
     throw new CliError(
-      `${others.length + 1} ${kind.plural} in ${projectName} are named "${ref}"`,
+      `${candidates.length} ${kind.plural} in ${projectName} are named "${ref}"`,
       {
-        hint: `Name one by its ID instead: ${ids}.`,
+        data: { ids: candidates.map((item) => item.id) },
+        hint: ["Name one by its ID:", ...candidateLines(kind, candidates)].join(
+          "\n"
+        ),
         reason: "ambiguous_name",
       }
     );

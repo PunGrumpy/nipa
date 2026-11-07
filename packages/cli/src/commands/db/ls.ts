@@ -1,5 +1,5 @@
 import { handle } from "../../util/command";
-import { listDatabases } from "../../util/database";
+import { databaseAddress, listDatabases } from "../../util/database";
 import type { Database } from "../../util/database";
 import { statusCell } from "../../util/status";
 import {
@@ -21,7 +21,7 @@ const printDatabases = (databases: readonly Database[], now: number): void => {
       { text: name },
       { text: primary ? `${primary.engine} ${primary.version}` : "-" },
       primary ? statusCell(primary.status) : { text: "-" },
-      { text: primary ? (primary.externalAddress ?? primary.address) : "-" },
+      { text: primary ? databaseAddress(primary) : "-" },
       { text: primary?.flavor ?? "-" },
       { paint: gray, text: formatAge(now - Date.parse(createdAt)) },
     ]),

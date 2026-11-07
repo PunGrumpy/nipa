@@ -678,6 +678,40 @@ describe("a failed --json command that names a resource", () => {
         status: "action_required",
       });
       expect(document).not.toHaveProperty("next");
+      expect(document.data).toEqual({
+        ids: ["22222222-2222-4222-8222-222222222222", "twin-0000"],
+      });
+      expect(document.hint.split("\n")).toEqual([
+        "Name one by its ID:",
+        "    22222222-2222-4222-8222-222222222222  ● Active  203.0.113.10",
+        "    twin-0000                             ● Active  203.0.113.10",
+      ]);
+    } finally {
+      FAKE_SERVERS.pop();
+    }
+  });
+
+  test("without --json the same ambiguity prints one line per server", async () => {
+    const web1 = FAKE_SERVERS.find((server) => server.name === "web-1");
+    if (!web1) {
+      throw new Error("the fixtures lost web-1");
+    }
+    FAKE_SERVERS.push({ ...web1, id: "twin-0000" });
+    try {
+      const { code, stderr, stdout } = await run([
+        "server",
+        "inspect",
+        "web-1",
+      ]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain('Error: 2 servers in Alpha are named "web-1"\n');
+      expect(stderr).toContain("> Name one by its ID:\n");
+      expect(stderr).toContain(
+        "    22222222-2222-4222-8222-222222222222  ● Active  203.0.113.10\n"
+      );
+      expect(stderr).toContain("    twin-0000");
+      expect(stderr).not.toContain("instead:");
     } finally {
       FAKE_SERVERS.pop();
     }

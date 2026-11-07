@@ -1,5 +1,5 @@
 import { handle } from "../../util/command";
-import { listServers } from "../../util/compute";
+import { listServers, mainAddress } from "../../util/compute";
 import type { Server } from "../../util/compute";
 import { statusCell, statusLabel } from "../../util/status";
 import {
@@ -16,7 +16,7 @@ import {
   withSpinner,
 } from "../../util/ui";
 import { lsSubcommand } from "./command";
-import { mainAddress, nameCell } from "./format";
+import { nameCell } from "./format";
 
 const PIPE_HEADINGS = ["ID", "Name", "Status", "Address", "Flavor", "Created"];
 const FLAVOR = 3;

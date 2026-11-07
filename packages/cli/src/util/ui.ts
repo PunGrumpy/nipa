@@ -14,8 +14,15 @@ import { theme } from "./theme";
 // Everything these paint goes to stderr, so stderr decides the colors.
 export const { bold, cyan, dim, gray, green, red, yellow } = theme.stderr;
 
+/** What a script reads from a failure. `ids`: the items a name matches. */
+export interface ErrorData {
+  readonly ids: readonly string[];
+}
+
 export class CliError extends Error {
   readonly hint?: string;
+  /** Facts a script needs from the failure, such as the IDs a name matches. */
+  readonly data?: ErrorData;
   readonly exitCode: number;
   /** The stable code a script reads in place of the message. */
   readonly reason: Reason;
@@ -26,6 +33,7 @@ export class CliError extends Error {
     message: string,
     options: {
       hint?: string;
+      data?: ErrorData;
       exitCode?: number;
       reason?: Reason;
       next?: readonly string[];
@@ -34,6 +42,7 @@ export class CliError extends Error {
     super(message);
     this.name = "CliError";
     this.hint = options.hint;
+    this.data = options.data;
     this.exitCode = options.exitCode ?? 1;
     // A wrong command line is exit 2. Any other failure is a generic one
     // until its throw site names a better reason.
