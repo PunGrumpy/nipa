@@ -86,6 +86,11 @@ const modules = () => inDir("infra", "modules");
 const readJsonFile = async (name: string) =>
   JSON.parse(await readFile(path.join(dir, name), "utf-8"));
 
+const savedFiles = async () => [
+  await readFile(path.join(dir, "config.json"), "utf-8"),
+  await readFile(path.join(dir, "auth.json"), "utf-8"),
+];
+
 const serverLists = () =>
   keystone.requests.filter((r) => r === "GET /api/v3/instances").length;
 
@@ -2271,6 +2276,74 @@ describe("--project", () => {
     } finally {
       twin.stop();
     }
+  });
+});
+
+describe("--project on a command that never reads a project", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    await mkdir(infra(), { recursive: true });
+  });
+
+  const refused: [string, string[]][] = [
+    ["nipa whoami", ["whoami"]],
+    ["nipa doctor", ["doctor"]],
+    ["nipa switch", ["switch", "Beta"]],
+    ["nipa link", ["link", "Beta"]],
+    ["nipa unlink", ["unlink"]],
+    ["nipa logout", ["logout"]],
+    ["nipa profile ls", ["profile", "ls"]],
+    ["nipa profile use", ["profile", "use", "prod"]],
+  ];
+
+  test("each refuses it with exit 2, and changes nothing", async () => {
+    const before = await savedFiles();
+    const results = await Promise.all(
+      refused.map(([, words]) => runIn(infra(), ["-p", "Beta", ...words]))
+    );
+    for (const [i, [name]] of refused.entries()) {
+      const result = results[i];
+      expect(result?.code).toBe(2);
+      expect(result?.stdout).toBe("");
+      expect(result?.stderr).toStartWith(
+        `Error: --project doesn't apply to ${name}\n> Usage: ${name}`
+      );
+    }
+    expect(await savedFiles()).toEqual(before);
+    expect(await exists(path.join(infra(), ".nipa"))).toBe(false);
+  });
+
+  test("after the command, and under --json, it is one usage document", async () => {
+    const { code, stderr, stdout } = await run([
+      "whoami",
+      "--json",
+      "--project",
+      "Beta",
+    ]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(JSON.parse(stderr)).toMatchObject({
+      message: "--project doesn't apply to nipa whoami",
+      reason: "invalid_arguments",
+      status: "action_required",
+    });
+  });
+
+  test("help and the version still work with it on the line", async () => {
+    const help = await run(["-p", "Beta", "whoami", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toContain("Usage: nipa whoami");
+    const version = await run(["-p", "Beta", "--version"]);
+    expect(version.code).toBe(0);
+    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+/u);
+  });
+
+  test("login keeps it: it still names the project to save", async () => {
+    const { code, stderr } = await run(["-p", "Beta", "login"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("nipa can't prompt here");
+    expect(stderr).not.toContain("doesn't apply");
   });
 });
 

@@ -75,4 +75,5 @@ export const profileCommand = defineGroup({
   name: "profile",
   subcommands: [lsSubcommand, addSubcommand, useSubcommand, rmSubcommand],
   summary: "Manage Keystone profiles, such as staging",
+  usesProject: false,
 });

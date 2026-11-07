@@ -17,4 +17,5 @@ export const doctorCommand = defineCommand({
   summary: "Check your setup and say what to fix",
   // The Update check already reports a new version.
   updateNotice: false,
+  usesProject: false,
 });

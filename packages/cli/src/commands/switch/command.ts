@@ -7,4 +7,5 @@ export const switchCommand = defineCommand({
   flags: [],
   name: "switch",
   summary: "Use another project",
+  usesProject: false,
 });

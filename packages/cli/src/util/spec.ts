@@ -79,6 +79,14 @@ export interface Described {
   /** One line, for the command lists in help and completion. */
   readonly summary: string;
   /**
+   * What the global `-p, --project` means to the command. Omitted: the
+   * project this run uses, never saved. `"saves"`: the project to log in to
+   * and save, as in `login`. `false`: the command never reads a project, so
+   * dispatch refuses the flag instead of letting it be ignored. A group's
+   * setting covers the subcommands that don't set their own.
+   */
+  readonly usesProject?: false | "saves";
+  /**
    * `false` when a shell reads the output, as with `completion`, so nipa
    * skips the update notice. A group's setting covers its subcommands.
    */
@@ -208,6 +216,12 @@ export const flagPlaceholder = (value: FlagValue): string => {
       return _exhaustive;
     }
   }
+};
+
+/** What `--project` means on the command the path names: see `Described.usesProject`. */
+export const projectUseOf = (path: CommandPath): Described["usesProject"] => {
+  const [first, second] = path;
+  return second?.usesProject ?? first.usesProject;
 };
 
 /** The path's last command: the one a help page or usage line is about. */

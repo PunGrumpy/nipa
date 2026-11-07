@@ -30,4 +30,5 @@ export const loginCommand = defineCommand({
   ],
   name: "login",
   summary: "Log in with your password and an OTP code",
+  usesProject: "saves",
 });

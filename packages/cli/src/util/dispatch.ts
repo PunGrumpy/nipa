@@ -8,9 +8,9 @@ import type { GlobalValues } from "./arg-common";
 import type { Client } from "./client";
 import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
-import { commandHelp, mainHelp } from "./help";
+import { commandHelp, commandLine, mainHelp, usageLine } from "./help";
 import { asksForHelp, asksForJson, takeGlobals } from "./parse";
-import { namesOf } from "./spec";
+import { namesOf, projectUseOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
 import { CliError, setJsonMode, usageError } from "./ui";
 
@@ -251,6 +251,12 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     words: resolved.words,
   });
   const globals = { ...front.globals, ...prepared.globals };
+  if (globals.project !== undefined && projectUseOf(resolved.path) === false) {
+    throw usageError(
+      `--project doesn't apply to ${commandLine(resolved.path)}`,
+      `Usage: ${usageLine(resolved.path)}`
+    );
+  }
   const client = input.createClient({
     globals,
     json: asksForJson(resolved.words),

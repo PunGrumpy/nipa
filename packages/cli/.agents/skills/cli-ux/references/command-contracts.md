@@ -62,7 +62,7 @@ Rules:
 - A name that matches nothing fails with exit code 1, `reason: "not_found"`, and the list of project names, and never falls back to another project. Not found is exit code 1 in the guideline's table, like an unknown server or profile. A name that two projects share fails with `ambiguous_name` and lists their IDs. An ID wins over a name
 - When Keystone refuses to scope to a 32-character value, nipa lists the projects, because only the list can tell the cases apart: no project has it (`not_found`, with the list), a project is named like an ID (it uses that project), the project is listed but Keystone refuses it (`can't use project Beta`, exit code 1), or the session was revoked (the list answers 401, so `token_expired` with `nipa login`)
 - A revoked session fails the same way for a name, because `listProjects` runs inside `guardSession`
-- `login` keeps its meaning: `--project` names the project to scope the token to and save. `switch` and `link` take the project as an argument and read the saved session, so they ignore the flag
+- `login` keeps its meaning: `--project` names the project to scope the token to and save (`usesProject: "saves"` in its spec). A command that never reads a project sets `usesProject: false`, and dispatch refuses the flag with exit code 2, `--project doesn't apply to nipa switch` and the usage line, instead of ignoring it: `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile`. `switch` and `link` take the project as an argument and read the saved session, so `nipa -p Beta switch <project>` can't save a project by accident. `--help` and `--version` still work with the flag on the line
 - On `os`, `tf` and `exec` the flag works only before the command, because the words after it belong to the program
 
 States to test:
@@ -70,6 +70,7 @@ States to test:
 - A name, an ID, the saved project, an unknown name, an unknown ID, a project named like an ID, a name two projects share and an ID that Keystone lists but refuses
 - A revoked session, by name and by ID
 - The flag before and after the command, and before `os`
+- The flag on each command that refuses it, with the saved files unchanged
 - The flag in a linked folder, with the link file and `auth.json` unchanged after the run
 - `-P` with `-p`
 - `--json`, where a failure writes one error document
