@@ -11,6 +11,10 @@ export const INSTALL_HINTS = new Map([
   ["terraform", "Install it with `brew install hashicorp/tap/terraform`."],
 ]);
 
+// `nipa exec -p Beta env` would run a program called `-p`.
+const OPTIONS_FIRST =
+  "Put nipa's options, such as `--project`, before `exec`, because the words after it belong to the command.";
+
 /**
  * Runs a program with the session's OS_* variables and returns its exit
  * code: `nipa os`, `nipa tf` and `nipa exec`. `signIn` runs only after nipa
@@ -29,7 +33,9 @@ export const runTool = async ({
   if (!bin) {
     throw new CliError(`command not found: ${command}`, {
       exitCode: 127,
-      hint: INSTALL_HINTS.get(command),
+      hint:
+        INSTALL_HINTS.get(command) ??
+        (command.startsWith("-") ? OPTIONS_FIRST : undefined),
     });
   }
   const { active, session } = await signIn();

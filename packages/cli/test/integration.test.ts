@@ -1110,6 +1110,19 @@ describe("with a session", () => {
     expect(stderr).toContain("command not found");
   });
 
+  test("exec with an option where the command goes says the options come first", async () => {
+    const { code, stderr } = await run(["exec", "-p", "Beta", "env"]);
+    expect(code).toBe(127);
+    expect(stderr).toContain("Error: command not found: -p");
+    expect(stderr).toContain(
+      "> Put nipa's options, such as `--project`, before `exec`, because the words after it belong to the command."
+    );
+    const plain = await run(["exec", "no-such-tool-xyz"]);
+    expect(plain.stderr).not.toContain("before `exec`");
+    const tf = await run(["tf", "-p", "Beta"]);
+    expect(tf.stderr).not.toContain("before `exec`");
+  });
+
   test("switch by name needs no password and shows how long it took", async () => {
     const { code, stderr } = await run(["switch", "Beta"]);
     expect(code).toBe(0);
