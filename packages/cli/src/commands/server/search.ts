@@ -18,7 +18,6 @@ import {
 import {
   CliError,
   formatElapsed,
-  isJsonMode,
   log,
   oneLine,
   plural,
@@ -206,6 +205,6 @@ export const search = handle(
       // A pipe gets the rows, so grep and cut see one server per line.
       client.stdout.line(tabSeparated(PIPE_HEADINGS, pipeRows(hits)));
     }
-    return isJsonMode() ? 0 : reportFailures(found);
+    return reportFailures(found);
   }
 );
