@@ -4,6 +4,7 @@
 // every 401 has an empty body, and a token without a catalog fails.
 
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { z } from "zod";
 
@@ -32,6 +33,8 @@ export const MULTILINE_NAMED = {
   name: "Odd\n> forged",
 };
 
+const HANG_MS = 10 * 60_000;
+
 const PROJECTS = [
   {
     domain_id: "d1",
@@ -53,9 +56,24 @@ const USERS = new Map([
   [PLAIN_USER.name, { mfa: false, user: PLAIN_USER }],
 ]);
 
+/**
+ * Servers for projects other than the owner, so a search finds something in
+ * several. A project here answers the server list with these, and a project
+ * in `fail` answers it with that status. A project in `hang` never answers.
+ * Each answer waits `latencyMs`.
+ */
+export interface FakeProjects {
+  servers?: Readonly<Record<string, readonly object[]>>;
+  fail?: Readonly<Record<string, number>>;
+  hang?: readonly string[];
+  latencyMs?: number;
+}
+
 export interface FakeKeystone {
   url: string;
   requests: string[];
+  /** The most token exchanges and server lists that were open at once. */
+  peakInFlight: () => number;
   /** Space API routes to fail, as "GET /api/v4/instances/{id}" to a status. */
   faults: Faults;
   stop: () => void;
@@ -125,6 +143,7 @@ export const startFakeKeystone = (
     extraProjects?: readonly { id: string; name: string }[];
     gateway?: boolean;
     owner?: string;
+    projects?: FakeProjects;
     refuse?: readonly string[];
     twinBeta?: boolean;
   } = {}
@@ -133,6 +152,7 @@ export const startFakeKeystone = (
     extraProjects = [],
     gateway = false,
     owner = ALPHA_ID,
+    projects: fakeProjects = {},
     refuse = [],
     twinBeta = false,
   } = options;
@@ -250,9 +270,56 @@ export const startFakeKeystone = (
     );
   };
 
-  const space = (req: Request): Response => {
+  let inFlight = 0;
+  let peak = 0;
+  // Counts the requests a search runs for each project, one after the other.
+  const tracked = async <T>(task: () => Promise<T>): Promise<T> => {
+    inFlight += 1;
+    peak = Math.max(peak, inFlight);
+    try {
+      return await task();
+    } finally {
+      inFlight -= 1;
+    }
+  };
+  // stop() ends the waits, so a hung project doesn't keep the process alive.
+  const stopped = new AbortController();
+  const wait = async (ms: number): Promise<void> => {
+    try {
+      await delay(ms, undefined, { signal: stopped.signal });
+    } catch {
+      // The fake stopped while a request waited.
+    }
+  };
+  const { fail = {}, hang = [], latencyMs = 0 } = fakeProjects;
+
+  const serverList = (projectId: string): Promise<Response> | null => {
+    const given = fakeProjects.servers?.[projectId];
+    const status = fail[projectId];
+    if (!(given || status || hang.includes(projectId))) {
+      return null;
+    }
+    return tracked(async () => {
+      await wait(hang.includes(projectId) ? HANG_MS : latencyMs);
+      if (status !== undefined) {
+        return spaceFault(status, "You are not allowed to list servers");
+      }
+      return Response.json({
+        instances: given ?? [],
+        page_control: { current_filter: {}, max_item: given?.length ?? 0 },
+      });
+    });
+  };
+
+  const space = async (req: Request): Promise<Response> => {
     if (!tokens.has(req.headers.get("X-Auth-Token") ?? "")) {
       return spaceFault(401, "The requested resource requires authorization.");
+    }
+    if (new URL(req.url).pathname === "/api/v3/instances") {
+      const own = await serverList(req.headers.get("Project-Id") ?? "");
+      if (own) {
+        return own;
+      }
     }
     return handleSpace({ faults, owner, req, statuses });
   };
@@ -264,7 +331,12 @@ export const startFakeKeystone = (
       return Response.json({ version: { id: "v3.14", status: "stable" } });
     }
     if (pathname === "/v3/auth/tokens") {
-      return authTokens(req);
+      return req.method === "POST" && latencyMs > 0
+        ? tracked(async () => {
+            await wait(latencyMs);
+            return authTokens(req);
+          })
+        : authTokens(req);
     }
     if (pathname !== "/v3/auth/projects") {
       return new Response("not found", { status: 404 });
@@ -287,8 +359,12 @@ export const startFakeKeystone = (
 
   return {
     faults,
+    peakInFlight: () => peak,
     requests,
-    stop: () => server.stop(true),
+    stop: () => {
+      stopped.abort();
+      server.stop(true);
+    },
     url: `http://localhost:${server.port}`,
   };
 };

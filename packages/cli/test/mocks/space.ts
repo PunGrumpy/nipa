@@ -27,6 +27,26 @@ const K8S_WORKER_1_ID = "55555555-5555-4555-8555-555555555555";
 // web-1's floating IP, which FAKE_IPS lists too.
 const WEB_1_IP = "203.0.113.10";
 
+/**
+ * One server as the Space API lists it, for a project other than the owner:
+ * `fakeInstance("web-1", "id", "192.0.2.5")`. `extra` adds or replaces fields.
+ */
+export const fakeInstance = (
+  name: string,
+  id: string,
+  address: string,
+  extra: Partial<(typeof FAKE_SERVERS)[number]> = {}
+) => ({
+  created: ago(DAY_MS),
+  external_ips: [],
+  flavor: flavor(LARGE),
+  id,
+  internal_ips: [ip(address)],
+  name,
+  status: "ACTIVE",
+  ...extra,
+});
+
 /** The servers, newest first, the way the Space API lists them. */
 export const FAKE_SERVERS = [
   {
