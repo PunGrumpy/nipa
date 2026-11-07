@@ -282,6 +282,21 @@ describe("help and usage", () => {
     expect(stderr).toContain("Did you mean `nipa -P staging help logout`?");
   });
 
+  test("a typo in help keeps -P and -p from after help too", async () => {
+    const results = await Promise.all([
+      run(["help", "-P", "staging", "logot"]),
+      run(["help", "--profile=staging", "logot"]),
+    ]);
+    for (const { code, stderr } of results) {
+      expect(code).toBe(2);
+      expect(stderr).toContain("Did you mean `nipa -P staging help logout`?");
+    }
+    const project = await run(["help", "-p", "Beta", "logot"]);
+    expect(project.stderr).toContain(
+      "Did you mean `nipa -p Beta help logout`?"
+    );
+  });
+
   test("bad options exit 2", async () => {
     expect(await exitCode(["--nope"])).toBe(2);
     expect(await exitCode(["whoami", "--nope"])).toBe(2);

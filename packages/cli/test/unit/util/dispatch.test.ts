@@ -16,6 +16,7 @@ import {
 } from "../../../src/util/command";
 import type { Program } from "../../../src/util/command";
 import { run } from "../../../src/util/dispatch";
+import { inRun } from "../../../src/util/scope";
 import { CliError, isJsonMode, setJsonMode } from "../../../src/util/ui";
 
 // A spy program: every handler records what it got, without the client.
@@ -628,6 +629,22 @@ describe("help and version, on the real table", () => {
       code: 2,
       message: 'unknown command "-x"',
     });
+  });
+  test.each([
+    [["-P", "staging", "help", "logot"], "nipa -P staging help logout"],
+    [["help", "-P", "staging", "logot"], "nipa -P staging help logout"],
+    [["help", "--profile=staging", "logot"], "nipa -P staging help logout"],
+    [["help", "-p", "Beta", "logot"], "nipa -p Beta help logout"],
+    [["-P", "a", "help", "-P", "b", "logot"], "nipa -P b help logout"],
+    [
+      ["help", "--json", "-P", "staging", "logot"],
+      "nipa -P staging help logout",
+    ],
+  ])("a typo in help keeps the run's scope: %j", async (argv, command) => {
+    const failure = await usage(argv, realProgram);
+    expect(failure.hint).toBe(`Did you mean \`nipa help logout\`?`);
+    // The hint is printed through the run's scope, which the CLI sets before it throws.
+    expect(inRun(failure.hint ?? "")).toBe(`Did you mean \`${command}\`?`);
   });
   test("help names only commands that exist", async () => {
     expect(await usage(["help", "nope"], realProgram)).toMatchObject({

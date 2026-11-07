@@ -188,22 +188,31 @@ const unknownCommand = (input: {
   });
 };
 
+interface HelpWords {
+  readonly globals: GlobalValues;
+  readonly names: readonly string[];
+}
+
 /**
- * The words of `nipa help <words>` that name a page. Options before the
- * first name are skipped, known or not: `help --json server`, `help -P x
- * server`, `help --bogus server` and `help -y server stop` all name the
- * server page. A word after an unknown option belongs to the page path,
- * since nipa can't know whether that option takes a value. Options after a
- * name end the path, and a `--` ends the options: what follows it is a name
- * even when it starts with a dash.
+ * What follows `nipa help`: the global options among the leading options
+ * (`help -P staging logot`), which a hint repeats, and the words that name
+ * a page. Options before the first name are skipped, known or not:
+ * `help --json server`, `help -P x server`, `help --bogus server` and
+ * `help -y server stop` all name the server page. A word after an unknown
+ * option belongs to the page path, since nipa can't know whether that
+ * option takes a value. Options after a name end the path, and a `--` ends
+ * the options: what follows it is a name even when it starts with a dash.
  */
-const helpNames = (words: readonly string[]): readonly string[] => {
+const helpWords = (words: readonly string[]): HelpWords => {
+  const taken: GlobalValues[] = [];
   let rest = words;
   for (;;) {
-    ({ rest } = takeGlobals({ unknown: "stop", words: rest }));
+    const front = takeGlobals({ unknown: "stop", words: rest });
+    taken.push(front.globals);
+    ({ rest } = front);
     const [word] = rest;
     if (word === "--") {
-      return rest.slice(1);
+      return { globals: Object.assign({}, ...taken), names: rest.slice(1) };
     }
     if (word === undefined || word === "-" || !word.startsWith("-")) {
       break;
@@ -211,7 +220,10 @@ const helpNames = (words: readonly string[]): readonly string[] => {
     rest = rest.slice(1);
   }
   const end = rest.findIndex((word) => word.startsWith("-"));
-  return end === -1 ? rest : rest.slice(0, end);
+  return {
+    globals: Object.assign({}, ...taken),
+    names: end === -1 ? rest : rest.slice(0, end),
+  };
 };
 
 /**
@@ -220,15 +232,20 @@ const helpNames = (words: readonly string[]): readonly string[] => {
  * Words that name nothing are the same errors a command line gets, so a
  * typo never shows another page. Names after the first one that names a
  * leaf, and options after the names, are ignored, as `nipa whoami nope
- * --help` ignores `nope`.
+ * --help` ignores `nope`. The `-P` and `-p` among the words go into the
+ * run's scope before an error, so `nipa help -P staging logot` suggests
+ * what `nipa -P staging help logot` does.
  */
 const helpPath = (input: {
+  globals: GlobalValues;
   program: ProgramSpec;
   table: ReadonlyMap<string, Command>;
   words: readonly string[];
 }): CommandPath | undefined => {
   const { program, table } = input;
-  const [first, second] = helpNames(input.words);
+  const { globals, names } = helpWords(input.words);
+  setRunScope(scopeOf({ globals: { ...input.globals, ...globals }, program }));
+  const [first, second] = names;
   if (first === undefined) {
     return undefined;
   }
@@ -273,7 +290,12 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     return print(mainHelp({ program: spec, version: input.version }));
   }
   if (word === "help") {
-    const path = helpPath({ program: spec, table, words: after });
+    const path = helpPath({
+      globals: front.globals,
+      program: spec,
+      table,
+      words: after,
+    });
     return print(
       path
         ? commandHelp(path)
