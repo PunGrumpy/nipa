@@ -136,15 +136,17 @@ describe("help and usage", () => {
     for (const text of [
       "Session:",
       "Resources:",
-      "Run tools:",
+      "Run Tools:",
       "Setup:",
-      "Global options:",
+      "Global Options:",
       "--profile <name>",
       "profile",
     ]) {
       expect(stdout).toContain(text);
     }
     expect(stdout).not.toContain("__complete");
+    expect(stdout).not.toContain("$ nipa");
+    expect(stdout).not.toContain("Run nipa <command> --help");
   });
 
   test("login's help says --project saves, and every other page says it doesn't", async () => {
@@ -153,13 +155,16 @@ describe("help and usage", () => {
     expect(login.stdout.replaceAll(/\s+/gu, " ")).toContain(
       "`--project` names the project to scope the token to and save, instead of the last one. It is the one command where the option saves the project"
     );
-    expect(login.stdout).toMatch(
-      /-p, --project <project>\s+Use this project, by name or ID, for this run only; login saves it/u
+    // Only the main page lists the global options. Every other page points to it.
+    const root = await run(["--help"]);
+    expect(root.stdout).toMatch(
+      /-p, --project <project>\n\s+Use this project, by name or ID, for this run only; login saves it/u
     );
+    expect(login.stdout).toContain("Global Options: nipa --help");
+    expect(login.stdout).not.toContain("--non-interactive");
     const server = await run(["server", "ls", "--help"]);
-    expect(server.stdout).toMatch(
-      /-p, --project <project>\s+Use this project, by name or ID, for this run only/u
-    );
+    expect(server.stdout).toContain("Global Options: nipa --help");
+    expect(server.stdout).not.toContain("for this run only");
   });
 
   test("help for one command, as `help <command>` or `<command> --help`", async () => {
@@ -342,6 +347,13 @@ describe("what a terminal changes", () => {
     expect(error.stderr).not.toContain(ESC);
     expect(piped.stdout).not.toContain(ESC);
     expect(colorful.stderr).toContain(ESC);
+  });
+
+  test("help paints its titles bold magenta and its example commands cyan", async () => {
+    const { stdout } = await onTerminals(["stdout"], ["server", "--help"]);
+    expect(stdout).toContain(`${ESC}[1m${ESC}[35mUsage:${ESC}[39m${ESC}[22m`);
+    expect(stdout).toContain(`${ESC}[1m${ESC}[35mSubcommands:`);
+    expect(stdout).toContain(`${ESC}[36mnipa server ls${ESC}[39m`);
   });
 
   test("a prompt follows the colors of the lines around it", async () => {

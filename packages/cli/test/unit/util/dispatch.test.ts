@@ -553,10 +553,13 @@ describe("help and version, on the real table", () => {
       await text(["help", "whoami"])
     );
   });
-  test("--non-interactive shows in a subcommand's help", async () => {
-    expect(await text(["--non-interactive", "server", "ls", "--help"])).toMatch(
+  test("--non-interactive shows on the main page, and a subcommand's page points to it", async () => {
+    expect(await text(["--help"])).toMatch(
       /--non-interactive +Never prompt; fail with the flag to pass/u
     );
+    const page = await text(["--non-interactive", "server", "ls", "--help"]);
+    expect(page).not.toContain("--non-interactive");
+    expect(page).toContain("Global Options: nipa --help");
   });
   test("-h inside a cluster of short flags asks for help", async () => {
     expect(await text(["whoami", "-dh"])).toBe(await text(["help", "whoami"]));

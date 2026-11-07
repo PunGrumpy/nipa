@@ -1,5 +1,9 @@
 // Help pages and usage lines come from the specs, so they always list the
 // flags, arguments and subcommands the parser accepts.
+//
+// Every page fits 80 columns. A table puts a row's description beside its
+// label when both fit, and below the label, wrapped, when they don't. A
+// label is never cut.
 
 import { GLOBAL_FLAGS } from "./arg-common";
 import { flagPlaceholder, subjectOf } from "./spec";
@@ -19,20 +23,16 @@ type Row = readonly [label: string, description: string];
 // Help goes to stdout, so stdout decides its colors.
 const colors = theme.stdout;
 
+const MARGIN = "  ";
 const INDENT = "    ";
 const LINE_WIDTH = 80;
+const GAP = "   ";
+/** A description that wraps under its label sits two columns inside it. */
+const BELOW = `${INDENT}  `;
+/** A label wider than this never sets the column, so one long flag can't push every description down. */
+const WIDEST_COLUMN = 30;
 
-const table = (rows: readonly Row[], width: number): string =>
-  rows
-    .map(
-      ([label, description]) =>
-        `${INDENT}${label.padEnd(width)}   ${description}`
-    )
-    .join("\n");
-
-const labelWidth = (rows: readonly Row[]): number =>
-  Math.max(0, ...rows.map(([label]) => label.length));
-
+/** Breaks `text` at spaces so each line, with `indent`, fits the page. A longer word keeps its own line. */
 const wrap = (text: string, indent: string): string => {
   const lines: string[] = [];
   let line = "";
@@ -47,6 +47,30 @@ const wrap = (text: string, indent: string): string => {
   lines.push(line);
   return lines.map((l) => `${indent}${l}`).join("\n");
 };
+
+/** The width of the label column for the rows that share it. */
+const labelWidth = (...tables: readonly (readonly Row[])[]): number =>
+  Math.max(
+    0,
+    ...tables
+      .flat()
+      .map(([label]) => label.length)
+      .filter((length) => length <= WIDEST_COLUMN)
+  );
+
+const table = (rows: readonly Row[], width: number): string =>
+  rows
+    .map(([label, description]) => {
+      const beside = `${INDENT}${label.padEnd(width)}${GAP}${description}`;
+      if (!description) {
+        return `${INDENT}${label}`;
+      }
+      if (label.length <= WIDEST_COLUMN && beside.length <= LINE_WIDTH) {
+        return beside;
+      }
+      return `${INDENT}${label}\n${wrap(description, BELOW)}`;
+    })
+    .join("\n");
 
 const argWord = (arg: ArgSpec): string => {
   switch (arg.arity) {
@@ -148,58 +172,75 @@ const pageFlags = (spec: CommandSpec): readonly FlagSpec[] => {
   }
 };
 
-const flagRow = (flag: FlagSpec): Row => {
-  const short = flag.short ? `-${flag.short}, ` : "    ";
-  return [
-    `${short}--${flag.long}${flagPlaceholder(flag.value)}`,
-    flag.description,
-  ];
-};
+/** Options read in alphabetical order of their long names, on every page. */
+const flagRows = (flags: readonly FlagSpec[]): readonly Row[] =>
+  flags
+    .toSorted((a, b) => {
+      if (a.long === b.long) {
+        return 0;
+      }
+      return a.long < b.long ? -1 : 1;
+    })
+    .map((flag): Row => {
+      const short = flag.short ? `-${flag.short}, ` : "    ";
+      return [
+        `${short}--${flag.long}${flagPlaceholder(flag.value)}`,
+        flag.description,
+      ];
+    });
 
-const commandRow = (spec: CommandSpec): Row => {
+/** A subcommand's row keeps its arguments: the page names one command's children. */
+const subcommandRow = (spec: CommandSpec): Row => {
   const usage = usageOf(spec);
   return [usage ? `${spec.name} ${usage}` : spec.name, spec.summary];
 };
 
-const section = (title: string, body: string): string => {
-  const heading = colors.dim(`${title}:`);
-  return `  ${heading}\n\n${body}\n`;
-};
+/** The root page lists names only, so a new subcommand never widens it. */
+const nameRow = (spec: CommandSpec): Row => [spec.name, spec.summary];
 
+const heading = (title: string): string =>
+  colors.bold(colors.magenta(`${title}:`));
+
+const section = (title: string, body: string): string =>
+  `${MARGIN}${heading(title)}\n\n${body}\n`;
+
+/** A description, then its command two columns further in. Neither has a prompt mark. */
 const examples = (list: readonly Example[]): string =>
   list
     .map(
       (e) =>
-        `${INDENT}${colors.dim(e.description)}\n${INDENT}${colors.cyan("$")} ${e.command}`
+        `${colors.dim(wrap(e.description, INDENT))}\n${BELOW}${colors.cyan(e.command)}`
     )
     .join("\n\n");
 
-const globalRows = GLOBAL_FLAGS.map(flagRow);
+const usageHeading = (path: string): string =>
+  `${MARGIN}${heading("Usage")} ${path}`;
+
+const globalRows = flagRows(GLOBAL_FLAGS);
 
 export const mainHelp = (input: {
   program: ProgramSpec;
   version: string;
 }): string => {
   const { program } = input;
-  const rows = program.sections.flatMap((s) => s.commands.map(commandRow));
-  const width = labelWidth([...rows, ...globalRows]);
+  const commandWidth = labelWidth(
+    program.sections.flatMap((s) => s.commands.map(nameRow))
+  );
   const groups = program.sections.map((s) =>
-    section(s.title, table(s.commands.map(commandRow), width))
+    section(s.title, table(s.commands.map(nameRow), commandWidth))
   );
   const version = colors.dim(`v${input.version}`);
   return [
     "",
-    `  ${colors.bold("nipa")} ${version}`,
+    `${MARGIN}${colors.bold("nipa")} ${version}`,
     "",
-    wrap(program.summary, "  "),
+    wrap(program.summary, MARGIN),
     "",
-    `  ${colors.dim("Usage:")} nipa [options] <command>`,
+    usageHeading("nipa [options] <command>"),
     "",
     ...groups,
-    section("Global options", table(globalRows, width)),
+    section("Global Options", table(globalRows, labelWidth(globalRows))),
     section("Examples", examples(program.examples)),
-    `  Run ${colors.bold("nipa <command> --help")} for a command's options.`,
-    "",
   ].join("\n");
 };
 
@@ -210,23 +251,25 @@ export const mainHelp = (input: {
 export const commandHelp = (path: CommandPath): string => {
   const subject = subjectOf(path);
   const subcommandRows =
-    subject.kind === "group" ? subject.subcommands.map(commandRow) : [];
-  const flagRows = pageFlags(subject).map(flagRow);
-  const width = labelWidth([...subcommandRows, ...flagRows, ...globalRows]);
+    subject.kind === "group" ? subject.subcommands.map(subcommandRow) : [];
+  const optionRows = flagRows(pageFlags(subject));
+  const width = labelWidth(subcommandRows, optionRows);
   const parts = [
     "",
-    `  ${colors.dim("Usage:")} ${usageLine(path)}`,
-    "",
-    wrap(subject.description ?? subject.summary, "  "),
+    usageHeading(usageLine(path)),
+    wrap(subject.summary, MARGIN),
     "",
   ];
+  if (subject.description) {
+    parts.push(wrap(subject.description, MARGIN), "");
+  }
   if (subcommandRows.length > 0) {
     parts.push(section("Subcommands", table(subcommandRows, width)));
   }
-  if (flagRows.length > 0) {
-    parts.push(section("Options", table(flagRows, width)));
+  if (optionRows.length > 0) {
+    parts.push(section("Options", table(optionRows, width)));
   }
-  parts.push(section("Global options", table(globalRows, width)));
+  parts.push(`${MARGIN}${heading("Global Options")} nipa --help\n`);
   if (subject.examples?.length) {
     parts.push(section("Examples", examples(subject.examples)));
   }
