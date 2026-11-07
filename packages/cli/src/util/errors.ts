@@ -104,8 +104,9 @@ export const jsonErrorDocument = (
     status: blockedBeforeAnyEffect(error) ? "action_required" : "error",
   };
   // A next says what its hint says, in the profile the run named.
-  if (error.hint && !error.next?.length) {
-    document.hint = error.hint;
+  const hint = error.jsonHint ?? error.hint;
+  if (hint && !error.next?.length) {
+    document.hint = hint;
   }
   if (error.next && error.next.length > 0) {
     document.next = error.next.map((next) => {

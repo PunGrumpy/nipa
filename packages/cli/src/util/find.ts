@@ -49,6 +49,7 @@ export const SERVERS: Findable<Server> = {
 };
 
 export const VOLUMES: Findable<Volume> = {
+  describe: (volume) => [statusCell(volume.status).text],
   list: listVolumes,
   lsCommand: "nipa volume ls",
   noun: "volume",
@@ -56,6 +57,7 @@ export const VOLUMES: Findable<Volume> = {
 };
 
 export const NETWORKS: Findable<Network> = {
+  describe: (network) => [statusCell(network.status).text],
   list: listNetworks,
   lsCommand: "nipa network ls",
   noun: "network",
@@ -70,6 +72,7 @@ export const SECURITY_GROUPS: Findable<SecurityGroup> = {
 };
 
 export const LOAD_BALANCERS: Findable<LoadBalancer> = {
+  describe: (lb) => [statusCell(lb.status).text, lb.address],
   list: listLoadBalancers,
   lsCommand: "nipa lb ls",
   noun: "load balancer",
@@ -77,6 +80,8 @@ export const LOAD_BALANCERS: Findable<LoadBalancer> = {
 };
 
 export const DATABASES: Findable<Database> = {
+  describe: ({ primary }) =>
+    primary ? [statusCell(primary.status).text, primary.address] : [],
   list: listDatabases,
   lsCommand: "nipa db ls",
   noun: "database",
@@ -109,7 +114,7 @@ const candidateLines = <T extends Named>(
   return more > 0
     ? [
         ...lines,
-        `    and ${more} more. Run \`${kind.lsCommand}\` to see them all.`,
+        `    and ${more} more. Run \`${kind.lsCommand} --json\` to get their IDs.`,
       ]
     : lines;
 };
@@ -140,13 +145,14 @@ export const findResource = async <T extends Named>(input: {
     );
   }
   if (others.length > 0) {
+    const candidates = [match, ...others];
     throw new CliError(
-      `${others.length + 1} ${kind.plural} in ${projectName} are named "${ref}"`,
+      `${candidates.length} ${kind.plural} in ${projectName} are named "${ref}"`,
       {
-        hint: [
-          "Name one by its ID:",
-          ...candidateLines(kind, [match, ...others]),
-        ].join("\n"),
+        hint: ["Name one by its ID:", ...candidateLines(kind, candidates)].join(
+          "\n"
+        ),
+        jsonHint: `Name one by its ID: ${candidates.map((item) => oneLine(item.id)).join(", ")}.`,
         reason: "ambiguous_name",
       }
     );

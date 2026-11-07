@@ -121,7 +121,7 @@ Nova couldn't finish an action on the server, most often its create. Look at it 
 
 ## "… are named …"
 
-Two or more servers, volumes, networks, security groups, load balancers or databases in the project have the name you gave, such as `2 servers in my-project are named "web"`, so nipa can't tell which one you mean. The error lists up to five of them, one per line with its ID, and for a server its status and address, so you can tell them apart. If there are more, it says how many and which `ls` command shows them all. Run the command again with one ID in place of the name.
+Two or more servers, volumes, networks, security groups, load balancers or databases in the project have the name you gave, such as `2 servers in my-project are named "web"`, so nipa can't tell which one you mean. The error lists up to five of them, one per line with its ID and what tells them apart, such as its status and address. If there are more, it says how many and to run the `ls` command with `--json` for their IDs. Run the command again with one ID in place of the name.
 
 ## You can't connect to a port on your server
 

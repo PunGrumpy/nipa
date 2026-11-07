@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { findResource, findServer } from "../../../src/util/find";
+import {
+  DATABASES,
+  LOAD_BALANCERS,
+  findResource,
+  findServer,
+} from "../../../src/util/find";
 import type { Findable } from "../../../src/util/find";
+import type { LoadBalancer } from "../../../src/util/load-balancer";
 import { CliError } from "../../../src/util/ui";
 import { fakeSpace } from "../../helpers";
 
@@ -87,7 +93,7 @@ describe("findServer", () => {
     const lines = hint.split("\n");
     expect(lines).toHaveLength(7);
     expect(lines.at(-1)).toBe(
-      "    and 2 more. Run `nipa server ls` to see them all."
+      "    and 2 more. Run `nipa server ls --json` to get their IDs."
     );
     expect(hint).toContain("w5");
     expect(hint).not.toContain("w6");
@@ -106,6 +112,44 @@ describe("findServer", () => {
       "    w1  ● Active  192.0.2.1",
       "    w2  ● Active",
     ]);
+  });
+
+  test("a row without an address has no trailing padding", async () => {
+    const { hint } = await ambiguity(
+      spaceOf([
+        instance("w1", "worker", { address: "192.0.2.1", status: "SHUTOFF" }),
+        instance("w2", "worker"),
+      ])
+    );
+    expect(hint.split("\n").at(-1)).toBe("    w2  ● Active");
+  });
+
+  test("--json's hint names every ID on one line, past the five a person sees", async () => {
+    const { error } = await ambiguity(twins(7));
+    expect(error.jsonHint).toBe(
+      "Name one by its ID: w1, w2, w3, w4, w5, w6, w7."
+    );
+  });
+
+  test("the other kinds with a status show it, and an address where they have one", () => {
+    const lb: LoadBalancer = {
+      address: "192.0.2.5",
+      createdAt: "2026-11-03T00:00:00Z",
+      health: "ONLINE",
+      id: "lb1",
+      listeners: 1,
+      name: "front",
+      status: "ACTIVE",
+    };
+    expect(LOAD_BALANCERS.describe?.(lb)).toEqual(["● Active", "192.0.2.5"]);
+    expect(
+      DATABASES.describe?.({
+        createdAt: "2026-11-03T00:00:00Z",
+        id: "db1",
+        name: "main",
+        primary: null,
+      })
+    ).toEqual([]);
   });
 
   test("an ID, status or address can't carry an escape or a second line", async () => {
