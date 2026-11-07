@@ -40,7 +40,7 @@ If it happens again right after a login, the profile's Space API may belong to a
 
 ## "--project doesn't apply to nipa …"
 
-`whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so nipa refuses `-p` there instead of ignoring it. Drop the option. To change the project for every terminal, run `nipa switch Beta`. To use one only in this folder, run `nipa link Beta`. `nipa login -p Beta` is the one place where `-p` saves the project.
+`completion`, `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so nipa refuses `-p` there instead of ignoring it. Drop the option. To change the project for every terminal, run `nipa switch Beta`. To use one only in this folder, run `nipa link Beta`. `nipa login -p Beta` is the one place where `-p` saves the project.
 
 ## "2 projects are named …"
 

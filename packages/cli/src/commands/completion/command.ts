@@ -31,4 +31,6 @@ export const completionCommand = defineCommand({
   name: "completion",
   summary: "Print or install the tab completion script for your shell",
   updateNotice: false,
+  usesProfile: false,
+  usesProject: false,
 });
