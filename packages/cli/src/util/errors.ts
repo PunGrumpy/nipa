@@ -25,6 +25,7 @@ export type Reason =
   | "not_found"
   | "ambiguous_name"
   | "network_error"
+  | "timeout"
   | "api_error"
   | "invalid_config"
   | "internal_error"

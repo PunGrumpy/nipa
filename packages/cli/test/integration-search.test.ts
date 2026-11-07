@@ -456,11 +456,13 @@ describe("server search when a project fails", () => {
       {
         message: "You are not allowed to list servers",
         project: { domainId: "d1", id: FINANCE.id, name: "Finance" },
+        reason: "api_error",
         status: 403,
       },
       {
         message: "Keystone refused the project",
         project: { domainId: "d1", id: OLD_TEAM.id, name: "Old-Team" },
+        reason: "api_error",
         status: 401,
       },
     ]);

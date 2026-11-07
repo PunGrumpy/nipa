@@ -170,6 +170,7 @@ export const search = handle(
         failed: failed.map(({ failure, project }) => ({
           message: failure.message,
           project,
+          reason: failure.cause.reason,
           status: failure.status,
         })),
         profile: found.profile,

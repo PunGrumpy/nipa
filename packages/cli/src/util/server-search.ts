@@ -132,7 +132,7 @@ const settledOutcome = (
     case "timeout": {
       const cause = new CliError(
         `didn't answer in ${formatElapsed(deadlineMs)}`,
-        { reason: "failed" }
+        { reason: "timeout" }
       );
       return { failure: failure(cause, null), project };
     }

@@ -413,6 +413,9 @@ describe("searchProjects against a fake Keystone", () => {
       expect(gamma).toMatchObject({
         failure: { message: "didn't answer in 400ms", status: null },
       });
+      expect(
+        gamma && "failure" in gamma ? gamma.failure.cause.reason : undefined
+      ).toBe("timeout");
       expect(outcomes.filter((o) => "servers" in o)).toHaveLength(
         projects.length - 1
       );
