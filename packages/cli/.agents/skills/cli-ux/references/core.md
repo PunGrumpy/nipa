@@ -194,3 +194,10 @@ The help pages come from the specs in each `command.ts`:
 - A `description` is full sentences. It says what the command does and anything surprising, such as `exec` removing stale `OS_*` variables
 - Examples are real commands that run as written. Prefer a common workflow over a list of every flag
 - `--help` exits 0. A group run without a subcommand runs its `default`
+- `--help` beats `--version` wherever both appear. `--version` after a command prints only the version and exits 0 before a client or a request exists, except after `os`, `tf` and `exec`, whose words belong to their program
+- A path that names no command or subcommand fails with exit 2 and the usual unknown-command error, whether it comes from `nipa nope --help`, `nipa server nope --help` or `nipa help server nope`. Help never shows another command's page for a typo. `nipa help` alone is the main page
+- Every page fits 80 columns. A table puts a description beside its label when both fit, and wraps it under the label when they don't. Never cut a label or a description. A line longer than 80 is a command that can't break, such as an example
+- The main page lists a command by its name and summary, never its subcommands or arguments, so a new subcommand can't widen it. A group's page keeps each subcommand's arguments beside its name
+- Only the main page lists the global options. Every other page ends its options with `Global Options: nipa --help`. Options are in alphabetical order of their long names, once per page
+- Titles are Title Case with a colon, and bold magenta on a terminal. An example is its description, then its command two columns further in with no `$`, cyan on a terminal. A page has no "run --help" trailer
+- Put the summary directly under the usage line, and the description paragraph after it
