@@ -44,7 +44,7 @@ export const printServers = (
   });
 };
 
-const isoTime = (time: string): string => {
+export const isoTime = (time: string): string => {
   const ms = Date.parse(time);
   return Number.isNaN(ms) ? time : new Date(ms).toISOString();
 };

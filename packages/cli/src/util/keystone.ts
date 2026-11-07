@@ -168,8 +168,9 @@ const RECEIPT_HEADER = "Openstack-Auth-Receipt";
 const postToken = (
   authUrl: string,
   body: AuthRequest,
-  receipt?: string
+  options: { receipt?: string; signal?: AbortSignal } = {}
 ): Promise<Response> => {
+  const { receipt, signal } = options;
   const headers = new Headers({ "Content-Type": "application/json" });
   if (receipt !== undefined) {
     headers.set(RECEIPT_HEADER, receipt);
@@ -180,6 +181,7 @@ const postToken = (
     body: JSON.stringify(body),
     headers,
     method: "POST",
+    signal,
   });
 };
 
@@ -255,11 +257,9 @@ export const continueWithTotp = async (input: {
   passcode: string;
 }): Promise<Token> => {
   const { account, passcode, receipt } = input;
-  const res = await postToken(
-    account.authUrl,
-    totpBody(account, passcode),
-    receipt
-  );
+  const res = await postToken(account.authUrl, totpBody(account, passcode), {
+    receipt,
+  });
   return res.ok ? readToken(res) : fail(res, "wrong OTP code");
 };
 
@@ -271,11 +271,12 @@ interface TokenRequest {
 const SESSION_GONE = "the session expired or was revoked";
 
 export const rescope = async (
-  input: TokenRequest & { projectId: string }
+  input: TokenRequest & { projectId: string; signal?: AbortSignal }
 ): Promise<Token> => {
   const res = await postToken(
     input.authUrl,
-    rescopeBody(input.token, input.projectId)
+    rescopeBody(input.token, input.projectId),
+    { signal: input.signal }
   );
   return res.ok ? readToken(res) : fail(res, SESSION_GONE);
 };

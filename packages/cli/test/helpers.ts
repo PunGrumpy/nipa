@@ -75,9 +75,12 @@ export const runOnTerminals = async (input: {
   args: string[];
   env: Record<string, string>;
   terminals: readonly Stream[];
+  /** The folder to run in, such as one a link applies to. */
+  cwd?: string;
 }): Promise<RunResult> => {
   const typing = input.terminals.includes("stdin");
   const proc = Bun.spawn([process.execPath, FAKE_TERMINALS, ...input.args], {
+    cwd: input.cwd,
     env: { ...input.env, NIPA_TEST_TTY: input.terminals.join(",") },
     stderr: "pipe",
     stdin: typing ? "pipe" : "ignore",

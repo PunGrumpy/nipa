@@ -54,6 +54,7 @@ Load only the reference the task needs:
 | `login`, `switch`, `link`, `--project`, sessions, or prompts | [`references/command-contracts.md`](references/command-contracts.md) |
 | `os`, `tf`, `exec`, or `env` | [`references/command-contracts.md`](references/command-contracts.md) |
 | `server start`, `stop` or `restart` | [`references/command-contracts.md`](references/command-contracts.md) |
+| `server search`, or any command that reads several projects or returns part of its result | [`references/command-contracts.md`](references/command-contracts.md) and [`references/core.md`](references/core.md#part-of-a-result) |
 | Tests, stale-string sweeps, or a review | [`references/verification.md`](references/verification.md) |
 
 Put new durable rules where they belong: wording in `copy.md`, flow, streams and layout in `core.md`, one command's state machine in `command-contracts.md`, and test or review gates in `verification.md`. A new rule needs evidence from the current source, its scope, and the consequence it prevents. One shipped string isn't enough.

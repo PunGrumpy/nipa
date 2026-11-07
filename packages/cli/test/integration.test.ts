@@ -524,7 +524,7 @@ describe("a failed --json command", () => {
     const result = await run(["server", "nope", "--json"]);
     expect(result.code).toBe(2);
     expect(failure(result)).toMatchObject({
-      hint: "Use ls, inspect, history, logs, start, stop or restart.",
+      hint: "Use ls, search, inspect, history, logs, start, stop or restart.",
       reason: "unknown_command",
     });
   });

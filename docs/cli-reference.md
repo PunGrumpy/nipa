@@ -17,6 +17,7 @@ nipa has 24 commands. Without a command, it prints help.
 | `nipa link [project]` | Links this folder to the profile and a project, by name or ID, in `.nipa/project.json`. Commands in this folder and the folders below it use them |
 | `nipa unlink` | Deletes the closest `.nipa/project.json`, at or above this folder |
 | `nipa server ls [--json]` | Lists the servers in your project with their status, address, flavor and age. A server that a Kubernetes cluster made shows its role after its name, such as `(Kubernetes master)`. In a narrow terminal, it drops Flavor, then Age, then shortens the role to `(master)`, then prints each server as two lines, and it never shortens a name or an address. In a pipe, it prints a header and one tab-separated line per server with its ID, name, status, address, flavor and creation time as an ISO date, and no Kubernetes role. Run `nipa server ls \| tail -n +2 \| cut -f1` for the IDs. Cut the ID before `xargs`, which otherwise reads every field as a server. `grep` searches every field, so match the name's own field before stopping anything. Read the fields with `cut -f` or `awk -F'\t'`, because shell `read` closes up an empty Address. `nipa server`, `nipa servers` and `nipa server list` do the same |
+| `nipa server search [query] [--json]` | Looks in every project you can use for servers whose name, ID or any address contains `query`, ignoring case. The query is plain text, not a pattern, and without one nipa lists every server. nipa asks each project live and saves nothing: it lists your projects, exchanges the saved token for each project's own, and lists that project's servers, four projects at a time, with 15 seconds for each. A folder's link doesn't narrow it, and `-p Beta` searches only Beta. The first line says how many servers matched and in how many projects, with the time it took. In a terminal, the matches sit under their project, the project `nipa server ls` shows is marked `(current)`, a name that a project gives to more than one server has each server's ID under it, and two projects with the same name each show their ID, dimmed, after it. A match that is the only one prints the command to inspect it, such as `nipa -p Beta server inspect worker`. In a pipe, it prints a header and one tab-separated line per match with its ID, name, project, project ID, status, address, flavor and creation time as an ISO date, the same as `nipa server ls` with a Project and a Project ID field. The project ID is there even when no two projects share a name, so a script always has it. When a project fails, nipa still prints the servers it found, lists the projects it couldn't read, such as `Finance: You are not allowed to list servers`, says `in 4 of 6 projects` on the first line, and exits with code `1`. When every project fails because the session expired or the network is down, it prints that one error instead |
 | `nipa server inspect <server> [--json]` | Shows one server's ID, status, flavor with its vCPUs and RAM, zone, addresses, volumes, security groups and age, by name or ID. It also shows Nova's task while the server is busy, whether the server is locked, and the last action on it, such as `create failed 26m ago by Ann`. Those three come from two more calls, so when one fails, such as while Nova works on the server, the field says `unavailable` and the rest still prints. For a server in Error, it names `nipa server history` and `nipa server logs`. In a pipe, it prints the server's ID |
 | `nipa server history <server> [--json]` | Lists the actions on a server, newest first, with their age, the user who asked, the result and the request ID. A failed action's result is `Error`. In a pipe, it prints one request ID per line. `nipa server events` is the same command |
 | `nipa server logs <server> [options]` | Prints a server's console log on stdout as it is, cloud-init output included. The Space API sends the last 100 lines, and `--tail` keeps fewer. A server that never booted has no console log, so nipa exits with code `1` and names `nipa server history` |
@@ -56,7 +57,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server search`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -84,7 +85,7 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | `-h, --help` |  | Prints help |
 | `-v, --version` |  | Prints the version |
 
-nipa picks the project in this order: `--project`, then the folder's link, then the project of the saved session. `nipa -p Beta server ls` and `nipa server ls -p Beta` list the servers in Beta, and `nipa -p Beta os server list` runs `openstack` in Beta. For each, nipa exchanges the saved token for one in that project, without saving it, and prints `> Using project Beta`.
+nipa picks the project in this order: `--project`, then the folder's link, then the project of the saved session. `nipa -p Beta server ls` and `nipa server ls -p Beta` list the servers in Beta, and `nipa -p Beta os server list` runs `openstack` in Beta. For each, nipa exchanges the saved token for one in that project, without saving it, and prints `> Using project Beta`. `nipa server search` is the one command that reads every project when you give no `--project`, and it ignores a folder's link for that.
 
 nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`. `--project` beats the link.
 
@@ -196,6 +197,41 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 ```
 
 `ramMb`, `vcpus`, `zone`, `attachedAs`, a volume's `name` and its `type` are `null` when the Space API doesn't send them. `nipa server inspect --json` prints the same fields for one server, under `server` instead of `servers`.
+
+`nipa server search --json` prints the profile, the `query` (`null` when you gave none), the `projects` count (how many it `searched` out of the `total` it could use), the matching `servers` and the projects that `failed`. Each server has the fields above and the `project` it is in, and the servers are ordered by project name, then as the API lists them. Each failed project has its `project`, a `message`, a `reason` and the HTTP `status` that said so, or `null` when no HTTP status said so, such as a timeout or a dropped connection. The `reason` is the same code an error document carries, such as `api_error` when the project refused or Keystone refused it, `token_expired` when the session ended, `network_error` when nipa couldn't reach the API, and `timeout` when the project didn't answer in 15 seconds. When a project fails, the command still prints this document, exits with code `1`, and writes no error document. Under `-p`, a failure of that one project is an ordinary error document, as with `server ls`. `-p` makes `projects.searched` and `projects.total` 1:
+
+```json
+{
+  "failed": [
+    {
+      "message": "You are not allowed to list servers",
+      "project": { "domainId": "1234…", "id": "5678…", "name": "Finance" },
+      "reason": "api_error",
+      "status": 403
+    }
+  ],
+  "profile": "prod",
+  "projects": { "searched": 5, "total": 6 },
+  "query": "web",
+  "servers": [
+    {
+      "addresses": [{ "address": "192.0.2.5", "type": "fixed", "version": 4 }],
+      "createdAt": "2030-01-01T00:00:00Z",
+      "flavor": "csa.large.v2",
+      "id": "9abc…",
+      "kubernetes": null,
+      "name": "web-1",
+      "project": { "domainId": "1234…", "id": "abcd…", "name": "my-project" },
+      "ramMb": 4096,
+      "securityGroups": ["default"],
+      "status": "ACTIVE",
+      "vcpus": 2,
+      "volumes": [],
+      "zone": "NCP-BKK"
+    }
+  ]
+}
+```
 
 `nipa server inspect --json` adds three fields to the server. `taskState` is Nova's task, such as `powering-off`, or `null` when the server is idle. `locked` is `true` when the server is locked against changes, and `null` when the Space API doesn't say. `lastAction` is the newest action, with the fields `nipa server history --json` prints, or `null` when the server has none. The three come from two calls after the server itself. When one fails, nipa says so on stderr, prints the server, and sets the fields from that call to `null`: `taskState` and `locked` for the server's state, `lastAction` for its actions:
 

@@ -5,6 +5,7 @@ import { inspect } from "./inspect";
 import { logs } from "./logs";
 import { ls } from "./ls";
 import { restart, start, stop } from "./power";
+import { search } from "./search";
 
 export const server = route(serverCommand, {
   history,
@@ -12,6 +13,7 @@ export const server = route(serverCommand, {
   logs,
   ls,
   restart,
+  search,
   start,
   stop,
 });

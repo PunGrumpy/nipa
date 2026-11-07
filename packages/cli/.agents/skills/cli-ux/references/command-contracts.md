@@ -64,6 +64,7 @@ Rules:
 - A revoked session fails the same way for a name, because `listProjects` runs inside `guardSession`
 - `login` keeps its meaning: `--project` names the project to scope the token to and save (`usesProject: "saves"` in its spec). A command that never reads a project sets `usesProject: false`, and dispatch refuses the flag with exit code 2, `--project doesn't apply to nipa switch` and the usage line, instead of ignoring it: `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile`. `switch` and `link` take the project as an argument and read the saved session, so `nipa -p Beta switch <project>` can't save a project by accident. `--help` and `--version` still work with the flag on the line
 - On `os`, `tf` and `exec` the flag works only before the command, because the words after it belong to the program
+- `nipa server search` is the one command that reads every project when `--project` isn't given. It uses the saved session, so a folder's link doesn't narrow it, and `-p` narrows it to one project (see Searching servers across projects)
 - A command nipa suggests while `--project` is set repeats it, quoted for the shell (see Machine errors in `core.md`), so `nipa -p Beta server restart db-1` points to `nipa -p Beta server start db-1`. The profile's `-P` is repeated the same way
 
 States to test:
@@ -153,3 +154,34 @@ States to test:
 - A check that fails after the `POST` succeeds
 - A refusal from Nova, such as stopping a server that's still building
 - `--no-wait` sending one `POST` and no checks, and a bad `--timeout`
+
+## Searching servers across projects
+
+`nipa server search [query]` in `src/commands/server/search.ts` looks for servers in every project the account can use, live. It keeps no catalog or cache: a stored index goes stale when the portal, Terraform or Kubernetes change a server, needs a live token to refresh, and would write every server's name, ID and address to disk. Reopen that only with a measured search that takes over about 3 seconds, which the elapsed tag on the first line reports.
+
+Resolution order:
+
+1. **Query**: a case-insensitive piece of a server's name, ID or any address, as plain text and never a pattern. No query, or an empty one, matches every server
+2. **Profile and session**: the run's profile, then the saved session through `client.savedSession()`, so a folder's link never narrows the search. The Space API URL is checked before anything asks for a login
+3. **Projects**: with `-p`, that one project, through `client.cloud()` and with no fan-out. Without it, every project `listProjects` returns, sorted by name and then ID
+4. **Search**: for each project, one token exchange (none for the saved project) and one server list, four projects at a time, with 15 seconds for each from the moment its own search starts. The limit and the deadline are constants with no flag
+5. **Output**: a pure render of `{ project, servers } | { project, failure }` for each project
+
+Rules:
+
+- Read-only: the command writes nothing to the config directory, and sends the same requests every time
+- A project that fails, is refused or stalls is a result of its own and never stops the others. Partial results follow [Part of a result](core.md#part-of-a-result): exit 1, the rows and the `--json` document still printed, and no error document. A failure that nipa doesn't expect is a bug and is thrown again
+- A name that a project gives to more than one server has each server's ID under it, whether or not the others match, because a name can't pick one of them. A single match with such a name is inspected by ID
+- `(current)` marks the project a bare command in this folder would use: the folder's link when it names the run's profile, else the saved project. The link is only read to mark it, so it still never narrows the search
+- A command it suggests names the project of the match with `-p` after `nipa`, built with `suggest()` and the project overridden in the scope, so the run's `-P` stays and a name with a space is quoted. A project or server whose name has a line break is named by its ID, because the name can't be copied back. A project that shares its name with another is named by its ID, and in a terminal its heading shows that ID, dimmed, after the name. Under `-p`, the run's own `-p` stays
+- Cells and lines made of remote text print on one line, and a column is never cut. In a terminal too narrow for a row, each server takes two lines, the way `server ls` does
+- In a pipe, stdout is the table (`ID Name Project Project ID Status Address Flavor Created`, or the header alone), and the `Project ID` column is always there so a script can tell two projects of one name apart and stderr is the context line and, after a partial failure, the error. Terminal hints don't print there
+
+States to test:
+
+- A terminal at 80 columns and at a narrow width, a pipe, `--json`, no matches, no query, a single match and several
+- A name that repeats in one project, with a match on only one of them
+- A project that returns 403, one that Keystone refuses, one that never answers, and every project failing with an expired session
+- `-p`, `-P` and both, with the suggested commands checked for each
+- A folder link, with the link file and `auth.json` unchanged
+- At most four projects open at once, and one stalled project not holding the others past its deadline
