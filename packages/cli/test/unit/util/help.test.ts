@@ -113,12 +113,32 @@ describe("the main page", () => {
   });
 
   test("wraps a summary that does not fit beside its name, and cuts nothing", () => {
-    const server = visibleCommands(spec).find((c) => c.name === "server");
-    expect(server).toBeDefined();
-    const summary = server?.summary ?? "";
-    expect(summary.length + 4 + 10 + 3).toBeGreaterThan(WIDTH);
-    expect(main).toContain("\n    server\n      List, search, inspect");
-    expect(main.replaceAll(/\s+/gu, " ")).toContain(summary);
+    const whoami = commandNamed("whoami");
+    const summary =
+      "Show who you are logged in as, which project and which profile that session belongs to";
+    const long = {
+      ...spec,
+      sections: [
+        {
+          commands: [{ ...whoami, summary }],
+          title: "Session",
+        },
+      ],
+    };
+    const page = plain(mainHelp({ program: long, version: "1.2.3" }));
+    expect(summary.length + 4 + 6 + 3).toBeGreaterThan(WIDTH);
+    expect(page).toContain(
+      "\n    whoami\n      Show who you are logged in as, which project and which profile that\n      session belongs to\n"
+    );
+    expect(page.replaceAll(/\s+/gu, " ")).toContain(summary);
+  });
+
+  test("every row of the real table sits beside its name", () => {
+    for (const command of visibleCommands(spec)) {
+      expect(main).toContain(
+        `    ${command.name.padEnd(10)}   ${command.summary}\n`
+      );
+    }
   });
 
   test("keeps the global options in full, sorted by long name", () => {
@@ -130,8 +150,8 @@ describe("the main page", () => {
     expect(at.every((i) => i > 0)).toBe(true);
     expect(at).toEqual(at.toSorted((a, b) => a - b));
     expect(block).toContain("-P, --profile <name>");
-    expect(block).toContain(
-      "Use this project, by name or ID, for this run only; login saves it"
+    expect(block).toMatch(
+      /-p, --project <project> +Use this project for this run; login saves it\n/u
     );
   });
 
@@ -202,6 +222,13 @@ describe("a command page", () => {
       }
     }
   );
+
+  test("a subcommand's own page keeps what its shorter row drops", () => {
+    const page = PAGES.find(([name]) => name === "nipa server inspect")?.[1];
+    expect(page?.replaceAll(/\s+/gu, " ")).toContain(
+      "flavor, addresses, volumes and security groups"
+    );
+  });
 
   test("a group keeps a subcommand's arguments beside its name when they fit", () => {
     const server = plain(commandHelp([commandNamed("server")]));

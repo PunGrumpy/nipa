@@ -158,13 +158,13 @@ describe("help and usage", () => {
     // Only the main page lists the global options. Every other page points to it.
     const root = await run(["--help"]);
     expect(root.stdout).toMatch(
-      /-p, --project <project>\n\s+Use this project, by name or ID, for this run only; login saves it/u
+      /-p, --project <project> +Use this project for this run; login saves it\n/u
     );
     expect(login.stdout).toContain("Global Options: nipa --help");
     expect(login.stdout).not.toContain("--non-interactive");
     const server = await run(["server", "ls", "--help"]);
     expect(server.stdout).toContain("Global Options: nipa --help");
-    expect(server.stdout).not.toContain("for this run only");
+    expect(server.stdout).not.toContain("Use this project for this run");
   });
 
   test("help for one command, as `help <command>` or `<command> --help`", async () => {

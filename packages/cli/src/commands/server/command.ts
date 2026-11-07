@@ -55,14 +55,16 @@ export const searchSubcommand = defineCommand({
   ],
   flags: [jsonFlag],
   name: "search",
-  summary: "Find servers by name, ID or address in every project",
+  summary: "Search every project by name, ID or address",
 });
 
 export const inspectSubcommand = defineCommand({
   args: [serverArg],
+  description:
+    "Shows a server's flavor, addresses, volumes and security groups. Name the server by its name or ID.",
   flags: [jsonFlag],
   name: "inspect",
-  summary: "Show a server's flavor, addresses, volumes and security groups",
+  summary: "Show a server's flavor, addresses and volumes",
 });
 
 export const logsSubcommand = defineCommand({
@@ -173,6 +175,5 @@ export const serverCommand = defineGroup({
     stopSubcommand,
     restartSubcommand,
   ],
-  summary:
-    "List, search, inspect, start, stop and restart your servers, and read their history and logs",
+  summary: "Manage your servers, and read their history and logs",
 });

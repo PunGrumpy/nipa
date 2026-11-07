@@ -48,8 +48,7 @@ export const versionFlag = {
 export const GLOBAL_FLAGS = [
   profileFlag,
   {
-    description:
-      "Use this project, by name or ID, for this run only; login saves it",
+    description: "Use this project for this run; login saves it",
     long: "project",
     short: "p",
     value: { kind: "project" },
