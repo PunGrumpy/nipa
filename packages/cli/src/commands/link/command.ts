@@ -17,4 +17,5 @@ export const linkCommand = defineCommand({
   flags: [],
   name: "link",
   summary: "Use a project in this folder",
+  usesProject: false,
 });

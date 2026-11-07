@@ -8,7 +8,7 @@ export const login = handle(loginCommand, async ({ client, flags }) => {
     prompts: client.prompts,
     remember: flags.remember,
     username: flags.username,
-    wantedProject: flags.project,
+    wantedProject: client.project,
   });
   return 0;
 });

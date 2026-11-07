@@ -138,7 +138,7 @@ With `--json`, a failure writes nothing to stdout and exactly one single-line JS
 - `message` and `hint` are the human error's text. `hint` appears only when the error has one and no `next`, which says the same thing in the profile the run named
 - `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
 - The document is a single line of `JSON.stringify` output written through `writeStderr`, which drops anything a terminal would act on, and it bypasses the styling helpers
-- `next` keeps the run's `--profile`, because a bare command would use another profile
+- A suggested command runs in the profile and project the run named, because a bare command would use the saved ones. `src/util/scope.ts` adds `-P` and `-p` after `nipa` in `next` and in every backticked `nipa …` command that a hint, a `note` or a `log` line prints, so a throw site writes the plain command and a new hint needs nothing. In `next`, `argv` gets the names as single words (`["nipa", "-p", "My Project", "server", "ls"]`), and only the printed `command` is shell-quoted. `login` never gets `-p`, because there it saves the project, and neither do the commands that set `usesProject: false`. A command that sets `usesProfile: false` (`profile`) gets neither option. Text that isn't a nipa command, such as `--yes`, is left alone
 - `whoami --json` is the one exception to "a failure writes nothing to stdout": logged out, it prints its `{ "loggedIn": false, "profile": ... }` document to stdout, leaves stderr empty and returns 1, as `doctor --json` does for failing checks
 
 ### Remote boundary
@@ -166,7 +166,7 @@ nipa handles passwords, OTP codes and Keystone tokens:
 
 Treat these as contracts. Change them only with a migration, tests, and a changeset when users see it:
 
-- Command names, aliases, flags and their short forms. The global flags are `--profile`, `--debug`, `--no-color`, `--non-interactive`, `--help` and `--version`
+- Command names, aliases, flags and their short forms. The global flags are `--profile`, `--project`, `--debug`, `--no-color`, `--non-interactive`, `--help` and `--version`
 - Exit codes: 0 for success, 1 for a failure, 2 for a wrong command line, 127 when `os`, `tf` or `exec` can't find the program, 130 for Ctrl-C or a declined confirmation, and the child's code for passthrough commands
 - Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
 - The files in the config directory and their JSON shape

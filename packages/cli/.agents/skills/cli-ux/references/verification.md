@@ -32,6 +32,7 @@ When a change touches output or flow, cover each item that applies:
 - An empty list: the human line on stderr, `[]` in `--json`, and exit code 0
 - `--debug`: request lines on stderr, and no token, password or OTP code anywhere
 - A remote name that holds an escape sequence or a newline, for any command that prints a name
+- A hint or `next` that suggests a command, in a run with `-P`, with `-p`, with both and with neither: the human line and the JSON document both carry the options, a name with a space or a quote is one `argv` word, and a run with neither is unchanged
 - Files: their contents, and mode `0600` for anything new in the config directory
 - The help page and completion, when a command, flag or argument changes
 

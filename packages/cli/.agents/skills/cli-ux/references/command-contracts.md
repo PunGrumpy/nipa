@@ -12,7 +12,7 @@ Resolution order:
 
 1. **Profile**: `--profile`, then `NIPA_PROFILE`, then the current profile in the config file
 2. **Email**: `--username`, then a prompt whose default is the last email for this profile
-3. **Project ID**: `--project` when it's a 32-character ID, then the profile's last project, then a prompt. Nipa's gateway drops the connection for an unscoped token, so nipa needs a project ID before the first request
+3. **Project ID**: the global `--project` when it's a 32-character ID, then the profile's last project, then a prompt. Nipa's gateway drops the connection for an unscoped token, so nipa needs a project ID before the first request
 4. **Password**: the one `nipa login --remember` saved in the OS keychain for this Keystone host and the `--username` or last user, then a masked prompt. With a saved password, nipa skips the email prompt too
 5. **OTP code**: a prompt when Keystone answers that the account needs MFA
 6. **Project by name**: when `--project` is a name, nipa logs in to the known project, lists the projects and switches to the named one
@@ -49,7 +49,33 @@ Rules:
 - Without an argument and when nipa can't prompt, fail with exit code 2 and a hint listing the names to pass
 - Choosing the current project or profile is a no-op. Print a `note`, such as `You're already using my-project`, and exit 0
 - `switch` with one project skips the prompt and uses it
-- `switch` and `link` read the saved session through `client.savedSession()`, so a linked folder never hides the saved project. After `switch` in a linked folder, a `note` says the folder still uses its own project and names `nipa unlink`
+- `switch` and `link` read the saved session through `client.savedSession()`, so a linked folder or `--project` never hides the saved project. After `switch` in a linked folder, a `note` says the folder still uses its own project and names `nipa unlink`
+
+## Choosing a project for one run
+
+The global `-p, --project <name or ID>` picks the project for one run, so a person can look at another project without `nipa switch`. `requireSession` in `src/util/session.ts` treats it and a folder's link as the two sources of one per-run target.
+
+Rules:
+
+- The order is `--project`, then the folder's link, then the saved session's project. `--project` applies to whichever profile the run picked, and it is never saved: not to the session, not to the config, not to a link
+- A 32-character ID is tried first with no project list, and a name costs one `listProjects` call. Keystone's token then names the project, so the context line reads `Using project Beta`, in the form of the linked case without a file path. A project that is already the session's prints no line and costs no exchange
+- A name that matches nothing fails with exit code 1, `reason: "not_found"`, and the list of project names, and never falls back to another project. Not found is exit code 1 in the guideline's table, like an unknown server or profile. A name that two projects share fails with `ambiguous_name` and lists their IDs. An ID wins over a name
+- When Keystone refuses to scope to a 32-character value, nipa lists the projects, because only the list can tell the cases apart: no project has it (`not_found`, with the list), a project is named like an ID (it uses that project), the project is listed but Keystone refuses it (`can't use project Beta`, exit code 1), or the session was revoked (the list answers 401, so `token_expired` with `nipa login`)
+- A revoked session fails the same way for a name, because `listProjects` runs inside `guardSession`
+- `login` keeps its meaning: `--project` names the project to scope the token to and save (`usesProject: "saves"` in its spec). A command that never reads a project sets `usesProject: false`, and dispatch refuses the flag with exit code 2, `--project doesn't apply to nipa switch` and the usage line, instead of ignoring it: `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile`. `switch` and `link` take the project as an argument and read the saved session, so `nipa -p Beta switch <project>` can't save a project by accident. `--help` and `--version` still work with the flag on the line
+- On `os`, `tf` and `exec` the flag works only before the command, because the words after it belong to the program
+- A command nipa suggests while `--project` is set repeats it, quoted for the shell (see Machine errors in `core.md`), so `nipa -p Beta server restart db-1` points to `nipa -p Beta server start db-1`. The profile's `-P` is repeated the same way
+
+States to test:
+
+- A name, an ID, the saved project, an unknown name, an unknown ID, a project named like an ID, a name two projects share and an ID that Keystone lists but refuses
+- A revoked session, by name and by ID
+- The flag before and after the command, and before `os`
+- The flag on each command that refuses it, with the saved files unchanged
+- Tab completion in each shell: `-p` offers project names, and the command after `-P x -p y` is still found
+- The flag in a linked folder, with the link file and `auth.json` unchanged after the run
+- `-P` with `-p`
+- `--json`, where a failure writes one error document
 
 ## Linked folders
 
@@ -58,7 +84,7 @@ Rules:
 Rules:
 
 - The link's profile comes after `--profile` and `NIPA_PROFILE`, and before the current profile. The link's project applies only when the profile nipa picked is the link's
-- In a linked folder, `client.session()` exchanges the saved token for one in the linked project, keeps it in memory, and logs `Using project my-project from .nipa/project.json` after the profile line. It never saves that token
+- In a linked folder, `client.session()` exchanges the saved token for one in the linked project, keeps it in memory, and logs `Using project my-project from .nipa/project.json` after the profile line. It never saves that token. `--project` beats the link
 - A link to a missing profile names the link file in the error. A broken link file names `nipa unlink` in the hint
 - `link` without a project and when nipa can't prompt fails with exit code 2 and lists the projects, like `switch`. Linking a folder to its own project again is a no-op `note`
 - `unlink` with no link is a no-op `note`, and exits 0

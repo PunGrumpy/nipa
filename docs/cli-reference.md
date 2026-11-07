@@ -34,7 +34,7 @@ nipa has 24 commands. Without a command, it prints help.
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa lb list`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa lb inspect <lb> [--json]` | Shows one load balancer's status, health, virtual IP, external IP and flavor, then each listener, backend group and member with its status and health, by name or ID. It ends with one line that says what stops the load balancer from serving, such as `2 of 3 members are down`, or that every part is healthy. In a pipe, it prints the load balancer's ID |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip`, `nipa ips` and `nipa ip list` do the same |
-| `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
+| `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one, so nipa names the project to switch to there. With `-p`, nipa checks that you can use that project and names it, instead of the saved one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
 | `nipa quota ls [--json]` | Shows each quota of your project, such as servers, vCPUs, RAM and volumes, by group, with how much it uses, its limit and the percent used. A quota at 80% or more shows in yellow, and one at 100% shows in red, because the next create of that resource fails. A note under the table counts them. It exits with code `0` either way. In a pipe, it prints one tab-separated line per quota: its group and name, such as `compute/ram`, the amount used, the limit or `unlimited`, and the unit of both, such as `MB`, `GB` or `Bytes`, or `-` for a count. `nipa quota`, `nipa quotas`, `nipa quota list` and `nipa limits` do the same |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
@@ -55,7 +55,6 @@ These options belong to one command:
 | Option | Command | What it does |
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
-| `-p, --project <project>` | `login` | Scopes the token to this project, by name or ID, instead of the last one. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
 | `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
@@ -78,13 +77,16 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | Option | Variable | What it does |
 | --- | --- | --- |
 | `-P, --profile <name>` | `NIPA_PROFILE` | Uses this profile instead of the current one |
+| `-p, --project <project>` |  | Uses this project, by name or ID, for this run only, and beats a folder's link. `login` is the one command that saves it: there it names the project to scope the token to and save, instead of the last one. A name costs one request to list your projects, and a 32-character ID costs none. It fails when no project has the name or ID, and when two have the name, with their IDs. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up. `completion`, `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so they exit with code 2 and `--project doesn't apply to nipa switch` instead of ignoring it. `switch` and `link` take the project as an argument |
 | `-d, --debug` | `NIPA_DEBUG=1` | Logs each HTTP request: method, URL, status and time. Never headers or bodies |
 | `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on for the messages nipa writes to a pipe, but help stays plain in a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
 | `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
 | `-h, --help` |  | Prints help |
 | `-v, --version` |  | Prints the version |
 
-nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`.
+nipa picks the project in this order: `--project`, then the folder's link, then the project of the saved session. `nipa -p Beta server ls` and `nipa server ls -p Beta` list the servers in Beta, and `nipa -p Beta os server list` runs `openstack` in Beta. For each, nipa exchanges the saved token for one in that project, without saving it, and prints `> Using project Beta`.
+
+nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`. `--project` beats the link.
 
 ## Other environment variables
 

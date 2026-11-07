@@ -7,4 +7,5 @@ export const unlinkCommand = defineCommand({
   flags: [],
   name: "unlink",
   summary: "Stop using a linked project in this folder",
+  usesProject: false,
 });

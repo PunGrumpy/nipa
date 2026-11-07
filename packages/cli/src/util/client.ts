@@ -3,7 +3,6 @@
 // run, made by the dispatcher after it has read every global option.
 
 import type { GlobalValues } from "./arg-common";
-import { setProfileOption } from "./errors";
 import { findLink, LinkError } from "./link";
 import {
   announceProfile,
@@ -21,6 +20,8 @@ export interface Client {
   /** Results: JSON, IDs, scripts. Messages go through util/ui.ts's log and friends. */
   readonly stdout: ResultStream;
   readonly prompts: Prompts;
+  /** The run's `--project`, a name or ID. `login` saves it. Every other command uses it for this run only. */
+  readonly project: string | undefined;
   /** Every command's spec, for commands that describe nipa itself, such as `completion`. */
   readonly program: ProgramSpec;
   /** The profile this run uses: `--profile`, then NIPA_PROFILE, then the folder's link, then the current one. */
@@ -32,10 +33,11 @@ export interface Client {
   readonly profileWithoutBrokenLink: () => Promise<ActiveProfile>;
   /**
    * profile() with a live session. Logs in first when it expired and nipa
-   * can prompt. In a linked folder, the session is for the linked project.
+   * can prompt. The session is for the `--project`, else the linked folder's
+   * project, else the saved one.
    */
   readonly session: () => Promise<SignedIn>;
-  /** session() with the saved project, whatever the folder links to. */
+  /** session() with the saved project, whatever the folder links to or `--project` says. */
   readonly savedSession: () => Promise<SignedIn>;
   /**
    * session(), announcing a non-prod profile first, for commands that run a
@@ -62,7 +64,6 @@ export const createClient = (input: {
   program: ProgramSpec;
 }): Client => {
   const { globals, json, program } = input;
-  setProfileOption(globals.profile);
   // util/http.ts reads NIPA_DEBUG on each request.
   if (globals.debug) {
     process.env.NIPA_DEBUG = "1";
@@ -90,10 +91,14 @@ export const createClient = (input: {
     }
   });
   const session = once(async () =>
-    requireSession({ active: await profile(), prompts })
+    requireSession({
+      active: await profile(),
+      project: globals.project,
+      prompts,
+    })
   );
   const savedSession = once(async () =>
-    requireSession({ active: await profile(), linked: false, prompts })
+    requireSession({ active: await profile(), prompts, saved: true })
   );
   const toolSession = once(async () => {
     const active = await profile();
@@ -113,6 +118,7 @@ export const createClient = (input: {
     profile,
     profileWithoutBrokenLink,
     program,
+    project: globals.project,
     prompts,
     savedSession,
     session,

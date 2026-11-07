@@ -39,7 +39,7 @@ nipa -P staging server ls
 nipa -P staging tf plan
 ```
 
-`-P` picks the profile for one command. Put it before `os`, `tf` and `exec`, because the words after those commands go to the program they run. When a command runs outside `prod`, nipa prints `> Using profile staging` first, so a staging plan can't pass for a production one.
+`-P` picks the profile for one command, and `-p` picks the project in it, as in `nipa -P staging -p Beta server ls`. nipa never saves either. Put them before `os`, `tf` and `exec`, because the words after those commands go to the program they run. When a command runs outside `prod`, nipa prints `> Using profile staging` first, so a staging plan can't pass for a production one.
 
 ## Switch the current profile
 

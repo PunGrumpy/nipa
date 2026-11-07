@@ -123,6 +123,20 @@ const zshComplete = async (...words: string[]) => {
   return lines(stdout);
 };
 
+// Stub _describe, which lists what it is given, and _arguments, which only
+// works inside a real completion.
+const zshDescribed = async (...words: string[]) => {
+  const quoted = words.map((w) => `'${w}'`).join(" ");
+  const stubs = `compdef() { :; }; _describe() { print -rl -- "\${(@P)4}"; }; _arguments() { print arguments; }`;
+  const { stdout } = await shellRun([
+    "zsh",
+    "-f",
+    "-c",
+    `${stubs}; source '${script("zsh")}'; words=(${quoted}); CURRENT=${words.length}; PREFIX='${words.at(-1) ?? ""}'; _nipa`,
+  ]);
+  return lines(stdout);
+};
+
 const fishComplete = async (line: string) => {
   const { stdout } = await shellRun([
     "fish",
@@ -322,6 +336,18 @@ describe("bash", () => {
     expect(await bashComplete("nipa", "-P", "prod", "sw")).toEqual(["switch"]);
   });
 
+  test("-p offers the projects, and the command after its value is found", async () => {
+    expect(await bashComplete("nipa", "-p", "")).toEqual(["Alpha", "Beta"]);
+    expect(await bashComplete("nipa", "--project", "B")).toEqual(["Beta"]);
+    expect(await bashComplete("nipa", "-p", "Beta", "sw")).toEqual(["switch"]);
+    expect(
+      await bashComplete("nipa", "-P", "prod", "-p", "Beta", "sw")
+    ).toEqual(["switch"]);
+    expect(
+      await bashComplete("nipa", "-p", "Beta", "server", "stop", "web")
+    ).toEqual(["web-2", "web-1"]);
+  });
+
   test("openstack commands after os and openstack", async () => {
     expect(await bashComplete("nipa", "os", "server", "l")).toEqual(["list"]);
     expect(await bashComplete("nipa", "os", "server", "show", "web-1")).toEqual(
@@ -375,6 +401,22 @@ describe("zsh", () => {
     expect(stdout.trim()).toBe("nipa -> _nipa");
   });
 
+  test("-p offers the projects, and the command after its value is found", async () => {
+    expect(await zshDescribed("nipa", "-p", "")).toEqual(["Alpha", "Beta"]);
+    expect(await zshDescribed("nipa", "--project", "")).toEqual([
+      "Alpha",
+      "Beta",
+    ]);
+    const subcommands = await zshDescribed("nipa", "-p", "Beta", "server", "");
+    expect(subcommands.slice(0, 2)).toEqual([
+      "ls:List the servers in your project",
+      "inspect:Show a server's flavor, addresses, volumes and security groups",
+    ]);
+    expect(
+      await zshDescribed("nipa", "-P", "prod", "-p", "Beta", "switch", "")
+    ).toEqual(["arguments"]);
+  });
+
   test("openstack commands after os", async () => {
     expect(await zshComplete("nipa", "os", "server", "")).toEqual([
       "create",
@@ -415,6 +457,15 @@ describe.if(has("fish"))("fish", () => {
     expect(await fishComplete("nipa -P prod sw")).toEqual(["switch"]);
   });
 
+  test("-p offers the projects, and the command after its value is found", async () => {
+    expect(await fishComplete("nipa -p ")).toEqual(["Alpha", "Beta"]);
+    expect(await fishComplete("nipa --project B")).toEqual(["Beta"]);
+    expect(await fishComplete("nipa -p Beta sw")).toEqual(["switch"]);
+    expect(await fishComplete("nipa -P prod -p Beta sw")).toEqual(["switch"]);
+    const names = await fishComplete("nipa -p Beta server inspect web");
+    expect(names.toSorted()).toEqual(["web-1", "web-2"]);
+  });
+
   test("openstack commands after os", async () => {
     const subcommands = await fishComplete("nipa os server ");
     expect(subcommands).toEqual(["create", "list", "resize", "show"]);
@@ -451,6 +502,16 @@ describe.if(has("pwsh"))("pwsh", () => {
     async () => {
       expect(await pwshComplete("nipa -P ")).toEqual(["prod"]);
       expect(await pwshComplete("nipa -P prod sw")).toEqual(["switch"]);
+    },
+    PWSH_TIMEOUT_MS
+  );
+
+  test(
+    "-p offers the projects, and the command after its value is found",
+    async () => {
+      expect(await pwshComplete("nipa -p ")).toEqual(["Alpha", "Beta"]);
+      expect(await pwshComplete("nipa -p Beta sw")).toEqual(["switch"]);
+      expect(await pwshComplete("nipa -P prod -p Beta sw")).toEqual(["switch"]);
     },
     PWSH_TIMEOUT_MS
   );

@@ -36,7 +36,14 @@ import {
   readFakeKeychain,
   writeFakeKeychain,
 } from "./mocks/keychain";
-import { FAKE_USER, startFakeKeystone } from "./mocks/keystone";
+import {
+  BETA_ID,
+  FAKE_USER,
+  HEX_NAMED,
+  MULTILINE_NAMED,
+  startFakeKeystone,
+  TWIN_BETA_ID,
+} from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import {
   FAKE_CONSOLE_LOG,
@@ -79,8 +86,19 @@ const modules = () => inDir("infra", "modules");
 const readJsonFile = async (name: string) =>
   JSON.parse(await readFile(path.join(dir, name), "utf-8"));
 
+const savedFiles = async () => [
+  await readFile(path.join(dir, "config.json"), "utf-8"),
+  await readFile(path.join(dir, "auth.json"), "utf-8"),
+];
+
+const document = (result: { stderr: string }) =>
+  JSON.parse(result.stderr.trimEnd().split("\n").at(-1) ?? "");
+
 const serverLists = () =>
   keystone.requests.filter((r) => r === "GET /api/v3/instances").length;
+
+const projectLists = () =>
+  keystone.requests.filter((r) => r === "GET /v3/auth/projects").length;
 
 const serverChecks = () =>
   keystone.requests.filter((r) => r.startsWith("GET /api/v4/instances/"))
@@ -125,6 +143,21 @@ describe("help and usage", () => {
       expect(stdout).toContain(text);
     }
     expect(stdout).not.toContain("__complete");
+  });
+
+  test("login's help says --project saves, and every other page says it doesn't", async () => {
+    const login = await run(["login", "--help"]);
+    // The page wraps its paragraphs.
+    expect(login.stdout.replaceAll(/\s+/gu, " ")).toContain(
+      "`--project` names the project to scope the token to and save, instead of the last one. It is the one command where the option saves the project"
+    );
+    expect(login.stdout).toMatch(
+      /-p, --project <project>\s+Use this project, by name or ID, for this run only; login saves it/u
+    );
+    const server = await run(["server", "ls", "--help"]);
+    expect(server.stdout).toMatch(
+      /-p, --project <project>\s+Use this project, by name or ID, for this run only/u
+    );
   });
 
   test("help for one command, as `help <command>` or `<command> --help`", async () => {
@@ -671,23 +704,50 @@ describe("a failed --json command that names a resource", () => {
     try {
       const result = await run(["server", "inspect", "web-1", "--json"]);
       expect(result.code).toBe(1);
-      const document = failure(result);
-      expect(document).toMatchObject({
+      const twins = failure(result);
+      expect(twins).toMatchObject({
         message: '2 servers in Alpha are named "web-1"',
         reason: "ambiguous_name",
         status: "action_required",
       });
-      expect(document).not.toHaveProperty("next");
-      expect(document.data).toEqual({
+      expect(twins).not.toHaveProperty("next");
+      expect(twins.data).toEqual({
         ids: ["22222222-2222-4222-8222-222222222222", "twin-0000"],
       });
-      expect(document.hint.split("\n")).toEqual([
+      expect(twins.hint.split("\n")).toEqual([
         "Name one by its ID:",
         "    22222222-2222-4222-8222-222222222222  ● Active  203.0.113.10",
         "    twin-0000                             ● Active  203.0.113.10",
       ]);
     } finally {
       FAKE_SERVERS.pop();
+    }
+  });
+
+  test("the pointer past the listed servers keeps -p", async () => {
+    const web1 = FAKE_SERVERS.find((server) => server.name === "web-1");
+    if (!web1) {
+      throw new Error("the fixtures lost web-1");
+    }
+    const twins = ["a", "b", "c", "d", "e", "f"].map((suffix) => ({
+      ...web1,
+      id: `twin-${suffix}`,
+    }));
+    FAKE_SERVERS.push(...twins);
+    try {
+      const { code, stderr } = await run([
+        "server",
+        "inspect",
+        "web-1",
+        "-p",
+        "Alpha",
+      ]);
+      expect(code).toBe(1);
+      expect(stderr).toContain(
+        "and 2 more. Run `nipa -p Alpha server ls --json` to get their IDs."
+      );
+    } finally {
+      FAKE_SERVERS.splice(-twins.length);
     }
   });
 
@@ -1090,6 +1150,19 @@ describe("with a session", () => {
     const { code, stderr } = await run(["exec", "no-such-tool-xyz"]);
     expect(code).toBe(127);
     expect(stderr).toContain("command not found");
+  });
+
+  test("exec with an option where the command goes says the options come first", async () => {
+    const { code, stderr } = await run(["exec", "-p", "Beta", "env"]);
+    expect(code).toBe(127);
+    expect(stderr).toContain("Error: command not found: -p");
+    expect(stderr).toContain(
+      "> Put nipa's options, such as `--project`, before `exec`, because the words after it belong to the command."
+    );
+    const plain = await run(["exec", "no-such-tool-xyz"]);
+    expect(plain.stderr).not.toContain("before `exec`");
+    const tf = await run(["tf", "-p", "Beta"]);
+    expect(tf.stderr).not.toContain("before `exec`");
   });
 
   test("switch by name needs no password and shows how long it took", async () => {
@@ -2081,8 +2154,547 @@ describe("doctor", () => {
   });
 });
 
+describe("--project", () => {
+  const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    await mkdir(modules(), { recursive: true });
+    await mkdir(inDir("bin"), { recursive: true });
+    await writeFile(
+      inDir("bin", "openstack"),
+      '#!/bin/sh\necho "project:$OS_PROJECT_ID"\n'
+    );
+    await chmod(inDir("bin", "openstack"), 0o755);
+  });
+
+  test("a name uses that project for the run, and the saved one stays", async () => {
+    const before = await readFile(path.join(dir, "auth.json"), "utf-8");
+    const lists = projectLists();
+    const { code, stderr, stdout } = await run(["-p", "Beta", "env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${BETA_ID}'`);
+    expect(stderr).toContain("Using project Beta");
+    expect(stderr).not.toContain(" from ");
+    expect(projectLists()).toBe(lists + 1);
+    expect(await readFile(path.join(dir, "auth.json"), "utf-8")).toBe(before);
+    expect(await readJsonFile("config.json")).toMatchObject({
+      profiles: { prod: { project: { id: ALPHA_ID } } },
+    });
+  });
+
+  test("an ID needs no project list", async () => {
+    const lists = projectLists();
+    const { code, stderr, stdout } = await run(["--project", BETA_ID, "env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${BETA_ID}'`);
+    expect(stderr).toContain("Using project Beta");
+    expect(projectLists()).toBe(lists);
+  });
+
+  test("the saved project needs no switch and prints no project line", async () => {
+    const { code, stderr, stdout } = await run(["-p", "Alpha", "env"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${ALPHA_ID}'`);
+    expect(stderr).not.toContain("Using project");
+  });
+
+  test("before or after the command, it gives the same result", async () => {
+    const before = await run(["-p", "Beta", "server", "ls", "--json"]);
+    const after = await run(["server", "ls", "-p", "Beta", "--json"]);
+    expect(before.code).toBe(0);
+    expect(JSON.parse(before.stdout).project.name).toBe("Beta");
+    expect(after.stdout).toBe(before.stdout);
+  });
+
+  test("before os, openstack runs in that project, and an -p after os is openstack's", async () => {
+    const { code, stdout } = await run(["-p", "Beta", "os", "server", "list"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(`project:${BETA_ID}\n`);
+    const after = await run(["os", "-p", "Beta"]);
+    expect(after.stdout).toBe(`project:${ALPHA_ID}\n`);
+  });
+
+  test("beats the folder's link, and neither file changes", async () => {
+    await runIn(infra(), ["link", "Beta"]);
+    const linkFile = path.join(infra(), ".nipa", "project.json");
+    const link = await readFile(linkFile, "utf-8");
+    const auth = await readFile(path.join(dir, "auth.json"), "utf-8");
+    const linked = await runIn(modules(), ["env"]);
+    expect(linked.stdout).toContain(`OS_PROJECT_ID='${BETA_ID}'`);
+    const { code, stderr, stdout } = await runIn(modules(), [
+      "-p",
+      "Alpha",
+      "env",
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toContain(`OS_PROJECT_ID='${ALPHA_ID}'`);
+    expect(stderr).not.toContain("project.json");
+    expect(await readFile(linkFile, "utf-8")).toBe(link);
+    expect(await readFile(path.join(dir, "auth.json"), "utf-8")).toBe(auth);
+    await runIn(infra(), ["unlink"]);
+  });
+
+  test("an unknown name fails with exit 1 and lists the projects, without a fallback", async () => {
+    const { code, stderr, stdout } = await run(["-p", "Nope", "server", "ls"]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toContain('no project named or with ID "Nope"');
+    expect(stderr).toContain("Your projects: Alpha, Beta");
+    expect(stderr).not.toContain("Using project");
+  });
+
+  test("under --json, an unknown name writes one error document", async () => {
+    const { code, stderr, stdout } = await run([
+      "-p",
+      "Nope",
+      "server",
+      "ls",
+      "--json",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(JSON.parse(stderr)).toMatchObject({
+      message: 'no project named or with ID "Nope"',
+      reason: "not_found",
+      status: "error",
+    });
+  });
+
+  test("an ID no project has is not_found, and lists the projects", async () => {
+    const lists = projectLists();
+    const { code, stderr, stdout } = await run([
+      "-p",
+      "e".repeat(32),
+      "server",
+      "ls",
+      "--json",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(projectLists()).toBe(lists + 1);
+    expect(JSON.parse(stderr)).toMatchObject({
+      hint: "Your projects: Alpha, Beta",
+      message: `no project named or with ID "${"e".repeat(32)}"`,
+      reason: "not_found",
+      status: "error",
+    });
+  });
+
+  test("-p with -P uses that profile's session and the named project", async () => {
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        ...config,
+        profiles: { ...config.profiles, staging: config.profiles.prod },
+      })
+    );
+    await writeFile(
+      path.join(dir, "auth.json"),
+      JSON.stringify({
+        sessions: { ...auth.sessions, staging: auth.sessions.prod },
+      })
+    );
+    const { code, stderr, stdout } = await run([
+      "-P",
+      "staging",
+      "-p",
+      "Beta",
+      "os",
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(`project:${BETA_ID}\n`);
+    expect(stderr).toContain("Using profile staging");
+    expect(stderr).toContain("Using project Beta");
+    const saved = await readJsonFile("auth.json");
+    expect(saved.sessions.staging.project.id).toBe(ALPHA_ID);
+  });
+
+  test("two projects with one name fail and list their IDs", async () => {
+    const twin = startFakeKeystone({ gateway: true, twinBeta: true });
+    try {
+      await freshDir();
+      await seedSession(dir, twin.url);
+      const { code, stderr, stdout } = await run(["-p", "Beta", "env"]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain('2 projects are named "Beta"');
+      expect(stderr).toContain(`${BETA_ID}, ${TWIN_BETA_ID}`);
+      const json = await run(["-p", "Beta", "server", "ls", "--json"]);
+      expect(JSON.parse(json.stderr)).toMatchObject({
+        data: { ids: [BETA_ID, TWIN_BETA_ID] },
+        reason: "ambiguous_name",
+        status: "action_required",
+      });
+      const byId = await run(["-p", TWIN_BETA_ID, "env"]);
+      expect(byId.code).toBe(0);
+      expect(byId.stdout).toContain(`OS_PROJECT_ID='${TWIN_BETA_ID}'`);
+    } finally {
+      twin.stop();
+    }
+  });
+});
+
+describe("--project on a command that never reads a project", () => {
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    await mkdir(infra(), { recursive: true });
+  });
+
+  const refused: [string, string[]][] = [
+    ["nipa whoami", ["whoami"]],
+    ["nipa completion", ["completion", "bash"]],
+    ["nipa doctor", ["doctor"]],
+    ["nipa switch", ["switch", "Beta"]],
+    ["nipa link", ["link", "Beta"]],
+    ["nipa unlink", ["unlink"]],
+    ["nipa logout", ["logout"]],
+    ["nipa profile ls", ["profile", "ls"]],
+    ["nipa profile use", ["profile", "use", "prod"]],
+  ];
+
+  test("each refuses it with exit 2, and changes nothing", async () => {
+    const before = await savedFiles();
+    const results = await Promise.all(
+      refused.map(([, words]) => runIn(infra(), ["-p", "Beta", ...words]))
+    );
+    for (const [i, [name]] of refused.entries()) {
+      const result = results[i];
+      expect(result?.code).toBe(2);
+      expect(result?.stdout).toBe("");
+      expect(result?.stderr).toStartWith(
+        `Error: --project doesn't apply to ${name}\n> Usage: ${name}`
+      );
+    }
+    expect(await savedFiles()).toEqual(before);
+    expect(await exists(path.join(infra(), ".nipa"))).toBe(false);
+  });
+
+  test("after the command, and under --json, it is one usage document", async () => {
+    const { code, stderr, stdout } = await run([
+      "whoami",
+      "--json",
+      "--project",
+      "Beta",
+    ]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(JSON.parse(stderr)).toMatchObject({
+      message: "--project doesn't apply to nipa whoami",
+      reason: "invalid_arguments",
+      status: "action_required",
+    });
+  });
+
+  test("help and the version still work with it on the line", async () => {
+    const help = await run(["-p", "Beta", "whoami", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toContain("Usage: nipa whoami");
+    const version = await run(["-p", "Beta", "--version"]);
+    expect(version.code).toBe(0);
+    expect(version.stdout).toMatch(/^\d+\.\d+\.\d+/u);
+  });
+
+  test("login keeps it: it still names the project to save", async () => {
+    const { code, stderr } = await run(["-p", "Beta", "login"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain("nipa can't prompt here");
+    expect(stderr).not.toContain("doesn't apply");
+  });
+});
+
+describe("the commands nipa suggests keep -P and -p", () => {
+  const SPACED = { id: "3".repeat(32), name: "My Project" };
+  const QUOTED = { id: "4".repeat(32), name: `Bob's "lab"` };
+  let owned: FakeKeystone;
+
+  beforeAll(async () => {
+    owned = startFakeKeystone({
+      extraProjects: [SPACED, QUOTED],
+      gateway: true,
+      owner: BETA_ID,
+    });
+    await freshDir();
+    await seedSession(dir, owned.url);
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        ...config,
+        profiles: { ...config.profiles, staging: config.profiles.prod },
+      })
+    );
+    await writeFile(
+      path.join(dir, "auth.json"),
+      JSON.stringify({
+        sessions: { ...auth.sessions, staging: auth.sessions.prod },
+      })
+    );
+  });
+
+  afterAll(() => owned.stop());
+
+  test("a restart of a stopped server names the start command in the project it ran in", async () => {
+    const restart = await run([
+      "-p",
+      "Beta",
+      "server",
+      "restart",
+      "db-1",
+      "-y",
+    ]);
+    expect(restart.code).toBe(1);
+    expect(restart.stderr).toContain(
+      "> Run `nipa -p Beta server start db-1` to start it.\n"
+    );
+    expect(restart.stderr).not.toContain("`nipa server start db-1`");
+    // db-1's state stops answering after an action, so web-1 shows that the
+    // printed command works in Beta, and that the bare one looks in Alpha.
+    await run(["-p", "Beta", "server", "stop", "web-1", "-y"]);
+    const again = await run(["-p", "Beta", "server", "restart", "web-1", "-y"]);
+    expect(again.stderr).toContain(
+      "> Run `nipa -p Beta server start web-1` to start it.\n"
+    );
+    const printed = await run(["-p", "Beta", "server", "start", "web-1"]);
+    expect(printed.code).toBe(0);
+    expect(printed.stderr).toContain("Started web-1 in Beta");
+    const bare = await run(["server", "start", "web-1"]);
+    expect(bare.code).toBe(1);
+    expect(bare.stderr).toContain(
+      'no server named or with ID "web-1" in Alpha'
+    );
+  });
+
+  test("a name with spaces or a quote is one argv word, and quoted in the line", async () => {
+    const [spaced, quoted] = await Promise.all([
+      run(["-p", SPACED.name, "server", "inspect", "nope", "--json"]),
+      run(["-p", QUOTED.name, "server", "inspect", "nope", "--json"]),
+    ]);
+    expect(document(spaced).next).toEqual([
+      {
+        argv: ["nipa", "-p", "My Project", "server", "ls"],
+        command: "nipa -p 'My Project' server ls",
+      },
+    ]);
+    expect(document(quoted).next).toEqual([
+      {
+        argv: ["nipa", "-p", QUOTED.name, "server", "ls"],
+        command: String.raw`nipa -p 'Bob'\''s "lab"' server ls`,
+      },
+    ]);
+    const human = await run(["-p", SPACED.name, "server", "inspect", "nope"]);
+    expect(human.stderr).toContain(
+      "> Run `nipa -p 'My Project' server ls` to see your servers.\n"
+    );
+  });
+
+  test("-P reaches the human hint too, and -P with -p keeps both", async () => {
+    const profile = await run(["-P", "staging", "server", "inspect", "nope"]);
+    expect(profile.stderr).toContain(
+      "> Run `nipa -P staging server ls` to see your servers.\n"
+    );
+    const both = await run([
+      "-P",
+      "staging",
+      "-p",
+      "Beta",
+      "server",
+      "inspect",
+      "nope",
+      "--json",
+    ]);
+    expect(document(both).next).toEqual([
+      {
+        argv: ["nipa", "-P", "staging", "-p", "Beta", "server", "ls"],
+        command: "nipa -P staging -p Beta server ls",
+      },
+    ]);
+  });
+
+  test("a hint in --json carries them when it has no next", async () => {
+    const result = await run([
+      "-p",
+      "Beta",
+      "server",
+      "logs",
+      "k8s-worker-1",
+      "--json",
+    ]);
+    expect(document(result).hint).toBe(
+      "A server has one once it boots, so this one most likely never booted. Run `nipa -p Beta server history k8s-worker-1` to see what failed."
+    );
+  });
+
+  test("a mistyped command keeps -p from either side of it", async () => {
+    const results = await Promise.all(
+      [
+        ["-p", "Beta", "srever", "ls"],
+        ["srever", "ls", "-p", "Beta"],
+        ["srever", "ls", "--project=Beta"],
+      ].map((words) => run(words))
+    );
+    for (const { code, stderr } of results) {
+      expect(code).toBe(2);
+      expect(stderr).toContain("Did you mean `nipa -p Beta server`?");
+    }
+  });
+
+  test("a line after a success names the project too", async () => {
+    const result = await run([
+      "-p",
+      "Beta",
+      "server",
+      "inspect",
+      "k8s-worker-1",
+    ]);
+    expect(result.stderr).toContain(
+      "Run `nipa -p Beta server history k8s-worker-1` to see what failed, and `nipa -p Beta server logs k8s-worker-1` for its console log."
+    );
+  });
+
+  test("a run without -P or -p prints the commands as they were", async () => {
+    const inspect = await run(["server", "inspect", "nope"]);
+    expect(inspect.stderr).toContain(
+      "> Run `nipa server ls` to see your servers.\n"
+    );
+    const json = await run(["server", "inspect", "nope", "--json"]);
+    expect(document(json).next).toEqual([
+      { argv: ["nipa", "server", "ls"], command: "nipa server ls" },
+    ]);
+  });
+
+  test("login stays a plain login under -p", async () => {
+    await freshDir();
+    await seedSession(dir, owned.url);
+    const { sessions } = await readJsonFile("auth.json");
+    const token: string = sessions.prod.token;
+    await fetch(`${owned.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const result = await run(["-p", "Beta", "server", "ls", "--json"]);
+    expect(document(result).next).toEqual([
+      { argv: ["nipa", "login"], command: "nipa login" },
+    ]);
+  });
+});
+
+describe("--project against other Keystones", () => {
+  test("an ID that Keystone lists but won't scope to is can't-use, not not_found", async () => {
+    const strict = startFakeKeystone({ gateway: true, refuse: [BETA_ID] });
+    try {
+      await freshDir();
+      await seedSession(dir, strict.url);
+      const { code, stderr } = await run(["-p", BETA_ID, "server", "ls"]);
+      expect(code).toBe(1);
+      expect(stderr).toContain("Error: can't use project Beta");
+      expect(stderr).not.toContain("no project named");
+    } finally {
+      strict.stop();
+    }
+  });
+
+  test("a project named like an ID is found by its name", async () => {
+    const hex = startFakeKeystone({
+      extraProjects: [HEX_NAMED],
+      gateway: true,
+    });
+    try {
+      await freshDir();
+      await seedSession(dir, hex.url);
+      const { code, stderr, stdout } = await run(["-p", HEX_NAMED.name, "env"]);
+      expect(code).toBe(0);
+      expect(stdout).toContain(`OS_PROJECT_ID='${HEX_NAMED.id}'`);
+      expect(stderr).toContain(`Using project ${HEX_NAMED.name}`);
+    } finally {
+      hex.stop();
+    }
+  });
+
+  test("a project name with a newline can't forge a second line", async () => {
+    const odd = startFakeKeystone({
+      extraProjects: [MULTILINE_NAMED],
+      gateway: true,
+    });
+    try {
+      await freshDir();
+      await seedSession(dir, odd.url);
+      const used = await run(["-p", MULTILINE_NAMED.id, "env"]);
+      expect(used.code).toBe(0);
+      expect(used.stderr).toBe("> Using project Odd\\n> forged\n");
+      const missing = await run(["-p", "Nope\n> forged", "server", "ls"]);
+      expect(missing.code).toBe(1);
+      expect(missing.stderr).toBe(
+        'Error: no project named or with ID "Nope\\n> forged"\n> Your projects: Alpha, Beta, Odd\\n> forged\n'
+      );
+    } finally {
+      odd.stop();
+    }
+  });
+
+  test("an expired session under -p without a terminal asks for a login, and saves nothing", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.prod.expiresAt = new Date(Date.now() - 60_000).toISOString();
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const before = await savedFiles();
+    const { code, stderr, stdout } = await run([
+      "-p",
+      "Beta",
+      "server",
+      "ls",
+      "--json",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(JSON.parse(stderr)).toEqual({
+      message: "your prod session expired",
+      next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+      reason: "token_expired",
+      status: "action_required",
+    });
+    expect(await savedFiles()).toEqual(before);
+  });
+
+  test("a revoked session under -p keeps the login recovery, by name or ID", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const { sessions } = await readJsonFile("auth.json");
+    const token: string = sessions.prod.token;
+    await fetch(`${keystone.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const results = await Promise.all(
+      ["Beta", BETA_ID].map((wanted) =>
+        run(["-p", wanted, "server", "ls", "--json"])
+      )
+    );
+    for (const { code, stderr, stdout } of results) {
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(JSON.parse(stderr)).toMatchObject({
+        message: "your prod session expired or was revoked",
+        next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+        reason: "token_expired",
+        status: "action_required",
+      });
+    }
+    const human = await run(["-p", "Beta", "server", "ls"]);
+    expect(human.stderr).toContain(
+      "Error: your prod session expired or was revoked"
+    );
+    expect(human.stderr).toContain("> Run `nipa login`.");
+  });
+});
+
 describe("link", () => {
-  const BETA_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
   const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
   beforeAll(async () => {
@@ -2231,6 +2843,13 @@ describe("saved passwords and session expiry", () => {
     expect(stderr).toContain("Success! Logged out of prod");
     expect(stderr).toContain("Deleted your saved password.");
     expect(await readFakeKeychain(dir)).toEqual({});
+  });
+
+  test("a note keeps -P in the command it names", async () => {
+    await rm(path.join(dir, "auth.json"));
+    const { code, stderr } = await run(["-P", "prod", "logout"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("so `nipa -P prod logout` did nothing");
   });
 
   test("logout without a session still deletes a saved password", async () => {
@@ -3175,6 +3794,17 @@ describe("ip ls", () => {
   });
 });
 
+// A browser that does nothing, so a test can run `open` on a terminal.
+const installOpeners = async () => {
+  await mkdir(inDir("bin"), { recursive: true });
+  await Promise.all(
+    ["open", "xdg-open"].map(async (name) => {
+      await writeFile(inDir("bin", name), "#!/bin/sh\nexit 0\n");
+      await chmod(inDir("bin", name), 0o755);
+    })
+  );
+};
+
 describe("open", () => {
   test("prints the portal's project page to a pipe, without a session", async () => {
     await freshDir();
@@ -3236,6 +3866,31 @@ describe("open", () => {
       );
       expect(stderr).toContain("Run `nipa lb ls` to see your load balancers.");
       expect(stdout).toBe("");
+    });
+
+    test("-p names the project to switch to in the portal, and checks it exists", async () => {
+      await installOpeners();
+      const piped = await run(["-p", "Beta", "open", "--url"]);
+      expect(piped.code).toBe(0);
+      expect(piped.stdout).toBe(`${keystone.url}/project\n`);
+      expect(piped.stderr).toBe("> Using project Beta\n");
+      const terminal = await runOnTerminals({
+        args: ["-p", "Beta", "open"],
+        env: testEnv(dir),
+        terminals: ["stdout", "stderr"],
+      });
+      expect(terminal.code).toBe(0);
+      expect(terminal.stderr).toContain("Switch to Beta there");
+      expect(terminal.stderr).not.toContain("Alpha");
+      const saved = await run(["open", "--url"]);
+      expect(saved.stderr).toBe("");
+    });
+
+    test("-p with a project that doesn't exist fails before opening anything", async () => {
+      const { code, stderr, stdout } = await run(["-p", "Nope", "open"]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain('no project named or with ID "Nope"');
     });
 
     test("an unknown kind of resource exits 2 and lists the kinds", async () => {

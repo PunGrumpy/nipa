@@ -8,4 +8,5 @@ export const whoamiCommand = defineCommand({
   flags: [jsonFlag],
   name: "whoami",
   summary: "Show who you're logged in as",
+  usesProject: false,
 });

@@ -35,11 +35,18 @@ export const helpFlag = {
  * Options nipa takes before any command, and after any command that isn't a
  * passthrough. The parser, the help pages and the completion scripts read
  * this list. dispatch.ts gives `help` and `version` their meaning, and
- * createClient gives `profile`, `debug` and `non-interactive` theirs. theme.ts reads
- * `--no-color` from process.argv itself.
+ * createClient gives `profile`, `project`, `debug` and `non-interactive`
+ * theirs. theme.ts reads `--no-color` from process.argv itself.
  */
 export const GLOBAL_FLAGS = [
   profileFlag,
+  {
+    description:
+      "Use this project, by name or ID, for this run only; login saves it",
+    long: "project",
+    short: "p",
+    value: { kind: "project" },
+  },
   {
     description: "Log each HTTP request (or set NIPA_DEBUG=1)",
     long: "debug",
@@ -65,5 +72,5 @@ export const GLOBAL_FLAGS = [
   },
 ] as const satisfies readonly FlagSpec[];
 
-/** `{ profile?: string; debug?: true; "no-color"?: true; "non-interactive"?: true; help?: true; version?: true }` */
+/** `{ profile?: string; project?: string; debug?: true; "no-color"?: true; "non-interactive"?: true; help?: true; version?: true }` */
 export type GlobalValues = FlagValues<typeof GLOBAL_FLAGS>;

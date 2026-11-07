@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { Keychain } from "../../../src/util/keychain";
-import { authenticate } from "../../../src/util/session";
+import { authenticate, pickProject } from "../../../src/util/session";
 import type { LoginPrompts } from "../../../src/util/session";
 import type { Profile } from "../../../src/util/store";
+import { CliError } from "../../../src/util/ui";
 import {
   ALPHA_ID,
   FAKE_PASSCODE,
@@ -212,5 +213,57 @@ describe("authenticate with a keychain", () => {
     const { keychain, passwords } = memoryKeychain();
     await authenticate({ keychain, profile: known(), prompts });
     expect(passwords.size).toBe(0);
+  });
+});
+
+const noPrompt = () => Promise.reject(new Error("no prompt"));
+
+describe("pickProject with a wanted project", () => {
+  const projects = [
+    { id: "a".repeat(32), name: "Alpha" },
+    { id: "b".repeat(32), name: "Beta" },
+    { id: "c".repeat(32), name: "Beta" },
+  ];
+  const failure = (wanted: string): CliError | undefined => {
+    try {
+      pickProject({ ask: noPrompt, projects, wanted });
+    } catch (error) {
+      return error instanceof CliError ? error : undefined;
+    }
+    return undefined;
+  };
+
+  test("finds a project by ID, which beats a name", async () => {
+    const found = await pickProject({
+      ask: noPrompt,
+      projects,
+      wanted: "c".repeat(32),
+    });
+    expect(found.id).toBe("c".repeat(32));
+  });
+
+  test("finds a project by a name nobody else has", async () => {
+    const found = await pickProject({
+      ask: noPrompt,
+      projects,
+      wanted: "Alpha",
+    });
+    expect(found.name).toBe("Alpha");
+  });
+
+  test("a name two projects share fails and lists their IDs", () => {
+    expect(failure("Beta")).toMatchObject({
+      hint: `Name one by its ID instead: ${"b".repeat(32)}, ${"c".repeat(32)}.`,
+      message: '2 projects are named "Beta"',
+      reason: "ambiguous_name",
+    });
+  });
+
+  test("a name that matches nothing is not found, which exits 1", () => {
+    expect(failure("Nope")).toMatchObject({
+      exitCode: 1,
+      hint: "Your projects: Alpha, Beta, Beta",
+      reason: "not_found",
+    });
   });
 });

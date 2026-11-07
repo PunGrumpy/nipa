@@ -7,4 +7,5 @@ export const logoutCommand = defineCommand({
   flags: [],
   name: "logout",
   summary: "Revoke the token and forget the session",
+  usesProject: false,
 });

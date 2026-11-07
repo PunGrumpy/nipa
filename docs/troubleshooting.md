@@ -36,7 +36,15 @@ If it happens again right after a login, the profile's Space API may belong to a
 
 ## "no project named or with ID …"
 
-`nipa login --project`, `nipa switch` or `nipa link` got a name or ID that none of your projects has. nipa matches the whole name or ID, so copy one from the list the error prints under `Your projects`.
+`--project`, `nipa switch` or `nipa link` got a name or ID that none of your projects has. nipa matches the whole name or ID, so copy one from the list the error prints under `Your projects`. It exits with code `1`, and never falls back to your saved project.
+
+## "--project doesn't apply to nipa …"
+
+`completion`, `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so nipa refuses `-p` there instead of ignoring it. Drop the option. To change the project for every terminal, run `nipa switch Beta`. To use one only in this folder, run `nipa link Beta`. `nipa login -p Beta` is the one place where `-p` saves the project.
+
+## "2 projects are named …"
+
+Two of your projects share the name you gave. Pass the ID the error lists instead, such as `nipa -p bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb server ls`.
 
 ## "your account has no projects you can use"
 
