@@ -9,7 +9,7 @@ import type { Client } from "./client";
 import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
 import { commandHelp, commandLine, mainHelp, usageLine } from "./help";
-import { asksForHelp, asksForJson, takeGlobals } from "./parse";
+import { asksForHelp, asksForJson, asksForVersion, takeGlobals } from "./parse";
 import { profileAmong, projectAmong, setRunScope } from "./scope";
 import type { RunScope } from "./scope";
 import { namesOf, profileUseOf, projectUseOf } from "./spec";
@@ -307,16 +307,17 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   if (front.globals.help || asksForHelp(after)) {
     return print(commandHelp(resolved.path));
   }
+  // `nipa whoami --version` and `nipa server stop web extra -v` print the
+  // version, whatever else is on the line, before the command's own
+  // argument checks, a client or a request.
+  if (asksForVersion(after)) {
+    return print(input.version);
+  }
   const prepared = resolved.leaf.prepare({
     path: resolved.path,
     words: resolved.words,
   });
   const globals = { ...front.globals, ...prepared.globals };
-  // `nipa whoami --version` and `nipa server stop web -y -v` print the
-  // version and stop, before anything makes a client or a request.
-  if (globals.version) {
-    return print(input.version);
-  }
   setRunScope(scopeOf({ globals, path: resolved.path, program: spec }));
   if (globals.project !== undefined && projectUseOf(resolved.path) === false) {
     throw usageError(

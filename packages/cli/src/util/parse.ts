@@ -1,4 +1,4 @@
-import { GLOBAL_FLAGS, helpFlag, jsonFlag } from "./arg-common";
+import { GLOBAL_FLAGS, helpFlag, jsonFlag, versionFlag } from "./arg-common";
 import type { GlobalValues } from "./arg-common";
 import { commandLine, usageLine } from "./help";
 import { flagPlaceholder, flagWords } from "./spec";
@@ -235,6 +235,21 @@ export const asksForHelp = (words: readonly string[]): boolean => {
   return optionWords(words).some(
     (word) =>
       spellings.has(word) || (SHORT_CLUSTER.test(word) && word.includes("h"))
+  );
+};
+
+/**
+ * True when a word before `--` asks for the version: `--version`, `-v`, or
+ * a cluster of short flags with a `v` in it, such as `-yv`. Read from the
+ * words, like help, so `nipa server stop web extra -v` and
+ * `nipa whoami --bogus -v` print the version instead of failing on the
+ * arguments around it.
+ */
+export const asksForVersion = (words: readonly string[]): boolean => {
+  const spellings = new Set(flagWords(versionFlag));
+  return optionWords(words).some(
+    (word) =>
+      spellings.has(word) || (SHORT_CLUSTER.test(word) && word.includes("v"))
   );
 };
 

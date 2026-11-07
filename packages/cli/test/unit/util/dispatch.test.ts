@@ -517,6 +517,13 @@ describe("help and version, on the real table", () => {
     [["server", "--version"]],
     [["server", "stop", "web", "-y", "-v"]],
     [["-P", "staging", "server", "stop", "web", "-yv"]],
+    // Before the command's own argument checks.
+    [["server", "stop", "-v"]],
+    [["server", "inspect", "--version"]],
+    [["server", "stop", "web", "extra", "-v"]],
+    [["whoami", "--bogus", "-v"]],
+    [["whoami", "extra", "-v"]],
+    [["server", "logs", "web", "--tail", "-v"]],
   ])(
     "the version after a command prints it and makes no client: %j",
     async (argv) => {
@@ -525,6 +532,14 @@ describe("help and version, on the real table", () => {
       expect(seen).toEqual([]);
     }
   );
+  test("a -v after -- is a word of the command, not the version", async () => {
+    expect(
+      await usage(["server", "stop", "web", "--", "-v"], realProgram)
+    ).toMatchObject({
+      code: 2,
+      message: 'unexpected argument "-v"',
+    });
+  });
   test("a passthrough command hands -v to its program", async () => {
     await go(["exec", "sh", "-v"]);
     expect(seen).toEqual([{ args: ["-v"], command: "sh", name: "exec" }]);

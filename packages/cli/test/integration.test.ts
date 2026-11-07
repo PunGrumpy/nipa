@@ -201,6 +201,10 @@ describe("help and usage", () => {
     const results = await Promise.all([
       run(["whoami", "--version"]),
       run(["server", "stop", "web-1", "-y", "-v"]),
+      run(["server", "stop", "-v"]),
+      run(["server", "inspect", "--version"]),
+      run(["server", "stop", "web", "extra", "-v"]),
+      run(["whoami", "--bogus", "-v"]),
     ]);
     for (const { code, stderr, stdout } of results) {
       expect(code).toBe(0);

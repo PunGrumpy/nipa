@@ -86,7 +86,7 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on for the messages nipa writes to a pipe, but help stays plain in a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
 | `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
 | `-h, --help` |  | Prints help. It wins over `--version` when both are on the line |
-| `-v, --version` |  | Prints only the version, after a command too: `nipa server stop web -y -v` prints the version and stops nothing |
+| `-v, --version` |  | Prints only the version, after a command too and before the command checks its other arguments: `nipa server stop web -y -v` and `nipa server stop -v` print the version and stop nothing. After `os`, `tf` and `exec`, `-v` belongs to their program |
 
 nipa picks the project in this order: `--project`, then the folder's link, then the project of the saved session. `nipa -p Beta server ls` and `nipa server ls -p Beta` list the servers in Beta, and `nipa -p Beta os server list` runs `openstack` in Beta. For each, nipa exchanges the saved token for one in that project, without saving it, and prints `> Using project Beta`. `nipa server search` is the one command that reads every project when you give no `--project`, and it ignores a folder's link for that.
 
