@@ -47,7 +47,7 @@ export interface RunInput {
 /**
  * What the words after a command name: a leaf to run, with the path help
  * and usage lines name and the leaf's words, or a word that names none of
- * a group's subcommands. It's an error only when help wasn't asked for.
+ * a group's subcommands, which is an error whatever else the line asks for.
  */
 type Resolved =
   | {
@@ -144,25 +144,6 @@ const pickSubcommand = (group: Group, words: readonly string[]): Resolved => {
   };
 };
 
-/** `nipa help server ls` names the ls page. `nipa help nope` gets the main page. */
-const helpPath = (
-  table: ReadonlyMap<string, Command>,
-  words: readonly string[]
-): CommandPath | undefined => {
-  const [first, second] = words;
-  const command = first === undefined ? undefined : table.get(first);
-  if (!command) {
-    return undefined;
-  }
-  const leaf =
-    command.kind === "group" && second !== undefined
-      ? command.subcommands.get(second)
-      : undefined;
-  return command.kind === "group" && leaf
-    ? [command.spec, leaf.spec]
-    : [command.spec];
-};
-
 const editDistance = (a: string, b: string): number => {
   let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i += 1) {
@@ -201,6 +182,38 @@ const unknownCommand = (input: {
 };
 
 /**
+ * The page `nipa help <words>` names: `nipa help server ls` names the ls
+ * page, `nipa help server` the group's, and no word the main page (undefined).
+ * Words that name nothing are the same errors a command line gets, so a
+ * typo never shows another page. Options after the names are ignored.
+ */
+const helpPath = (input: {
+  program: ProgramSpec;
+  table: ReadonlyMap<string, Command>;
+  words: readonly string[];
+}): CommandPath | undefined => {
+  const { program, table } = input;
+  const { rest } = takeGlobals({ unknown: "stop", words: input.words });
+  const end = rest.findIndex((word) => word.startsWith("-"));
+  const [first, second] = end === -1 ? rest : rest.slice(0, end);
+  if (first === undefined) {
+    return undefined;
+  }
+  const command = table.get(first);
+  if (!command) {
+    throw unknownCommand({ program, word: first });
+  }
+  if (command.kind !== "group" || second === undefined) {
+    return [command.spec];
+  }
+  const leaf = command.subcommands.get(second);
+  if (!leaf) {
+    throw unknownSubcommand(command, second);
+  }
+  return [command.spec, leaf.spec];
+};
+
+/**
  * Runs the command argv names. Throws CliError for usage errors, which
  * src/index.ts prints with exit code 2, and lets handler errors through.
  * Sets the JSON mode of ui.ts, which src/index.ts reads to print a failure.
@@ -218,7 +231,8 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   const table = indexCommands(input.program);
   const front = takeGlobals({ unknown: "reject", words: input.argv });
   setRunScope(scopeOf({ globals: front.globals, program: spec }));
-  if (front.globals.version) {
+  // Help wins over the version, so `nipa --version --help` shows the page.
+  if (front.globals.version && !front.globals.help) {
     return print(input.version);
   }
   const [word, ...after] = front.rest;
@@ -226,7 +240,7 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     return print(mainHelp({ program: spec, version: input.version }));
   }
   if (word === "help") {
-    const path = helpPath(table, after);
+    const path = helpPath({ program: spec, table, words: after });
     return print(
       path
         ? commandHelp(path)
@@ -273,21 +287,25 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     command.kind === "group"
       ? pickSubcommand(command, after)
       : { kind: "leaf", leaf: command, path: [command.spec], words: after };
-  // Help wins over any other word after the command:
-  // `nipa server nope --help` shows the server page.
-  if (front.globals.help || asksForHelp(after)) {
-    return print(
-      commandHelp(resolved.kind === "leaf" ? resolved.path : [command.spec])
-    );
-  }
+  // A word that names no subcommand fails even with --help: a page for
+  // `nipa server nope --help` would be some other command's.
   if (resolved.kind === "unknown") {
     throw unknownSubcommand(resolved.group, resolved.word);
+  }
+  // Help wins over any other word after the command and over --version.
+  if (front.globals.help || asksForHelp(after)) {
+    return print(commandHelp(resolved.path));
   }
   const prepared = resolved.leaf.prepare({
     path: resolved.path,
     words: resolved.words,
   });
   const globals = { ...front.globals, ...prepared.globals };
+  // `nipa whoami --version` and `nipa server stop web -y -v` print the
+  // version and stop, before anything makes a client or a request.
+  if (globals.version) {
+    return print(input.version);
+  }
   setRunScope(scopeOf({ globals, path: resolved.path, program: spec }));
   if (globals.project !== undefined && projectUseOf(resolved.path) === false) {
     throw usageError(

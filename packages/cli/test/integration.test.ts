@@ -175,6 +175,54 @@ describe("help and usage", () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
+  test.each([
+    [["--help", "--version"]],
+    [["--version", "--help"]],
+    [["-v", "-h"]],
+  ])("--help wins over --version: %j", async (args) => {
+    const { code, stdout } = await run(args);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Usage: nipa [options] <command>");
+  });
+
+  test("--help wins over --version after a command too", async () => {
+    const page = await run(["server", "stop", "--version", "--help"]);
+    expect(page.code).toBe(0);
+    expect(page.stdout).toContain("Usage: nipa server stop <server>");
+  });
+
+  test("--version after a command prints only the version and runs nothing", async () => {
+    const before = keystone.requests.length;
+    const results = await Promise.all([
+      run(["whoami", "--version"]),
+      run(["server", "stop", "web-1", "-y", "-v"]),
+    ]);
+    for (const { code, stderr, stdout } of results) {
+      expect(code).toBe(0);
+      expect(stdout.trim()).toBe(pkg.version);
+      expect(stderr).toBe("");
+    }
+    expect(keystone.requests).toHaveLength(before);
+  });
+
+  test.each([
+    [["help", "nope"], 'unknown command "nope"'],
+    [["help", "server", "nope"], 'unknown subcommand "server nope"'],
+    [["server", "nope", "--help"], 'unknown subcommand "server nope"'],
+    [["nope", "--help"], 'unknown command "nope"'],
+  ])("a help path that names nothing fails: %j", async (args, message) => {
+    const { code, stderr, stdout } = await run(args);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(stderr).toContain(message);
+  });
+
+  test("help alone is the main page", async () => {
+    const { code, stdout } = await run(["help"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Usage: nipa [options] <command>");
+  });
+
   test("a mistyped command suggests the closest one", async () => {
     const { code, stderr } = await run(["logn"]);
     expect(code).toBe(2);
