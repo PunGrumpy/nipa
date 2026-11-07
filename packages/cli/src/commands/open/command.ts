@@ -22,7 +22,7 @@ export const openCommand = defineCommand({
     { arity: "optional", name: "name", value: { kind: "text" } },
   ],
   description:
-    "Opens the Nipa Cloud Space portal of the profile this run uses, like the Vercel CLI's `vercel open`. Name a kind of resource, `server`, `volume`, `network`, `sg`, `lb` or `db`, to open its list, and a name or ID after it to open that resource's page, which needs a session. The portal keeps its own login and opens the project you last used in it, so a link can't pick the project. When the output goes to a pipe, or with `--url`, nipa prints only the URL and doesn't open a browser.",
+    "Opens the Nipa Cloud Space portal of the profile this run uses, like the Vercel CLI's `vercel open`. Name a kind of resource, `server`, `volume`, `network`, `sg`, `lb` or `db`, to open its list, and a name or ID after it to open that resource's page, which needs a session. The portal keeps its own login and opens the project you last used in it, so a link or `--project` can't pick the project: nipa names the one to switch to there, and `--project` must name a project you can use. When the output goes to a pipe, or with `--url`, nipa prints only the URL and doesn't open a browser.",
   examples: [
     {
       command: "nipa open",

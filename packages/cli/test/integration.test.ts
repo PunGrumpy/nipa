@@ -3691,6 +3691,17 @@ describe("ip ls", () => {
   });
 });
 
+// A browser that does nothing, so a test can run `open` on a terminal.
+const installOpeners = async () => {
+  await mkdir(inDir("bin"), { recursive: true });
+  await Promise.all(
+    ["open", "xdg-open"].map(async (name) => {
+      await writeFile(inDir("bin", name), "#!/bin/sh\nexit 0\n");
+      await chmod(inDir("bin", name), 0o755);
+    })
+  );
+};
+
 describe("open", () => {
   test("prints the portal's project page to a pipe, without a session", async () => {
     await freshDir();
@@ -3752,6 +3763,31 @@ describe("open", () => {
       );
       expect(stderr).toContain("Run `nipa lb ls` to see your load balancers.");
       expect(stdout).toBe("");
+    });
+
+    test("-p names the project to switch to in the portal, and checks it exists", async () => {
+      await installOpeners();
+      const piped = await run(["-p", "Beta", "open", "--url"]);
+      expect(piped.code).toBe(0);
+      expect(piped.stdout).toBe(`${keystone.url}/project\n`);
+      expect(piped.stderr).toBe("> Using project Beta\n");
+      const terminal = await runOnTerminals({
+        args: ["-p", "Beta", "open"],
+        env: testEnv(dir),
+        terminals: ["stdout", "stderr"],
+      });
+      expect(terminal.code).toBe(0);
+      expect(terminal.stderr).toContain("Switch to Beta there");
+      expect(terminal.stderr).not.toContain("Alpha");
+      const saved = await run(["open", "--url"]);
+      expect(saved.stderr).toBe("");
+    });
+
+    test("-p with a project that doesn't exist fails before opening anything", async () => {
+      const { code, stderr, stdout } = await run(["-p", "Nope", "open"]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain('no project named or with ID "Nope"');
     });
 
     test("an unknown kind of resource exits 2 and lists the kinds", async () => {

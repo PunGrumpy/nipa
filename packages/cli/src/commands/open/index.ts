@@ -3,6 +3,7 @@ import { openInBrowser } from "../../util/browser";
 import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
 import { announceProfile, requireSpaceUrl } from "../../util/session";
+import type { ActiveProfile } from "../../util/session";
 import { bold, cyan, log } from "../../util/ui";
 import { openCommand } from "./command";
 import type { Resource } from "./command";
@@ -13,6 +14,22 @@ interface Target {
   readonly path: string;
   readonly projectName: string | undefined;
 }
+
+/**
+ * The project the portal should show. A `--project` is checked against the
+ * session, which also reports its real name. Without one, a link or the
+ * saved profile names it, and nothing needs a session.
+ */
+const portalProject = async (
+  client: Client,
+  active: ActiveProfile
+): Promise<string | undefined> => {
+  if (client.project !== undefined) {
+    const { session } = await client.session();
+    return session.project.name;
+  }
+  return active.link?.link.project.name ?? active.profile.project?.name;
+};
 
 /** Only a named resource needs the session, to find its ID. */
 const resolveTarget = async (
@@ -31,7 +48,7 @@ const resolveTarget = async (
   announceProfile(active);
   return {
     path: resource === undefined ? HOME : PAGES[resource].list,
-    projectName: active.link?.link.project.name ?? active.profile.project?.name,
+    projectName: await portalProject(client, active),
     spaceUrl,
   };
 };
