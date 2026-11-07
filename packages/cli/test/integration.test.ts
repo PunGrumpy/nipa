@@ -2594,6 +2594,31 @@ describe("--project against other Keystones", () => {
     }
   });
 
+  test("an expired session under -p without a terminal asks for a login, and saves nothing", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.prod.expiresAt = new Date(Date.now() - 60_000).toISOString();
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const before = await savedFiles();
+    const { code, stderr, stdout } = await run([
+      "-p",
+      "Beta",
+      "server",
+      "ls",
+      "--json",
+    ]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(JSON.parse(stderr)).toEqual({
+      message: "your prod session expired",
+      next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+      reason: "token_expired",
+      status: "action_required",
+    });
+    expect(await savedFiles()).toEqual(before);
+  });
+
   test("a revoked session under -p keeps the login recovery, by name or ID", async () => {
     await freshDir();
     await seedSession(dir, keystone.url);
