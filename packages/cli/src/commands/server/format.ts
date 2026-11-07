@@ -12,13 +12,19 @@ export const mainAddress = (server: Server): string | undefined => {
   return best?.address;
 };
 
-/** The server's name, and a dim "(Kubernetes master)" on a cluster's node. */
+/**
+ * The server's name, and a dim "(Kubernetes master)" on a cluster's node,
+ * which shortens to "(master)" in a table that is too wide.
+ */
 export const nameCell = (server: Server): Cell => {
   if (!server.kubernetes) {
     return { text: server.name };
   }
   const role = server.kubernetes.role ?? "node";
-  return withDetail(server.name, ` (Kubernetes ${role})`);
+  return {
+    ...withDetail(server.name, ` (Kubernetes ${role})`),
+    short: withDetail(server.name, ` (${role})`),
+  };
 };
 
 export const addressCells = (server: Server): Cell[] => {

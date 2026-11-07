@@ -160,9 +160,9 @@ const FEATURES = [
     Icon: BracesIcon,
     body: (
       <>
-        Tables for people, IDs for scripts. In a pipe, a list prints one ID per
-        line, and <span className="whitespace-nowrap">--json</span> prints all
-        of it.
+        Tables for people, lines for scripts. In a pipe, a list prints lines
+        that grep and cut can read, and{" "}
+        <span className="whitespace-nowrap">--json</span> prints all of it.
       </>
     ),
     command: "nipa server ls --json",

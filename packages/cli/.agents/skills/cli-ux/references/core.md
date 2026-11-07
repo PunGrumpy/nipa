@@ -6,7 +6,7 @@ These rules cover the flow, streams, layout, errors and safety of every nipa com
 
 nipa writes results and messages to different streams, so a pipe gets only data:
 
-- **stdout**: the command's result, through `client.stdout`: `json()` for `--json`, `line()` for bare values such as one server ID per line, and `write()` for raw text
+- **stdout**: the command's result, through `client.stdout`: `json()` for `--json`, `line()` for bare values such as one volume ID per line or a table's tab-separated rows, and `write()` for raw text
 - **stderr**: everything else: notes, success lines, errors, spinners, tables, prompts, debug lines and the update notice (two lines, shown only when nipa can prompt). Under `--json`, stderr carries only a failure's error document and `--debug` lines. See [Machine errors](#machine-errors)
 
 Command folders never call `console.*`. `test/unit/commands/index.test.ts` fails when they do.
@@ -15,7 +15,9 @@ A command picks its stdout shape from the mode:
 
 - With `--json`, stdout carries one JSON document, indented by 2, and nothing else. `run()` turns on JSON mode for the whole run, in which `log`, `success`, `note`, `printTable`, `printFields` and the spinner write nothing, so a success leaves stderr empty. `--debug` lines still write. A passthrough command (`os`, `tf`, `exec`) turns the mode off, because a `--json` after its name belongs to its program
 - In a terminal without `--json`, the result is a human table or a set of `log` lines on stderr, and stdout stays empty
-- In a pipe without `--json` (`client.stdout.isTTY` is false), stdout carries the bare values a script needs, one per line, such as `nipa server ls` printing IDs and `nipa whoami` printing the user name
+- In a pipe without `--json` (`client.stdout.isTTY` is false), stdout carries the bare values a script needs, one per line, such as `nipa volume ls` printing IDs and `nipa whoami` printing the user name
+- `nipa server ls` is the first list command on the tab-separated form in Vercel's CLI guideline. In a pipe, stdout holds a header and one line per row, with one tab between fields, no padding, ISO times and no decoration such as a Kubernetes role, and stderr holds only the context line. An empty list prints the header alone with exit 0. `tabSeparated` in `src/util/ui.ts` writes it. A new or changed list command should follow it, and say in its changeset that a script reads the rows with `tail -n +2 | cut -f1` or with `--json`. The other list commands keep bare IDs until someone moves them on purpose
+- In a terminal, a table that is wider than stderr's `columns` (80 when unknown) gives way in order: it drops its droppable columns, then uses its cells' `short` forms, then prints a record per row, the name on one line and the required columns beneath. It never truncates a name, an ID or an address. Pass `fit: { width, droppable }` to `printTable` to opt in
 
 Some commands exist to print for a pipe or `eval`, such as `nipa env` and `nipa completion`. They write their whole result to stdout in every mode.
 
@@ -169,7 +171,7 @@ Treat these as contracts. Change them only with a migration, tests, and a change
 - The files in the config directory and their JSON shape
 - `--json` field names and meanings. Add fields freely, but don't rename or remove them
 - The error document under `--json`: one line on stderr with `status`, `reason`, `message`, and `hint` and `next` when they apply, an empty stdout, and the `reason` codes. Add codes and fields freely, but don't rename or remove them
-- The bare values that piped stdout prints
+- The bare values that piped stdout prints, and a tab-separated table's header and column order
 - The completion scripts that `nipa completion <shell>` prints
 
 Human output on stderr may change for clarity, as long as the tests change with it.

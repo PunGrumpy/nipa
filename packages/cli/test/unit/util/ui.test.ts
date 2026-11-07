@@ -16,6 +16,7 @@ import {
   setAnimation,
   setJsonMode,
   success,
+  tabSeparated,
   withSpinner,
   withDetail,
   writeStderr,
@@ -189,6 +190,20 @@ describe("what reaches stderr", () => {
     expect(lines[3]).toContain("db-1");
   });
 
+  test("a cell's short form can't forge a row either", () => {
+    printTable({
+      fit: { droppable: [], width: 10 },
+      headings: ["Name", "Status"],
+      rows: [
+        [
+          { short: { text: "a\nFORGED" }, text: "a-long-name-here" },
+          { text: "up" },
+        ],
+      ],
+    });
+    expect(written.join("")).not.toContain("\nFORGED");
+  });
+
   test("a table cell can't carry an escape, even SGR, from a remote name", () => {
     printTable({
       headings: ["Name"],
@@ -343,5 +358,28 @@ describe("prompts", () => {
     expect(await answer).toBe(1);
     expect(output()).toContain("evil");
     expect(output()).not.toContain(`${ESC}]0;`);
+  });
+});
+
+describe("tabSeparated", () => {
+  test("is the header and one tab-separated line per row, with no padding", () => {
+    expect(
+      tabSeparated(
+        ["ID", "Name", "Address"],
+        [
+          ["1", "web-1", ""],
+          ["2", "db", "addr-2"],
+        ]
+      )
+    ).toBe("ID\tName\tAddress\n1\tweb-1\t\n2\tdb\taddr-2");
+  });
+
+  test("a value can't add a field, a row or an escape", () => {
+    const out = tabSeparated(["Name"], [[`a\tb\nc${ESC}[2Jd`]]);
+    expect(out).toBe(["Name", String.raw`a\tb\ncd`].join("\n"));
+  });
+
+  test("an empty list is the header alone", () => {
+    expect(tabSeparated(["ID", "Name"], [])).toBe("ID\tName");
   });
 });
