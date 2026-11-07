@@ -15,7 +15,7 @@
     "typecheck": "next typegen && tsc-ts --noEmit"
   },
   "dependencies": {
-    "geist": "1.7.2",
+    "geist": "1.9.2",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
