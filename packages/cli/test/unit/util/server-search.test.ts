@@ -379,6 +379,18 @@ describe("searchProjects against a fake Keystone", () => {
     });
   });
 
+  // The fake sees an abort a moment after the client sends it.
+  const abortedBy = async (label: string, tries = 100): Promise<boolean> => {
+    if (keystone.aborted.includes(label)) {
+      return true;
+    }
+    if (tries === 0) {
+      return false;
+    }
+    await Bun.sleep(10);
+    return abortedBy(label, tries - 1);
+  };
+
   describe("with a project that never answers", () => {
     beforeAll(async () => {
       await start({
@@ -408,6 +420,30 @@ describe("searchProjects against a fake Keystone", () => {
       // searched the seven others in the meantime.
       expect(elapsed).toBeGreaterThanOrEqual(400);
       expect(elapsed).toBeLessThan(900);
+      // The deadline cancels the request itself, not only the wait for it.
+      expect(await abortedBy(`GET /api/v3/instances ${GAMMA_ID}`)).toBe(true);
+      expect(keystone.aborted.filter((a) => a.includes(BETA_ID))).toEqual([]);
+    });
+  });
+
+  describe("with a project whose token exchange never answers", () => {
+    beforeAll(async () => {
+      await start({
+        extraProjects: EXTRA,
+        projects: { hangExchange: [GAMMA_ID], latencyMs: 20 },
+      });
+    });
+
+    test("aborts the exchange at the deadline and searches the others", async () => {
+      const outcomes = await search("web", { deadlineMs: 400, limit: 2 });
+      const gamma = outcomes.find(({ project }) => project.id === GAMMA_ID);
+      expect(gamma).toMatchObject({
+        failure: { message: "didn't answer in 400ms", status: null },
+      });
+      expect(outcomes.filter((o) => "servers" in o)).toHaveLength(
+        projects.length - 1
+      );
+      expect(await abortedBy(`POST /v3/auth/tokens ${GAMMA_ID}`)).toBe(true);
     });
   });
 

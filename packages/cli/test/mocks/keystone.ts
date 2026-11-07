@@ -59,13 +59,15 @@ const USERS = new Map([
 /**
  * Servers for projects other than the owner, so a search finds something in
  * several. A project here answers the server list with these, and a project
- * in `fail` answers it with that status. A project in `hang` never answers.
- * Each answer waits `latencyMs`.
+ * in `fail` answers it with that status. A project in `hang` never answers
+ * the server list, and one in `hangExchange` never answers the token exchange
+ * that scopes to it. Each answer waits `latencyMs`.
  */
 export interface FakeProjects {
   servers?: Readonly<Record<string, readonly object[]>>;
   fail?: Readonly<Record<string, number>>;
   hang?: readonly string[];
+  hangExchange?: readonly string[];
   latencyMs?: number;
 }
 
@@ -74,6 +76,11 @@ export interface FakeKeystone {
   requests: string[];
   /** The most token exchanges and server lists that were open at once. */
   peakInFlight: () => number;
+  /**
+   * The requests whose client gave up while the fake still waited, as
+   * "POST /v3/auth/tokens {project}" or "GET /api/v3/instances {project}".
+   */
+  aborted: string[];
   /** Space API routes to fail, as "GET /api/v4/instances/{id}" to a status. */
   faults: Faults;
   stop: () => void;
@@ -170,6 +177,7 @@ export const startFakeKeystone = (
   const tokens = new Map<string, typeof FAKE_USER>();
   const receipts = new Map<string, typeof FAKE_USER>();
   const requests: string[] = [];
+  const aborted: string[] = [];
   const statuses = fakeStatuses();
   const faults: Faults = new Map();
 
@@ -284,23 +292,45 @@ export const startFakeKeystone = (
   };
   // stop() ends the waits, so a hung project doesn't keep the process alive.
   const stopped = new AbortController();
-  const wait = async (ms: number): Promise<void> => {
+  // A request whose client aborted is recorded under `label`, so a test can
+  // tell an abort that reached the request from one that never did.
+  const wait = async (
+    ms: number,
+    request?: { req: Request; label: string }
+  ): Promise<void> => {
+    const signals = request
+      ? [stopped.signal, request.req.signal]
+      : [stopped.signal];
     try {
-      await delay(ms, undefined, { signal: stopped.signal });
+      await delay(ms, undefined, { signal: AbortSignal.any(signals) });
     } catch {
-      // The fake stopped while a request waited.
+      // The fake stopped, or the client gave up, while a request waited.
+      if (request?.req.signal.aborted) {
+        aborted.push(request.label);
+      }
     }
   };
-  const { fail = {}, hang = [], latencyMs = 0 } = fakeProjects;
+  const {
+    fail = {},
+    hang = [],
+    hangExchange = [],
+    latencyMs = 0,
+  } = fakeProjects;
 
-  const serverList = (projectId: string): Promise<Response> | null => {
+  const serverList = (
+    req: Request,
+    projectId: string
+  ): Promise<Response> | null => {
     const given = fakeProjects.servers?.[projectId];
     const status = fail[projectId];
     if (!(given || status || hang.includes(projectId))) {
       return null;
     }
     return tracked(async () => {
-      await wait(hang.includes(projectId) ? HANG_MS : latencyMs);
+      await wait(hang.includes(projectId) ? HANG_MS : latencyMs, {
+        label: `GET /api/v3/instances ${projectId}`,
+        req,
+      });
       if (status !== undefined) {
         return spaceFault(status, "You are not allowed to list servers");
       }
@@ -316,7 +346,7 @@ export const startFakeKeystone = (
       return spaceFault(401, "The requested resource requires authorization.");
     }
     if (new URL(req.url).pathname === "/api/v3/instances") {
-      const own = await serverList(req.headers.get("Project-Id") ?? "");
+      const own = await serverList(req, req.headers.get("Project-Id") ?? "");
       if (own) {
         return own;
       }
@@ -331,12 +361,23 @@ export const startFakeKeystone = (
       return Response.json({ version: { id: "v3.14", status: "stable" } });
     }
     if (pathname === "/v3/auth/tokens") {
-      return req.method === "POST" && latencyMs > 0
-        ? tracked(async () => {
-            await wait(latencyMs);
-            return authTokens(req);
-          })
-        : authTokens(req);
+      if (
+        req.method !== "POST" ||
+        (latencyMs === 0 && hangExchange.length === 0)
+      ) {
+        return authTokens(req);
+      }
+      return tracked(async () => {
+        const parsed = AuthSchema.safeParse(await req.clone().json());
+        const projectId = parsed.success
+          ? (parsed.data.auth.scope?.project.id ?? "")
+          : "";
+        await wait(hangExchange.includes(projectId) ? HANG_MS : latencyMs, {
+          label: `POST ${pathname} ${projectId}`,
+          req,
+        });
+        return authTokens(req);
+      });
     }
     if (pathname !== "/v3/auth/projects") {
       return new Response("not found", { status: 404 });
@@ -358,6 +399,7 @@ export const startFakeKeystone = (
   });
 
   return {
+    aborted,
     faults,
     peakInFlight: () => peak,
     requests,
