@@ -690,7 +690,7 @@ const pwshBody = (spec: CommandSpec, pad: string): string => {
     const arms = subs
       .map((sub) => {
         const body = pwshBody(sub, `${pad}    `);
-        return `${pad}    { $_ -in ${pwshList(namesOf(sub))} } {\n${pad}      $c += 1\n${body}\n${pad}    }`;
+        return `${pad}    { $_ -cin ${pwshList(namesOf(sub))} } {\n${pad}      $c += 1\n${body}\n${pad}    }`;
       })
       .join("\n");
     return [
@@ -710,7 +710,7 @@ const pwshBody = (spec: CommandSpec, pad: string): string => {
     return values === undefined
       ? []
       : [
-          `if ($prev -in ${pwshList(flagWords(flag))}) { return Complete ${values} }`,
+          `if ($prev -cin ${pwshList(flagWords(flag))}) { return Complete ${values} }`,
         ];
   });
   lines.push(
@@ -733,14 +733,14 @@ const pwsh = (program: ProgramSpec): string => {
     const offer = globalValues(flag);
     return offer
       ? [
-          `    if ($prev -in ${pwshList(flagWords(flag))}) { return Complete (Dynamic ${offer.kind}) }`,
+          `    if ($prev -cin ${pwshList(flagWords(flag))}) { return Complete (Dynamic ${offer.kind}) }`,
         ]
       : [];
   }).join("\n");
   const arms = shown
     .map(
       (spec) =>
-        `    { $_ -in ${pwshList(namesOf(spec))} } {\n${pwshBody(spec, "    ")}\n    }`
+        `    { $_ -cin ${pwshList(namesOf(spec))} } {\n${pwshBody(spec, "    ")}\n    }`
     )
     .join("\n");
   return `# nipa completion for PowerShell
@@ -768,7 +768,7 @@ ${commands}
   $c = 1
   $command = $null
   while ($c -lt $index) {
-    if ($words[$c] -in ${pwshList(VALUED_WORDS)}) { $c += 2 }
+    if ($words[$c] -cin ${pwshList(VALUED_WORDS)}) { $c += 2 }
     elseif ($words[$c] -like '-*') { $c += 1 }
     else { $command = $words[$c]; break }
   }
