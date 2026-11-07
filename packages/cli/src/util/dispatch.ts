@@ -189,10 +189,38 @@ const unknownCommand = (input: {
 };
 
 /**
+ * The words of `nipa help <words>` that name a page. Options before the
+ * first name are skipped, known or not: `help --json server`, `help -P x
+ * server`, `help --bogus server` and `help -y server stop` all name the
+ * server page. A word after an unknown option belongs to the page path,
+ * since nipa can't know whether that option takes a value. Options after a
+ * name end the path, and a `--` ends the options: what follows it is a name
+ * even when it starts with a dash.
+ */
+const helpNames = (words: readonly string[]): readonly string[] => {
+  let rest = words;
+  for (;;) {
+    ({ rest } = takeGlobals({ unknown: "stop", words: rest }));
+    const [word] = rest;
+    if (word === "--") {
+      return rest.slice(1);
+    }
+    if (word === undefined || word === "-" || !word.startsWith("-")) {
+      break;
+    }
+    rest = rest.slice(1);
+  }
+  const end = rest.findIndex((word) => word.startsWith("-"));
+  return end === -1 ? rest : rest.slice(0, end);
+};
+
+/**
  * The page `nipa help <words>` names: `nipa help server ls` names the ls
  * page, `nipa help server` the group's, and no word the main page (undefined).
  * Words that name nothing are the same errors a command line gets, so a
- * typo never shows another page. Options after the names are ignored.
+ * typo never shows another page. Names after the first one that names a
+ * leaf, and options after the names, are ignored, as `nipa whoami nope
+ * --help` ignores `nope`.
  */
 const helpPath = (input: {
   program: ProgramSpec;
@@ -200,9 +228,7 @@ const helpPath = (input: {
   words: readonly string[];
 }): CommandPath | undefined => {
   const { program, table } = input;
-  const { rest } = takeGlobals({ unknown: "stop", words: input.words });
-  const end = rest.findIndex((word) => word.startsWith("-"));
-  const [first, second] = end === -1 ? rest : rest.slice(0, end);
+  const [first, second] = helpNames(input.words);
   if (first === undefined) {
     return undefined;
   }

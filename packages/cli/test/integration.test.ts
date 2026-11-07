@@ -226,6 +226,21 @@ describe("help and usage", () => {
     expect(stderr).toContain(message);
   });
 
+  test.each([
+    [["help", "--json", "server"], "Usage: nipa server [ls|search"],
+    [["help", "--bogus", "server"], "Usage: nipa server [ls|search"],
+    [["help", "-y", "server", "stop"], "Usage: nipa server stop <server>"],
+    [["help", "--", "server"], "Usage: nipa server [ls|search"],
+  ])(
+    "options before the name of a help page are skipped: %j",
+    async (args, usage) => {
+      const { code, stdout } = await run(args);
+      expect(code).toBe(0);
+      expect(stdout).toContain(usage);
+      expect(stdout).not.toContain("Usage: nipa [options] <command>");
+    }
+  );
+
   test("help alone is the main page", async () => {
     const { code, stdout } = await run(["help"]);
     expect(code).toBe(0);

@@ -570,6 +570,65 @@ describe("help and version, on the real table", () => {
     const sub = await usage(["help", "server", "stap"], realProgram);
     expect(sub.hint).not.toContain("`");
   });
+  test.each([
+    [
+      ["help", "--json", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "--bogus", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "-y", "server", "stop"],
+      ["help", "server", "stop"],
+    ],
+    [
+      ["help", "--", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "--", "server", "stop"],
+      ["help", "server", "stop"],
+    ],
+    [
+      ["help", "-P", "x", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "-p", "x", "--json", "server", "ls"],
+      ["help", "server", "ls"],
+    ],
+    [
+      ["help", "--json", "--bogus", "-y", "whoami"],
+      ["help", "whoami"],
+    ],
+    [
+      ["help", "server", "--json", "ls"],
+      ["help", "server"],
+    ],
+    [["help", "--json"], []],
+    [["help", "--bogus"], []],
+    [["help", "--"], []],
+  ])(
+    "options before the name of a help page are skipped: %j",
+    async (argv, same) => {
+      expect(await text(argv)).toBe(await text(same));
+    }
+  );
+  test("a name after the options is checked like any other", async () => {
+    expect(await usage(["help", "--json", "nope"], realProgram)).toMatchObject({
+      code: 2,
+      message: 'unknown command "nope"',
+    });
+    expect(
+      await usage(["help", "--bogus", "server", "nope"], realProgram)
+    ).toMatchObject({ code: 2, message: 'unknown subcommand "server nope"' });
+    expect(await usage(["help", "--", "-x"], realProgram)).toMatchObject({
+      code: 2,
+      message: 'unknown command "-x"',
+    });
+  });
   test("help names only commands that exist", async () => {
     expect(await usage(["help", "nope"], realProgram)).toMatchObject({
       code: 2,
