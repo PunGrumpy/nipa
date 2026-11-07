@@ -981,6 +981,22 @@ describe("a failed --json command that names a resource", () => {
     expect(stdout).toBe("out:--json server list\n");
     expect(stderr).toBe("err:--json server list\n");
   });
+
+  test("os -v and --version go to openstack, not to nipa", async () => {
+    await mkdir(inDir("bin"), { recursive: true });
+    await writeFile(inDir("bin", "openstack"), '#!/bin/sh\necho "out:$*"\n');
+    await chmod(inDir("bin", "openstack"), 0o755);
+    const flags = ["-v", "--version"];
+    const results = await Promise.all(flags.map((flag) => run(["os", flag])));
+    for (const [i, { code, stderr, stdout }] of results.entries()) {
+      expect(code).toBe(0);
+      expect(stdout).toBe(`out:${flags[i]}\n`);
+      expect(stderr).not.toContain(pkg.version);
+    }
+    // Before the command, the flag is nipa's.
+    const own = await run(["-v", "os"]);
+    expect(own.stdout.trim()).toBe(pkg.version);
+  });
 });
 
 describe("profiles", () => {
