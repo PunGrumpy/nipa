@@ -36,7 +36,13 @@ import {
   readFakeKeychain,
   writeFakeKeychain,
 } from "./mocks/keychain";
-import { FAKE_USER, startFakeKeystone, TWIN_BETA_ID } from "./mocks/keystone";
+import {
+  BETA_ID,
+  FAKE_USER,
+  HEX_NAMED,
+  startFakeKeystone,
+  TWIN_BETA_ID,
+} from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import {
   FAKE_CONSOLE_LOG,
@@ -2085,7 +2091,6 @@ describe("doctor", () => {
 });
 
 describe("--project", () => {
-  const BETA_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
   const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
   beforeAll(async () => {
@@ -2193,7 +2198,8 @@ describe("--project", () => {
     });
   });
 
-  test("an ID the account can't use fails under --json with one document", async () => {
+  test("an ID no project has is not_found, and lists the projects", async () => {
+    const lists = projectLists();
     const { code, stderr, stdout } = await run([
       "-p",
       "e".repeat(32),
@@ -2203,9 +2209,13 @@ describe("--project", () => {
     ]);
     expect(code).toBe(1);
     expect(stdout).toBe("");
-    expect(JSON.parse(stderr).message).toBe(
-      `can't use project ${"e".repeat(32)}`
-    );
+    expect(projectLists()).toBe(lists + 1);
+    expect(JSON.parse(stderr)).toMatchObject({
+      hint: "Your projects: Alpha, Beta",
+      message: `no project named or with ID "${"e".repeat(32)}"`,
+      reason: "not_found",
+      status: "error",
+    });
   });
 
   test("-p with -P uses that profile's session and the named project", async () => {
@@ -2263,8 +2273,68 @@ describe("--project", () => {
   });
 });
 
+describe("--project against other Keystones", () => {
+  test("an ID that Keystone lists but won't scope to is can't-use, not not_found", async () => {
+    const strict = startFakeKeystone({ gateway: true, refuse: [BETA_ID] });
+    try {
+      await freshDir();
+      await seedSession(dir, strict.url);
+      const { code, stderr } = await run(["-p", BETA_ID, "server", "ls"]);
+      expect(code).toBe(1);
+      expect(stderr).toContain("Error: can't use project Beta");
+      expect(stderr).not.toContain("no project named");
+    } finally {
+      strict.stop();
+    }
+  });
+
+  test("a project named like an ID is found by its name", async () => {
+    const hex = startFakeKeystone({ gateway: true, hexNamed: true });
+    try {
+      await freshDir();
+      await seedSession(dir, hex.url);
+      const { code, stderr, stdout } = await run(["-p", HEX_NAMED.name, "env"]);
+      expect(code).toBe(0);
+      expect(stdout).toContain(`OS_PROJECT_ID='${HEX_NAMED.id}'`);
+      expect(stderr).toContain(`Using project ${HEX_NAMED.name}`);
+    } finally {
+      hex.stop();
+    }
+  });
+
+  test("a revoked session under -p keeps the login recovery, by name or ID", async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+    const { sessions } = await readJsonFile("auth.json");
+    const token: string = sessions.prod.token;
+    await fetch(`${keystone.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const results = await Promise.all(
+      ["Beta", BETA_ID].map((wanted) =>
+        run(["-p", wanted, "server", "ls", "--json"])
+      )
+    );
+    for (const { code, stderr, stdout } of results) {
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(JSON.parse(stderr)).toMatchObject({
+        message: "your prod session expired or was revoked",
+        next: [{ argv: ["nipa", "login"], command: "nipa login" }],
+        reason: "token_expired",
+        status: "action_required",
+      });
+    }
+    const human = await run(["-p", "Beta", "server", "ls"]);
+    expect(human.stderr).toContain(
+      "Error: your prod session expired or was revoked"
+    );
+    expect(human.stderr).toContain("> Run `nipa login`.");
+  });
+});
+
 describe("link", () => {
-  const BETA_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
   const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
   beforeAll(async () => {

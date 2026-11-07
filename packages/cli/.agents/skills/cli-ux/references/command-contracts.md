@@ -58,15 +58,17 @@ The global `-p, --project <name or ID>` picks the project for one run, so a pers
 Rules:
 
 - The order is `--project`, then the folder's link, then the saved session's project. `--project` applies to whichever profile the run picked, and it is never saved: not to the session, not to the config, not to a link
-- A 32-character ID needs no project list. A name costs one `listProjects` call. Keystone's token then names the project, so the context line reads `Using project Beta`, in the form of the linked case without a file path. A project that is already the session's prints no line and costs no exchange
+- A 32-character ID is tried first with no project list, and a name costs one `listProjects` call. Keystone's token then names the project, so the context line reads `Using project Beta`, in the form of the linked case without a file path. A project that is already the session's prints no line and costs no exchange
 - A name that matches nothing fails with exit code 1, `reason: "not_found"`, and the list of project names, and never falls back to another project. Not found is exit code 1 in the guideline's table, like an unknown server or profile. A name that two projects share fails with `ambiguous_name` and lists their IDs. An ID wins over a name
-- An ID that Keystone refuses to scope to fails with `can't use project <id>` and exit code 1, because only the list can tell a missing project from a revoked session
+- When Keystone refuses to scope to a 32-character value, nipa lists the projects, because only the list can tell the cases apart: no project has it (`not_found`, with the list), a project is named like an ID (it uses that project), the project is listed but Keystone refuses it (`can't use project Beta`, exit code 1), or the session was revoked (the list answers 401, so `token_expired` with `nipa login`)
+- A revoked session fails the same way for a name, because `listProjects` runs inside `guardSession`
 - `login` keeps its meaning: `--project` names the project to scope the token to and save. `switch` and `link` take the project as an argument and read the saved session, so they ignore the flag
 - On `os`, `tf` and `exec` the flag works only before the command, because the words after it belong to the program
 
 States to test:
 
-- A name, an ID, the saved project, an unknown name, a name two projects share and an ID the account can't use
+- A name, an ID, the saved project, an unknown name, an unknown ID, a project named like an ID, a name two projects share and an ID that Keystone lists but refuses
+- A revoked session, by name and by ID
 - The flag before and after the command, and before `os`
 - The flag in a linked folder, with the link file and `auth.json` unchanged after the run
 - `-P` with `-p`

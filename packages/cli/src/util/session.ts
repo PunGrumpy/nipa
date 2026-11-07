@@ -466,6 +466,28 @@ const savedSession = async (input: {
   return interactiveLogin({ active, prompts });
 };
 
+/** A 401 means Keystone revoked the token before it expired. */
+const guardSession =
+  (profile: string) =>
+  async <T>(task: () => Promise<T>): Promise<T> => {
+    try {
+      return await task();
+    } catch (error) {
+      const status =
+        error instanceof ApiError || error instanceof KeystoneError
+          ? error.status
+          : undefined;
+      if (status === 401) {
+        throw new CliError(`your ${profile} session expired or was revoked`, {
+          hint: `Run \`${loginLine(profile)}\`.`,
+          next: [loginLine(profile)],
+          reason: "token_expired",
+        });
+      }
+      throw error;
+    }
+  };
+
 /**
  * The project a run uses in place of the saved one, and where it came from.
  * A `--project` beats the folder's link.
@@ -474,27 +496,17 @@ type RunProject =
   | { readonly from: "flag"; readonly wanted: string }
   | { readonly from: "link"; readonly link: FoundLink };
 
-const runProject = async (input: {
-  active: ActiveProfile;
-  session: Session;
-  target: RunProject;
-}): Promise<Project> => {
-  const { target } = input;
-  if (target.from === "link") {
-    return target.link.link.project;
-  }
-  // A 32-character ID needs no lookup. The token Keystone returns names the project.
-  if (PROJECT_ID_PATTERN.test(target.wanted)) {
-    return { id: target.wanted, name: target.wanted };
-  }
-  const projects = await withSpinner("Loading your projects…", () =>
-    listProjects({
-      authUrl: input.active.profile.authUrl,
-      token: input.session.token,
-    })
+// The projects the saved token can list. A revoked session fails here with
+// the login recovery, as it does at the Space API without --project.
+const listedProjects = (active: ActiveProfile, session: Session) =>
+  guardSession(active.name)(() =>
+    withSpinner("Loading your projects…", () =>
+      listProjects({
+        authUrl: active.profile.authUrl,
+        token: session.token,
+      })
+    )
   );
-  return findProject({ projects, wanted: target.wanted });
-};
 
 const unusableProject = (input: {
   active: ActiveProfile;
@@ -513,6 +525,29 @@ const unusableProject = (input: {
       });
 };
 
+// A token for the project, or undefined when Keystone won't scope to it.
+const rescopeTo = async (input: {
+  active: ActiveProfile;
+  project: Project;
+  session: Session;
+}): Promise<Token | undefined> => {
+  const { active, project, session } = input;
+  try {
+    return await withSpinner(`Switching to ${project.name}…`, () =>
+      rescope({
+        authUrl: active.profile.authUrl,
+        projectId: project.id,
+        token: session.token,
+      })
+    );
+  } catch (error) {
+    if (error instanceof KeystoneError && error.status === 401) {
+      return undefined;
+    }
+    throw error;
+  }
+};
+
 /**
  * A token for the run's project, for this run only, so the saved session
  * and other folders keep their project.
@@ -523,24 +558,39 @@ const projectSession = async (input: {
   target: RunProject;
 }): Promise<Session> => {
   const { active, session, target } = input;
-  const project = await runProject(input);
+  const lookup = async (wanted: string): Promise<Project> =>
+    findProject({ projects: await listedProjects(active, session), wanted });
+  // A 32-character ID costs no list: the token Keystone returns names the project.
+  const guessed =
+    target.from === "flag" && PROJECT_ID_PATTERN.test(target.wanted);
+  const first = (): Project | Promise<Project> => {
+    if (target.from === "link") {
+      return target.link.link.project;
+    }
+    return guessed
+      ? { id: target.wanted, name: target.wanted }
+      : lookup(target.wanted);
+  };
+  let project = await first();
   if (project.id === session.project.id) {
     return session;
   }
-  let token: Token;
-  try {
-    token = await withSpinner(`Switching to ${project.name}…`, () =>
-      rescope({
-        authUrl: active.profile.authUrl,
-        projectId: project.id,
-        token: session.token,
-      })
-    );
-  } catch (error) {
-    if (error instanceof KeystoneError && error.status === 401) {
-      throw unusableProject({ active, project, target });
+  let token = await rescopeTo({ active, project, session });
+  if (!token && guessed && target.from === "flag") {
+    // Only the list can tell an unknown ID from a revoked session, and a
+    // project can be named like an ID.
+    const listed = await lookup(target.wanted);
+    if (listed.id === session.project.id) {
+      return session;
     }
-    throw error;
+    token =
+      listed.id === project.id
+        ? undefined
+        : await rescopeTo({ active, project: listed, session });
+    project = listed;
+  }
+  if (!token) {
+    throw unusableProject({ active, project, target });
   }
   const scoped = toSession(token, project);
   const name = bold(scoped.project.name);
@@ -581,28 +631,6 @@ export const requireSession = async (input: {
       : session,
   };
 };
-
-/** A 401 means Keystone revoked the token before it expired. */
-const guardSession =
-  (profile: string) =>
-  async <T>(task: () => Promise<T>): Promise<T> => {
-    try {
-      return await task();
-    } catch (error) {
-      const status =
-        error instanceof ApiError || error instanceof KeystoneError
-          ? error.status
-          : undefined;
-      if (status === 401) {
-        throw new CliError(`your ${profile} session expired or was revoked`, {
-          hint: `Run \`${loginLine(profile)}\`.`,
-          next: [loginLine(profile)],
-          reason: "token_expired",
-        });
-      }
-      throw error;
-    }
-  };
 
 /** The error for a profile without a Space API URL, which `nipa os` and `nipa tf` don't need. */
 export const noSpaceUrl = (active: ActiveProfile): CliError =>

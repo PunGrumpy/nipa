@@ -18,6 +18,14 @@ export const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 export const TWIN_BETA_ID = "dddddddddddddddddddddddddddddddd";
 
+export const BETA_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+/** A project whose name looks like an ID, for the `hexNamed` option. */
+export const HEX_NAMED = {
+  id: "11111111111111111111111111111111",
+  name: "0123456789abcdef0123456789abcdef",
+};
+
 const PROJECTS = [
   {
     domain_id: "d1",
@@ -102,17 +110,33 @@ const throughGateway = async (
     : res;
 };
 
-// With twinBeta, a second enabled project is named Beta too.
-export const startFakeKeystone = ({
-  gateway = false,
-  twinBeta = false,
-} = {}): FakeKeystone => {
-  const projects = twinBeta
-    ? [
-        ...PROJECTS,
-        { domain_id: "d1", enabled: true, id: TWIN_BETA_ID, name: "Beta" },
-      ]
-    : PROJECTS;
+// With twinBeta, a second enabled project is named Beta too. With hexNamed,
+// a project is named with 32 hex characters, like an ID. `owner` is the
+// project that owns the fake Space resources, Alpha by default. A project in
+// `refuse` is listed, but Keystone won't scope a token to it.
+export const startFakeKeystone = (
+  options: {
+    gateway?: boolean;
+    hexNamed?: boolean;
+    owner?: string;
+    refuse?: readonly string[];
+    twinBeta?: boolean;
+  } = {}
+): FakeKeystone => {
+  const {
+    gateway = false,
+    hexNamed = false,
+    owner = ALPHA_ID,
+    refuse = [],
+    twinBeta = false,
+  } = options;
+  const projects = [
+    ...PROJECTS,
+    ...(twinBeta
+      ? [{ domain_id: "d1", enabled: true, id: TWIN_BETA_ID, name: "Beta" }]
+      : []),
+    ...(hexNamed ? [{ domain_id: "d1", enabled: true, ...HEX_NAMED }] : []),
+  ];
   const tokens = new Map<string, typeof FAKE_USER>();
   const receipts = new Map<string, typeof FAKE_USER>();
   const requests: string[] = [];
@@ -124,7 +148,7 @@ export const startFakeKeystone = ({
     projectId: string | undefined
   ): Response => {
     const project = projects.find((p) => p.id === projectId);
-    if (projectId && !project) {
+    if (projectId && (!project || refuse.includes(projectId))) {
       return unauthorized();
     }
     const value = `tok-${randomUUID()}`;
@@ -220,7 +244,7 @@ export const startFakeKeystone = ({
     if (!tokens.has(req.headers.get("X-Auth-Token") ?? "")) {
       return spaceFault(401, "The requested resource requires authorization.");
     }
-    return handleSpace({ faults, owner: ALPHA_ID, req, statuses });
+    return handleSpace({ faults, owner, req, statuses });
   };
 
   const handle = (req: Request): Response | Promise<Response> => {
