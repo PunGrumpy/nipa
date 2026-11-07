@@ -2,7 +2,7 @@
 // says what follows it: a group's subcommands, a leaf's flags and its first
 // argument with values to offer, or a passthrough program's own words.
 
-import { GLOBAL_FLAGS, profileFlag } from "./arg-common";
+import { GLOBAL_FLAGS } from "./arg-common";
 import { flagWords, namesOf, RESOURCE_KINDS, visibleCommands } from "./spec";
 import type {
   ArgSpec,
@@ -33,7 +33,29 @@ type DynamicKind = Exclude<CompleteKind, "openstack">;
 
 const dynamic = (kind: DynamicKind): string => `nipa __complete ${kind}`;
 
-const PROFILE_WORDS = flagWords(profileFlag);
+// A global option with a value takes the next word, so the scripts step over
+// both to find the command. After one, they offer its values.
+const VALUED_GLOBALS = GLOBAL_FLAGS.filter(
+  (flag) => flag.value.kind !== "none"
+);
+const VALUED_WORDS = VALUED_GLOBALS.flatMap(flagWords);
+
+/** The `__complete` kind and zsh's tag for a global option's value, if nipa can list it. */
+const globalValues = (
+  flag: FlagSpec
+): { kind: "profiles" | "projects"; tag: string } | undefined => {
+  switch (flag.value.kind) {
+    case "profile": {
+      return { kind: "profiles", tag: "profile" };
+    }
+    case "project": {
+      return { kind: "projects", tag: "project" };
+    }
+    default: {
+      return undefined;
+    }
+  }
+};
 
 const passthroughNames = (specs: readonly CommandSpec[]): string[] =>
   specs
@@ -163,6 +185,14 @@ const bash = (program: ProgramSpec): string => {
   const shown = visibleCommands(program);
   const commands = shown.map((c) => c.name).join(" ");
   const globals = GLOBAL_FLAGS.flatMap(flagWords).join(" ");
+  const bashGlobalValues = VALUED_GLOBALS.flatMap((flag) => {
+    const offer = globalValues(flag);
+    return offer
+      ? [
+          `      ${flagWords(flag).join("|")}) _nipa_reply_lines < <(${dynamic(offer.kind)} 2>/dev/null); return ;;`,
+        ]
+      : [];
+  }).join("\n");
   return `# nipa completion for bash
 # Load it from ~/.bashrc:  eval "$(nipa completion bash)"
 
@@ -197,14 +227,14 @@ _nipa() {
   local i=1 command=""
   while [[ $i -lt $COMP_CWORD ]]; do
     case \${COMP_WORDS[i]} in
-      ${PROFILE_WORDS.join("|")}) ((i += 2)) ;;
+      ${VALUED_WORDS.join("|")}) ((i += 2)) ;;
       -*) ((i += 1)) ;;
       *) command=\${COMP_WORDS[i]}; break ;;
     esac
   done
   if [[ -z $command ]]; then
     case $prev in
-      ${PROFILE_WORDS.join("|")}) _nipa_reply_lines < <(${dynamic("profiles")} 2>/dev/null); return ;;
+${bashGlobalValues}
     esac
     if [[ $cur == -* ]]; then _nipa_reply ${globals}; else _nipa_reply ${commands}; fi
     return
@@ -335,6 +365,14 @@ const zsh = (program: ProgramSpec): string => {
   const globals = GLOBAL_FLAGS.flatMap((flag) =>
     flagWords(flag).map((word) => `    '${word}:${zshQuote(flag.description)}'`)
   ).join("\n");
+  const zshGlobalValues = VALUED_GLOBALS.flatMap((flag, index) => {
+    const offer = globalValues(flag);
+    return offer
+      ? [
+          `    ${index === 0 ? "if" : "elif"} [[ $words[CURRENT-1] == (${flagWords(flag).join("|")}) ]]; then\n      _nipa_dynamic ${offer.kind} ${offer.tag}`,
+        ]
+      : [];
+  }).join("\n");
   const arms = shown
     .map(
       (spec) =>
@@ -363,14 +401,13 @@ _nipa() {
   local i=2 command=""
   while (( i < CURRENT )); do
     case $words[i] in
-      ${PROFILE_WORDS.join("|")}) (( i += 2 )) ;;
+      ${VALUED_WORDS.join("|")}) (( i += 2 )) ;;
       -*) (( i += 1 )) ;;
       *) command=$words[i]; break ;;
     esac
   done
   if [[ -z $command ]]; then
-    if [[ $words[CURRENT-1] == (${PROFILE_WORDS.join("|")}) ]]; then
-      _nipa_dynamic profiles profile
+${zshGlobalValues}
     elif [[ $PREFIX == -* ]]; then
       local -a globals; globals=(
 ${globals}
@@ -528,7 +565,7 @@ function __nipa_command_index
     set -l i 2
     while test $i -le (count $tokens)
         switch $tokens[$i]
-            case ${PROFILE_WORDS.join(" ")}
+            case ${VALUED_WORDS.join(" ")}
                 set i (math $i + 2)
             case '-*'
                 set i (math $i + 1)
@@ -692,6 +729,14 @@ const pwsh = (program: ProgramSpec): string => {
   const commands = shown
     .map((c) => `    ${pwshQuote(c.name)} = ${pwshQuote(c.summary)}`)
     .join("\n");
+  const pwshGlobalValues = VALUED_GLOBALS.flatMap((flag) => {
+    const offer = globalValues(flag);
+    return offer
+      ? [
+          `    if ($prev -in ${pwshList(flagWords(flag))}) { return Complete (Dynamic ${offer.kind}) }`,
+        ]
+      : [];
+  }).join("\n");
   const arms = shown
     .map(
       (spec) =>
@@ -723,12 +768,12 @@ ${commands}
   $c = 1
   $command = $null
   while ($c -lt $index) {
-    if ($words[$c] -in ${pwshList(PROFILE_WORDS)}) { $c += 2 }
+    if ($words[$c] -in ${pwshList(VALUED_WORDS)}) { $c += 2 }
     elseif ($words[$c] -like '-*') { $c += 1 }
     else { $command = $words[$c]; break }
   }
   if (-not $command) {
-    if ($prev -in ${pwshList(PROFILE_WORDS)}) { return Complete (Dynamic profiles) }
+${pwshGlobalValues}
     if ($wordToComplete -like '-*') { return Complete ${pwshList(GLOBAL_FLAGS.flatMap(flagWords))} }
     return Complete ([string[]]$commands.Keys) $commands
   }

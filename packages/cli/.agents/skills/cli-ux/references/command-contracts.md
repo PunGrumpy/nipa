@@ -72,6 +72,7 @@ States to test:
 - A revoked session, by name and by ID
 - The flag before and after the command, and before `os`
 - The flag on each command that refuses it, with the saved files unchanged
+- Tab completion in each shell: `-p` offers project names, and the command after `-P x -p y` is still found
 - The flag in a linked folder, with the link file and `auth.json` unchanged after the run
 - `-P` with `-p`
 - `--json`, where a failure writes one error document
