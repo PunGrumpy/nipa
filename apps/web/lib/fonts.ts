@@ -1,4 +1,5 @@
-import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 
 const sans = Geist({
   display: "swap",
@@ -14,17 +15,17 @@ const mono = Geist_Mono({
   weight: "variable",
 });
 
-const serif = Newsreader({
-  axes: ["opsz"],
+const geistSerif = localFont({
+  adjustFontFallback: "Times New Roman",
   display: "swap",
-  subsets: ["latin"],
-  variable: "--font-newsreader",
-  weight: "variable",
+  src: "../node_modules/geist/dist/fonts/geist-serif/GeistSerifVF.woff2",
+  variable: "--font-geist-serif",
+  weight: "400",
 });
 
 export const fonts = [
   "font-sans [font-synthesis-weight:none]",
   sans.variable,
   mono.variable,
-  serif.variable,
+  geistSerif.variable,
 ].join(" ");
