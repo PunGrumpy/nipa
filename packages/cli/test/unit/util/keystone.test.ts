@@ -18,6 +18,7 @@ import {
 import type { Account } from "../../../src/util/keystone";
 import {
   ALPHA_ID,
+  BETA_ID,
   FAKE_PASSCODE,
   FAKE_PASSWORD,
   FAKE_USER,
@@ -258,6 +259,25 @@ describe("against a fake Keystone", () => {
       token: first.token.value,
     });
     await expect(attempt).rejects.toThrow(NetworkError);
+  });
+
+  test("rescope gives up when its signal aborts, and a later call still works", async () => {
+    const first = await loginWithPassword(plain, FAKE_PASSWORD);
+    if (first.kind !== "token") {
+      throw new Error("expected a token");
+    }
+    const request = {
+      authUrl: keystone.url,
+      projectId: BETA_ID,
+      token: first.token.value,
+    };
+    const aborted = rescope({ ...request, signal: AbortSignal.abort() });
+    await expect(aborted).rejects.toThrow(NetworkError);
+    const scoped = await rescope({
+      ...request,
+      signal: new AbortController().signal,
+    });
+    expect(scoped.project?.id).toBe(BETA_ID);
   });
 
   test("revoked tokens stop working, and revoking twice is fine", async () => {

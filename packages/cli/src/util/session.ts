@@ -506,7 +506,7 @@ type RunProject =
 
 // The projects the saved token can list. A revoked session fails here with
 // the login recovery, as it does at the Space API without --project.
-const listedProjects = (active: ActiveProfile, session: Session) =>
+export const listedProjects = (active: ActiveProfile, session: Session) =>
   guardSession(active.name)(() =>
     withSpinner("Loading your projects…", () =>
       listProjects({
@@ -665,12 +665,15 @@ export const requireSpaceUrl = (active: ActiveProfile): string => {
 export const connect = (input: {
   signedIn: SignedIn;
   spaceUrl: string;
+  /** Aborts every request, for a caller that bounds how long a project may take. */
+  signal?: AbortSignal;
 }): Cloud => {
   const { active, session } = input.signedIn;
   const guard = guardSession(active.name);
   const space = createSpace({
     projectId: session.project.id,
     region: active.profile.region,
+    signal: input.signal,
     token: session.token,
     url: input.spaceUrl,
   });
