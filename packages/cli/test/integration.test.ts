@@ -678,9 +678,14 @@ describe("a failed --json command that names a resource", () => {
         status: "action_required",
       });
       expect(document).not.toHaveProperty("next");
-      expect(document.hint).toBe(
-        "Name one by its ID: 22222222-2222-4222-8222-222222222222, twin-0000."
-      );
+      expect(document.data).toEqual({
+        ids: ["22222222-2222-4222-8222-222222222222", "twin-0000"],
+      });
+      expect(document.hint.split("\n")).toEqual([
+        "Name one by its ID:",
+        "    22222222-2222-4222-8222-222222222222  ● Active  203.0.113.10",
+        "    twin-0000                             ● Active  203.0.113.10",
+      ]);
     } finally {
       FAKE_SERVERS.pop();
     }

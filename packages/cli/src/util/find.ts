@@ -1,7 +1,7 @@
 import type { Space } from "./api";
 import { listServers, mainAddress } from "./compute";
 import type { Server } from "./compute";
-import { listDatabases } from "./database";
+import { databaseAddress, listDatabases } from "./database";
 import type { Database } from "./database";
 import { listLoadBalancers } from "./load-balancer";
 import type { LoadBalancer } from "./load-balancer";
@@ -30,8 +30,8 @@ export interface Findable<T extends Named> {
   readonly list: (space: Space) => Promise<T[]>;
   /**
    * What tells two items of one name apart, such as a status and an address,
-   * shown after the ID when a name matches more than one. Plain text: it
-   * also goes into the `--json` hint.
+   * shown after the ID when a name matches more than one, in the columns its
+   * `ls` shows, so a row can be matched to it.
    */
   readonly describe?: (item: T) => readonly string[];
 }
@@ -49,7 +49,7 @@ export const SERVERS: Findable<Server> = {
 };
 
 export const VOLUMES: Findable<Volume> = {
-  describe: (volume) => [statusCell(volume.status).text],
+  describe: (volume) => [statusCell(volume.status).text, `${volume.sizeGb} GB`],
   list: listVolumes,
   lsCommand: "nipa volume ls",
   noun: "volume",
@@ -57,7 +57,11 @@ export const VOLUMES: Findable<Volume> = {
 };
 
 export const NETWORKS: Findable<Network> = {
-  describe: (network) => [statusCell(network.status).text],
+  describe: (network) => [
+    statusCell(network.status).text,
+    network.external ? "external" : "VPC",
+    network.zone ?? "",
+  ],
   list: listNetworks,
   lsCommand: "nipa network ls",
   noun: "network",
@@ -81,7 +85,7 @@ export const LOAD_BALANCERS: Findable<LoadBalancer> = {
 
 export const DATABASES: Findable<Database> = {
   describe: ({ primary }) =>
-    primary ? [statusCell(primary.status).text, primary.address] : [],
+    primary ? [statusCell(primary.status).text, databaseAddress(primary)] : [],
   list: listDatabases,
   lsCommand: "nipa db ls",
   noun: "database",
@@ -149,10 +153,10 @@ export const findResource = async <T extends Named>(input: {
     throw new CliError(
       `${candidates.length} ${kind.plural} in ${projectName} are named "${ref}"`,
       {
+        data: { ids: candidates.map((item) => item.id) },
         hint: ["Name one by its ID:", ...candidateLines(kind, candidates)].join(
           "\n"
         ),
-        jsonHint: `Name one by its ID: ${candidates.map((item) => oneLine(item.id)).join(", ")}.`,
         reason: "ambiguous_name",
       }
     );

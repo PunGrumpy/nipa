@@ -8,6 +8,7 @@ import { isDebug, NetworkError } from "./http";
 import { KeystoneError } from "./keystone";
 import { StoreError } from "./store";
 import { CliError, writeStderr } from "./ui";
+import type { ErrorData } from "./ui";
 
 /**
  * Why a command failed, for a script that must not match English. A code is
@@ -76,6 +77,7 @@ export interface ErrorDocument {
   status: "action_required" | "error";
   hint?: string;
   next?: { command: string; argv: string[] }[];
+  data?: ErrorData;
 }
 
 // A person has to act before the command can run: fix the line, name one
@@ -104,9 +106,11 @@ export const jsonErrorDocument = (
     status: blockedBeforeAnyEffect(error) ? "action_required" : "error",
   };
   // A next says what its hint says, in the profile the run named.
-  const hint = error.jsonHint ?? error.hint;
-  if (hint && !error.next?.length) {
-    document.hint = hint;
+  if (error.hint && !error.next?.length) {
+    document.hint = error.hint;
+  }
+  if (error.data) {
+    document.data = error.data;
   }
   if (error.next && error.next.length > 0) {
     document.next = error.next.map((next) => {

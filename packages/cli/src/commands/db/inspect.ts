@@ -1,5 +1,5 @@
 import { handle } from "../../util/command";
-import { inspectDatabase } from "../../util/database";
+import { databaseAddress, inspectDatabase } from "../../util/database";
 import type {
   DatabaseBackup,
   DatabaseDetail,
@@ -184,10 +184,7 @@ const printVerdict = (
   }
   const { primary } = database;
   if (primary) {
-    const address = withPort(
-      primary.externalAddress ?? primary.address,
-      database.defaultPort
-    );
+    const address = withPort(databaseAddress(primary), database.defaultPort);
     log(`${name} is healthy. Connect to it at ${bold(address)}.`);
   }
 };

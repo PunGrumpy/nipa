@@ -3,11 +3,12 @@ import { describe, expect, test } from "bun:test";
 import {
   DATABASES,
   LOAD_BALANCERS,
+  NETWORKS,
+  VOLUMES,
   findResource,
   findServer,
 } from "../../../src/util/find";
 import type { Findable } from "../../../src/util/find";
-import type { LoadBalancer } from "../../../src/util/load-balancer";
 import { CliError } from "../../../src/util/ui";
 import { fakeSpace } from "../../helpers";
 
@@ -124,32 +125,45 @@ describe("findServer", () => {
     expect(hint.split("\n").at(-1)).toBe("    w2  ● Active");
   });
 
-  test("--json's hint names every ID on one line, past the five a person sees", async () => {
+  test("data.ids holds every ID, past the five a person sees", async () => {
     const { error } = await ambiguity(twins(7));
-    expect(error.jsonHint).toBe(
-      "Name one by its ID: w1, w2, w3, w4, w5, w6, w7."
-    );
+    expect(error.data).toEqual({
+      ids: ["w1", "w2", "w3", "w4", "w5", "w6", "w7"],
+    });
   });
 
-  test("the other kinds with a status show it, and an address where they have one", () => {
-    const lb: LoadBalancer = {
-      address: "192.0.2.5",
-      createdAt: "2026-11-03T00:00:00Z",
-      health: "ONLINE",
-      id: "lb1",
-      listeners: 1,
-      name: "front",
-      status: "ACTIVE",
-    };
-    expect(LOAD_BALANCERS.describe?.(lb)).toEqual(["● Active", "192.0.2.5"]);
+  test("the other kinds show the columns their ls shows", () => {
+    const base = { createdAt: "2026-11-03T00:00:00Z", id: "x", name: "x" };
     expect(
-      DATABASES.describe?.({
-        createdAt: "2026-11-03T00:00:00Z",
-        id: "db1",
-        name: "main",
-        primary: null,
+      VOLUMES.describe?.({
+        ...base,
+        attachments: [],
+        bootable: false,
+        sizeGb: 2000,
+        status: "available",
+        type: null,
+        zone: "z",
       })
-    ).toEqual([]);
+    ).toEqual(["● Available", "2000 GB"]);
+    expect(
+      NETWORKS.describe?.({
+        ...base,
+        external: true,
+        shared: true,
+        status: "ACTIVE",
+        zone: "z1",
+      })
+    ).toEqual(["● Active", "external", "z1"]);
+    expect(
+      LOAD_BALANCERS.describe?.({
+        ...base,
+        address: "192.0.2.5",
+        health: "ONLINE",
+        listeners: 1,
+        status: "ACTIVE",
+      })
+    ).toEqual(["● Active", "192.0.2.5"]);
+    expect(DATABASES.describe?.({ ...base, primary: null })).toEqual([]);
   });
 
   test("an ID, status or address can't carry an escape or a second line", async () => {
