@@ -655,13 +655,24 @@ describe("server search in a linked folder", () => {
       expect(await treeOf(folder)).toEqual(before);
       const terminal = await runOnTerminals({
         args: ["server", "search", "web"],
+        cwd: work,
         env: testEnv(folder),
         terminals: ["stdout", "stderr"],
       });
       expect(terminal.stderr).not.toContain("project.json");
       expect(terminal.stderr).not.toContain("Using project");
-      // The saved project, not the folder's, is the current one.
-      expect(terminal.stderr).toContain("  Alpha (current)");
+      // The folder links to Beta, so a bare command here uses Beta: that is the
+      // current project, though Alpha is the saved one.
+      expect(terminal.stderr).toContain("  Beta (current)");
+      expect(terminal.stderr).not.toContain("Alpha (current)");
+      // Outside the folder the saved project is the current one.
+      const outside = await runOnTerminals({
+        args: ["server", "search", "web"],
+        env: testEnv(folder),
+        terminals: ["stdout", "stderr"],
+      });
+      expect(outside.stderr).toContain("  Alpha (current)");
+      expect(outside.stderr).not.toContain("Beta (current)");
     } finally {
       await rm(folder, { force: true, recursive: true });
     }

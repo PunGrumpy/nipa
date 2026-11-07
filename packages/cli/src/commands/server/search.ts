@@ -46,7 +46,7 @@ interface Searched {
   readonly profile: string;
   readonly outcomes: readonly Outcome[];
   readonly scope: Scope;
-  /** The project `nipa server ls` shows, which the matches mark. Unknown under `-p`. */
+  /** The ID of the project a bare command in this folder uses, which the matches mark. Unknown under `-p`. */
   readonly current?: string;
   /** Every project the account can use, to name one that another shares a name with. */
   readonly projects: readonly Project[];
@@ -85,6 +85,9 @@ const searchAll = async (
   announceProfile(active);
   const { session } = await client.savedSession();
   const projects = await listedProjects(active, session);
+  // What a bare command here would use: the folder's link when it names this
+  // profile, else the saved project. Only read, so the link never narrows.
+  const current = active.link?.link.project.id ?? session.project.id;
   if (projects.length === 0) {
     throw new CliError("your account has no projects you can use");
   }
@@ -94,7 +97,7 @@ const searchAll = async (
   );
   const failed = outcomes.filter(isFailed).length;
   return {
-    current: session.project.id,
+    current,
     narrowed: false,
     outcomes,
     profile: active.name,
