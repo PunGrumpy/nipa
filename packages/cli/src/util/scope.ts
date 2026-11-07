@@ -65,6 +65,36 @@ export const shellQuote = (
 const PROFILE_WORDS = new Set(["-P", "--profile"]);
 const PROJECT_WORDS = new Set(["-p", "--project"]);
 
+const valueAmong = (
+  words: readonly string[],
+  spellings: ReadonlySet<string>
+): string | undefined => {
+  for (const [at, word] of words.entries()) {
+    if (word === "--") {
+      return undefined;
+    }
+    if (spellings.has(word)) {
+      return words[at + 1];
+    }
+    const equals = word.indexOf("=");
+    if (equals !== -1 && spellings.has(word.slice(0, equals))) {
+      return word.slice(equals + 1);
+    }
+  }
+  return undefined;
+};
+
+/**
+ * `-P` among the words after a command nipa doesn't know. Option parsing
+ * stopped at that word, and it still decides what a hint repeats.
+ */
+export const profileAmong = (words: readonly string[]): string | undefined =>
+  valueAmong(words, PROFILE_WORDS);
+
+/** `-p` among the words after a command nipa doesn't know. */
+export const projectAmong = (words: readonly string[]): string | undefined =>
+  valueAmong(words, PROJECT_WORDS);
+
 const findCommand = (
   program: ProgramSpec,
   word: string | undefined
@@ -117,6 +147,11 @@ const nameCommand = (program: ProgramSpec, words: readonly string[]): Named => {
 };
 
 /** The options to insert after `nipa`, as words. Empty for a text that isn't a nipa command. */
+// A value starting with a dash has to share a word with its option, or nipa
+// reads it as another option.
+const optionWords = (flag: string, long: string, value: string): string[] =>
+  value.startsWith("-") ? [`${long}=${value}`] : [flag, value];
+
 const optionsFor = (scope: RunScope, words: readonly string[]): string[] => {
   const { path, profile, project } = nameCommand(scope.program, words);
   if (!path) {
@@ -124,7 +159,7 @@ const optionsFor = (scope: RunScope, words: readonly string[]): string[] => {
   }
   const options: string[] = [];
   if (scope.profile !== undefined && !profile && profileUseOf(path) !== false) {
-    options.push("-P", scope.profile);
+    options.push(...optionWords("-P", "--profile", scope.profile));
   }
   // `login -p` saves the project, so a suggestion of it never repeats the run's.
   if (
@@ -132,7 +167,7 @@ const optionsFor = (scope: RunScope, words: readonly string[]): string[] => {
     !project &&
     projectUseOf(path) === undefined
   ) {
-    options.push("-p", scope.project);
+    options.push(...optionWords("-p", "--project", scope.project));
   }
   return options;
 };

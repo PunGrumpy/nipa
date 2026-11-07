@@ -10,7 +10,7 @@ import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
 import { commandHelp, commandLine, mainHelp, usageLine } from "./help";
 import { asksForHelp, asksForJson, takeGlobals } from "./parse";
-import { setRunScope } from "./scope";
+import { profileAmong, projectAmong, setRunScope } from "./scope";
 import type { RunScope } from "./scope";
 import { namesOf, profileUseOf, projectUseOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
@@ -235,6 +235,16 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   }
   const command = table.get(word);
   if (!command) {
+    setRunScope(
+      scopeOf({
+        globals: {
+          ...front.globals,
+          profile: front.globals.profile ?? profileAmong(after),
+          project: front.globals.project ?? projectAmong(after),
+        },
+        program: spec,
+      })
+    );
     throw unknownCommand({ program: spec, word });
   }
   if (command.kind === "passthrough") {

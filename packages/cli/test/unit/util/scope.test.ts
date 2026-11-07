@@ -49,6 +49,13 @@ describe("suggest", () => {
     expect(command).toBe(String.raw`nipa -p 'Bob'\''s "lab"' server ls`);
   });
 
+  test("a name starting with a dash stays one word with its option", () => {
+    expect(suggest("nipa server ls", scope({ project: "-dash" }))).toEqual({
+      argv: ["nipa", "--project=-dash", "server", "ls"],
+      command: "nipa --project=-dash server ls",
+    });
+  });
+
   test("-P and -p together keep the order -P, -p", () => {
     expect(
       suggest("nipa server ls", scope({ profile: "staging", project: "Beta" }))
