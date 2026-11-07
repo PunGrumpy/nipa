@@ -180,6 +180,29 @@ describe("a command page", () => {
     expect(longs).toEqual(["json", "no-wait", "tail", "timeout", "yes"]);
   });
 
+  test("a wrapped description sits two columns in from its label's text", () => {
+    const server = plain(commandHelp([commandNamed("server")])).split("\n");
+    const at = server.indexOf("        --no-wait");
+    expect(at).toBeGreaterThan(0);
+    // The label's text starts at column 8, so the description starts at 10.
+    expect(server[at + 1]).toMatch(/^ {10}\S/u);
+  });
+
+  test.each(PAGES)(
+    "%s never puts a wrapped description left of its flag",
+    (_name, text) => {
+      const lines = text.split("\n");
+      for (const [i, line] of lines.entries()) {
+        const label = /^ {4}(?<pad> *)-\S+(?:, --\S+)?(?: <\S+>)?$/u.exec(line);
+        const next = lines[i + 1] ?? "";
+        if (label && next.trim() !== "") {
+          const start = 4 + (label.groups?.pad?.length ?? 0);
+          expect(next.length - next.trimStart().length).toBe(start + 2);
+        }
+      }
+    }
+  );
+
   test("a group keeps a subcommand's arguments beside its name when they fit", () => {
     const server = plain(commandHelp([commandNamed("server")]));
     expect(server).toMatch(

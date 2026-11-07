@@ -27,7 +27,7 @@ const MARGIN = "  ";
 const INDENT = "    ";
 const LINE_WIDTH = 80;
 const GAP = "   ";
-/** A description that wraps under its label sits two columns inside it. */
+/** An example's command sits two columns in from its description. */
 const BELOW = `${INDENT}  `;
 /** A label wider than this never sets the column, so one long flag can't push every description down. */
 const WIDEST_COLUMN = 30;
@@ -58,6 +58,15 @@ const labelWidth = (...tables: readonly (readonly Row[])[]): number =>
       .filter((length) => length <= WIDEST_COLUMN)
   );
 
+/**
+ * Where a description that wraps under its label starts: two columns in from
+ * the label's text. A long-only flag is padded to leave room for `-x, `, so
+ * its text starts four columns later than a flag with a short form, and its
+ * description goes with it.
+ */
+const belowLabel = (label: string): string =>
+  `${INDENT}${" ".repeat(label.length - label.trimStart().length)}  `;
+
 const table = (rows: readonly Row[], width: number): string =>
   rows
     .map(([label, description]) => {
@@ -68,7 +77,7 @@ const table = (rows: readonly Row[], width: number): string =>
       if (label.length <= WIDEST_COLUMN && beside.length <= LINE_WIDTH) {
         return beside;
       }
-      return `${INDENT}${label}\n${wrap(description, BELOW)}`;
+      return `${INDENT}${label}\n${wrap(description, belowLabel(label))}`;
     })
     .join("\n");
 
