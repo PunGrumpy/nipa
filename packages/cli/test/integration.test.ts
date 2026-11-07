@@ -241,6 +241,13 @@ describe("help and usage", () => {
     }
   );
 
+  test("help help is the main page", async () => {
+    const { code, stderr, stdout } = await run(["help", "help"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(stdout).toContain("Usage: nipa [options] <command>");
+  });
+
   test("help alone is the main page", async () => {
     const { code, stdout } = await run(["help"]);
     expect(code).toBe(0);

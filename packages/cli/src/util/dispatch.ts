@@ -246,7 +246,9 @@ const helpPath = (input: {
   const { globals, names } = helpWords(input.words);
   setRunScope(scopeOf({ globals: { ...input.globals, ...globals }, program }));
   const [first, second] = names;
-  if (first === undefined) {
+  // `help` is the word that asks for a page, not a command with one of its
+  // own, so `nipa help help` is the main page.
+  if (first === undefined || first === "help") {
     return undefined;
   }
   const command = table.get(first);

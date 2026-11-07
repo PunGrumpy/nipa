@@ -617,6 +617,13 @@ describe("help and version, on the real table", () => {
       expect(await text(argv)).toBe(await text(same));
     }
   );
+  test.each([
+    [["help", "help"]],
+    [["help", "--json", "help"]],
+    [["help", "help", "server"]],
+  ])("help has no page of its own: %j is the main page", async (argv) => {
+    expect(await text(argv)).toBe(await text([]));
+  });
   test("a name after the options is checked like any other", async () => {
     expect(await usage(["help", "--json", "nope"], realProgram)).toMatchObject({
       code: 2,
