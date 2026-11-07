@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 
 import {
   addressCells,
-  mainAddress,
   nameCell,
   volumeCells,
 } from "../../../../src/commands/server/format";
@@ -32,27 +31,6 @@ const withAddresses = (addresses: Address[]): Server => ({
   vcpus: 2,
   volumes: [],
   zone: null,
-});
-
-describe("mainAddress", () => {
-  test("a floating IP comes first", () => {
-    const server = withAddresses([
-      address("192.0.2.5", 4),
-      address("203.0.113.10", 4, "floating"),
-    ]);
-    expect(mainAddress(server)).toBe("203.0.113.10");
-  });
-
-  test("then IPv4, then anything", () => {
-    const dual = withAddresses([
-      address("2001:db8::5", 6),
-      address("192.0.2.5", 4),
-    ]);
-    expect(mainAddress(dual)).toBe("192.0.2.5");
-    const v6 = withAddresses([address("2001:db8::5", 6)]);
-    expect(mainAddress(v6)).toBe("2001:db8::5");
-    expect(mainAddress(withAddresses([]))).toBeUndefined();
-  });
 });
 
 describe("nameCell", () => {

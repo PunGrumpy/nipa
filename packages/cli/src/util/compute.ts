@@ -133,6 +133,14 @@ const toServer = (server: z.infer<typeof ServerSchema>): Server => ({
   zone: server["OS-EXT-AZ:availability_zone"] ?? null,
 });
 
+/** The address people reach the server at: a floating IP, then IPv4. */
+export const mainAddress = (server: Server): string | undefined => {
+  const v4 = server.addresses.filter((a) => a.version === 4);
+  const best =
+    v4.find((a) => a.type === "floating") ?? v4[0] ?? server.addresses[0];
+  return best?.address;
+};
+
 /** Every server in the project, newest first. */
 export const listServers = async (space: Space): Promise<Server[]> => {
   const body = await space.get("/v3/instances", ServersSchema);
