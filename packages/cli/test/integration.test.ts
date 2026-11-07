@@ -2325,6 +2325,7 @@ describe("--project", () => {
       expect(stderr).toContain(`${BETA_ID}, ${TWIN_BETA_ID}`);
       const json = await run(["-p", "Beta", "server", "ls", "--json"]);
       expect(JSON.parse(json.stderr)).toMatchObject({
+        data: { ids: [BETA_ID, TWIN_BETA_ID] },
         reason: "ambiguous_name",
         status: "action_required",
       });
@@ -2346,6 +2347,7 @@ describe("--project on a command that never reads a project", () => {
 
   const refused: [string, string[]][] = [
     ["nipa whoami", ["whoami"]],
+    ["nipa completion", ["completion", "bash"]],
     ["nipa doctor", ["doctor"]],
     ["nipa switch", ["switch", "Beta"]],
     ["nipa link", ["link", "Beta"]],
@@ -2528,7 +2530,21 @@ describe("the commands nipa suggests keep -P and -p", () => {
     );
   });
 
-  test("a note after a success names the project too", async () => {
+  test("a mistyped command keeps -p from either side of it", async () => {
+    const results = await Promise.all(
+      [
+        ["-p", "Beta", "srever", "ls"],
+        ["srever", "ls", "-p", "Beta"],
+        ["srever", "ls", "--project=Beta"],
+      ].map((words) => run(words))
+    );
+    for (const { code, stderr } of results) {
+      expect(code).toBe(2);
+      expect(stderr).toContain("Did you mean `nipa -p Beta server`?");
+    }
+  });
+
+  test("a line after a success names the project too", async () => {
     const result = await run([
       "-p",
       "Beta",
@@ -2552,7 +2568,7 @@ describe("the commands nipa suggests keep -P and -p", () => {
     ]);
   });
 
-  test("login stays a plain login under -p, and the profile's under -P", async () => {
+  test("login stays a plain login under -p", async () => {
     await freshDir();
     await seedSession(dir, owned.url);
     const { sessions } = await readJsonFile("auth.json");
@@ -2827,6 +2843,13 @@ describe("saved passwords and session expiry", () => {
     expect(stderr).toContain("Success! Logged out of prod");
     expect(stderr).toContain("Deleted your saved password.");
     expect(await readFakeKeychain(dir)).toEqual({});
+  });
+
+  test("a note keeps -P in the command it names", async () => {
+    await rm(path.join(dir, "auth.json"));
+    const { code, stderr } = await run(["-P", "prod", "logout"]);
+    expect(code).toBe(0);
+    expect(stderr).toContain("so `nipa -P prod logout` did nothing");
   });
 
   test("logout without a session still deletes a saved password", async () => {
