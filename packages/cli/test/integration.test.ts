@@ -724,6 +724,33 @@ describe("a failed --json command that names a resource", () => {
     }
   });
 
+  test("the pointer past the listed servers keeps -p", async () => {
+    const web1 = FAKE_SERVERS.find((server) => server.name === "web-1");
+    if (!web1) {
+      throw new Error("the fixtures lost web-1");
+    }
+    const twins = ["a", "b", "c", "d", "e", "f"].map((suffix) => ({
+      ...web1,
+      id: `twin-${suffix}`,
+    }));
+    FAKE_SERVERS.push(...twins);
+    try {
+      const { code, stderr } = await run([
+        "server",
+        "inspect",
+        "web-1",
+        "-p",
+        "Alpha",
+      ]);
+      expect(code).toBe(1);
+      expect(stderr).toContain(
+        "and 2 more. Run `nipa -p Alpha server ls --json` to get their IDs."
+      );
+    } finally {
+      FAKE_SERVERS.splice(-twins.length);
+    }
+  });
+
   test("without --json the same ambiguity prints one line per server", async () => {
     const web1 = FAKE_SERVERS.find((server) => server.name === "web-1");
     if (!web1) {
