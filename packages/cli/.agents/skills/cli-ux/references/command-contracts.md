@@ -64,6 +64,7 @@ Rules:
 - A revoked session fails the same way for a name, because `listProjects` runs inside `guardSession`
 - `login` keeps its meaning: `--project` names the project to scope the token to and save (`usesProject: "saves"` in its spec). A command that never reads a project sets `usesProject: false`, and dispatch refuses the flag with exit code 2, `--project doesn't apply to nipa switch` and the usage line, instead of ignoring it: `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile`. `switch` and `link` take the project as an argument and read the saved session, so `nipa -p Beta switch <project>` can't save a project by accident. `--help` and `--version` still work with the flag on the line
 - On `os`, `tf` and `exec` the flag works only before the command, because the words after it belong to the program
+- A command nipa suggests while `--project` is set repeats it, quoted for the shell (see Machine errors in `core.md`), so `nipa -p Beta server restart db-1` points to `nipa -p Beta server start db-1`. The profile's `-P` is repeated the same way
 
 States to test:
 

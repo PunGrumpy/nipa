@@ -9,6 +9,7 @@ import password from "@inquirer/password";
 import select from "@inquirer/select";
 
 import type { Reason } from "./errors";
+import { inRun } from "./scope";
 import { theme } from "./theme";
 
 // Everything these paint goes to stderr, so stderr decides the colors.
@@ -264,7 +265,7 @@ export const log = (message: string): void => {
   if (jsonMode) {
     return;
   }
-  writeStderr(`${dim(">")} ${message}`);
+  writeStderr(`${dim(">")} ${inRun(message)}`);
 };
 
 export const success = (message: string, elapsedMs?: number): void => {
@@ -280,13 +281,13 @@ export const note = (message: string): void => {
   if (jsonMode) {
     return;
   }
-  writeStderr(`${bold(yellow("> NOTE:"))} ${message}`);
+  writeStderr(`${bold(yellow("> NOTE:"))} ${inRun(message)}`);
 };
 
 export const printError = (error: CliError): void => {
   writeStderr(`${bold(red("Error:"))} ${error.message}`);
   if (error.hint) {
-    writeStderr(`${dim(">")} ${error.hint}`);
+    writeStderr(`${dim(">")} ${inRun(error.hint)}`);
   }
 };
 

@@ -87,6 +87,12 @@ export interface Described {
    */
   readonly usesProject?: false | "saves";
   /**
+   * `false` when `-P, --profile` picks nothing for the command, which names
+   * profiles itself, as `profile add` does. nipa then never adds `-P` to a
+   * command it suggests there. A group's setting covers its subcommands.
+   */
+  readonly usesProfile?: false;
+  /**
    * `false` when a shell reads the output, as with `completion`, so nipa
    * skips the update notice. A group's setting covers its subcommands.
    */
@@ -222,6 +228,12 @@ export const flagPlaceholder = (value: FlagValue): string => {
 export const projectUseOf = (path: CommandPath): Described["usesProject"] => {
   const [first, second] = path;
   return second?.usesProject ?? first.usesProject;
+};
+
+/** Whether `-P` picks the profile for the command the path names: see `Described.usesProfile`. */
+export const profileUseOf = (path: CommandPath): Described["usesProfile"] => {
+  const [first, second] = path;
+  return second?.usesProfile ?? first.usesProfile;
 };
 
 /** The path's last command: the one a help page or usage line is about. */

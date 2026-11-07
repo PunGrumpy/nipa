@@ -6,6 +6,8 @@
 import { ApiError } from "./api";
 import { isDebug, NetworkError } from "./http";
 import { KeystoneError } from "./keystone";
+import { runScope, scopedText, suggest } from "./scope";
+import type { RunScope } from "./scope";
 import { StoreError } from "./store";
 import { CliError, writeStderr } from "./ui";
 import type { ErrorData } from "./ui";
@@ -88,49 +90,36 @@ const blockedBeforeAnyEffect = (error: CliError): boolean =>
   error.reason === "login_required" ||
   error.reason === "token_expired";
 
-// A recovery command runs in the profile the failed run named, because the
-// one `-P` chose isn't the one a bare command would use.
-const inProfile = (command: string, profile: string | undefined): string =>
-  profile === undefined || command.includes(" -P ")
-    ? command
-    : command.replace(/^nipa /u, `nipa -P ${profile} `);
-
-/** The machine-readable form of an error. Optional fields appear only when they apply. */
+/**
+ * The machine-readable form of an error. Optional fields appear only when
+ * they apply. A hint and a `next` command run in the profile and project the
+ * run named, because a bare command would use the saved ones.
+ */
 export const jsonErrorDocument = (
   error: CliError,
-  profile?: string
+  scope?: RunScope
 ): ErrorDocument => {
   const document: ErrorDocument = {
     message: error.message,
     reason: error.reason,
     status: blockedBeforeAnyEffect(error) ? "action_required" : "error",
   };
-  // A next says what its hint says, in the profile the run named.
+  // A next says what its hint says, in the scope the run named.
   if (error.hint && !error.next?.length) {
-    document.hint = error.hint;
+    document.hint = scopedText(error.hint, scope);
   }
   if (error.data) {
     document.data = error.data;
   }
   if (error.next && error.next.length > 0) {
-    document.next = error.next.map((next) => {
-      const command = inProfile(next, profile);
-      return { argv: command.split(" "), command };
-    });
+    document.next = error.next.map((next) => suggest(next, scope));
   }
   return document;
 };
 
-let profileOption: string | undefined;
-
-/** Records this run's `--profile`, which the error document's `next` keeps. */
-export const setProfileOption = (profile: string | undefined): void => {
-  profileOption = profile;
-};
-
 /** Writes the error document: one line, and always the last on stderr. */
 export const writeErrorDocument = (error: CliError): void => {
-  writeStderr(JSON.stringify(jsonErrorDocument(error, profileOption)));
+  writeStderr(JSON.stringify(jsonErrorDocument(error, runScope())));
 };
 
 /** The error document nipa writes for a bug under `--json`, in place of a stack. */

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
+import { program } from "../../../src/commands";
 import { ApiError } from "../../../src/util/api";
+import { programSpec } from "../../../src/util/command";
 import {
   internalError,
   jsonErrorDocument,
@@ -9,6 +11,7 @@ import {
 import type { ErrorDocument, Reason } from "../../../src/util/errors";
 import { NetworkError } from "../../../src/util/http";
 import { KeystoneError } from "../../../src/util/keystone";
+import type { RunScope } from "../../../src/util/scope";
 import { StoreError } from "../../../src/util/store";
 import { CliError, usageError } from "../../../src/util/ui";
 
@@ -122,11 +125,16 @@ describe("hint in the error document", () => {
   });
 });
 
+const inProfile = (profile: string): RunScope => ({
+  profile,
+  program: programSpec(program),
+});
+
 describe("next in the error document", () => {
   const error = new CliError("m", { next: ["nipa server ls"] });
 
   test("keeps the profile the run named", () => {
-    expect(jsonErrorDocument(error, "staging").next).toEqual([
+    expect(jsonErrorDocument(error, inProfile("staging")).next).toEqual([
       {
         argv: ["nipa", "-P", "staging", "server", "ls"],
         command: "nipa -P staging server ls",
@@ -140,8 +148,8 @@ describe("next in the error document", () => {
 
   test("doesn't name a profile twice", () => {
     const login = new CliError("m", { next: ["nipa login -P staging"] });
-    expect(jsonErrorDocument(login, "staging").next?.[0]?.command).toBe(
-      "nipa login -P staging"
-    );
+    expect(
+      jsonErrorDocument(login, inProfile("staging")).next?.[0]?.command
+    ).toBe("nipa login -P staging");
   });
 });

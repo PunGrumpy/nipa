@@ -10,7 +10,9 @@ import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
 import { commandHelp, commandLine, mainHelp, usageLine } from "./help";
 import { asksForHelp, asksForJson, takeGlobals } from "./parse";
-import { namesOf, projectUseOf } from "./spec";
+import { setRunScope } from "./scope";
+import type { RunScope } from "./scope";
+import { namesOf, profileUseOf, projectUseOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
 import { CliError, setJsonMode, usageError } from "./ui";
 
@@ -55,6 +57,26 @@ type Resolved =
       readonly words: readonly string[];
     }
   | { readonly kind: "unknown"; readonly group: Group; readonly word: string };
+
+/**
+ * The profile and project the commands nipa suggests repeat. Before the
+ * command is known, that is whatever the line said. Once it is, a command
+ * that names profiles itself (`profile`) repeats no `-P`, and one where `-p`
+ * saves a project (`login`) or means nothing repeats no `-p`.
+ */
+const scopeOf = (input: {
+  globals: GlobalValues;
+  path?: CommandPath;
+  program: ProgramSpec;
+}): RunScope => {
+  const { globals, path, program } = input;
+  return {
+    profile: path && profileUseOf(path) === false ? undefined : globals.profile,
+    program,
+    project:
+      path && projectUseOf(path) !== undefined ? undefined : globals.project,
+  };
+};
 
 const print = (text: string): Outcome => ({ kind: "print", text });
 
@@ -191,9 +213,11 @@ const unknownCommand = (input: {
 export const run = async (input: RunInput): Promise<Outcome> => {
   // Before anything can fail, so a failure to read the line has a mode too.
   setJsonMode(asksForJson(input.argv));
+  setRunScope(undefined);
   const spec = programSpec(input.program);
   const table = indexCommands(input.program);
   const front = takeGlobals({ unknown: "reject", words: input.argv });
+  setRunScope(scopeOf({ globals: front.globals, program: spec }));
   if (front.globals.version) {
     return print(input.version);
   }
@@ -221,6 +245,9 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     // The words after a passthrough command belong to its program, and so
     // does a `--json` among them.
     setJsonMode(false);
+    setRunScope(
+      scopeOf({ globals: front.globals, path: [command.spec], program: spec })
+    );
     const client = input.createClient({
       globals: front.globals,
       json: false,
@@ -251,6 +278,7 @@ export const run = async (input: RunInput): Promise<Outcome> => {
     words: resolved.words,
   });
   const globals = { ...front.globals, ...prepared.globals };
+  setRunScope(scopeOf({ globals, path: resolved.path, program: spec }));
   if (globals.project !== undefined && projectUseOf(resolved.path) === false) {
     throw usageError(
       `--project doesn't apply to ${commandLine(resolved.path)}`,

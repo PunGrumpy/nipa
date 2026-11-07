@@ -91,6 +91,9 @@ const savedFiles = async () => [
   await readFile(path.join(dir, "auth.json"), "utf-8"),
 ];
 
+const document = (result: { stderr: string }) =>
+  JSON.parse(result.stderr.trimEnd().split("\n").at(-1) ?? "");
+
 const serverLists = () =>
   keystone.requests.filter((r) => r === "GET /api/v3/instances").length;
 
@@ -686,17 +689,17 @@ describe("a failed --json command that names a resource", () => {
     try {
       const result = await run(["server", "inspect", "web-1", "--json"]);
       expect(result.code).toBe(1);
-      const document = failure(result);
-      expect(document).toMatchObject({
+      const twins = failure(result);
+      expect(twins).toMatchObject({
         message: '2 servers in Alpha are named "web-1"',
         reason: "ambiguous_name",
         status: "action_required",
       });
-      expect(document).not.toHaveProperty("next");
-      expect(document.data).toEqual({
+      expect(twins).not.toHaveProperty("next");
+      expect(twins.data).toEqual({
         ids: ["22222222-2222-4222-8222-222222222222", "twin-0000"],
       });
-      expect(document.hint.split("\n")).toEqual([
+      expect(twins.hint.split("\n")).toEqual([
         "Name one by its ID:",
         "    22222222-2222-4222-8222-222222222222  ● Active  203.0.113.10",
         "    twin-0000                             ● Active  203.0.113.10",
@@ -2344,6 +2347,169 @@ describe("--project on a command that never reads a project", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("nipa can't prompt here");
     expect(stderr).not.toContain("doesn't apply");
+  });
+});
+
+describe("the commands nipa suggests keep -P and -p", () => {
+  const SPACED = { id: "3".repeat(32), name: "My Project" };
+  const QUOTED = { id: "4".repeat(32), name: `Bob's "lab"` };
+  let owned: FakeKeystone;
+
+  beforeAll(async () => {
+    owned = startFakeKeystone({
+      extraProjects: [SPACED, QUOTED],
+      gateway: true,
+      owner: BETA_ID,
+    });
+    await freshDir();
+    await seedSession(dir, owned.url);
+    const config = await readJsonFile("config.json");
+    const auth = await readJsonFile("auth.json");
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        ...config,
+        profiles: { ...config.profiles, staging: config.profiles.prod },
+      })
+    );
+    await writeFile(
+      path.join(dir, "auth.json"),
+      JSON.stringify({
+        sessions: { ...auth.sessions, staging: auth.sessions.prod },
+      })
+    );
+  });
+
+  afterAll(() => owned.stop());
+
+  test("a restart of a stopped server names the start command in the project it ran in", async () => {
+    const restart = await run([
+      "-p",
+      "Beta",
+      "server",
+      "restart",
+      "db-1",
+      "-y",
+    ]);
+    expect(restart.code).toBe(1);
+    expect(restart.stderr).toContain(
+      "> Run `nipa -p Beta server start db-1` to start it.\n"
+    );
+    expect(restart.stderr).not.toContain("`nipa server start db-1`");
+    // db-1's state stops answering after an action, so web-1 shows that the
+    // printed command works in Beta, and that the bare one looks in Alpha.
+    await run(["-p", "Beta", "server", "stop", "web-1", "-y"]);
+    const again = await run(["-p", "Beta", "server", "restart", "web-1", "-y"]);
+    expect(again.stderr).toContain(
+      "> Run `nipa -p Beta server start web-1` to start it.\n"
+    );
+    const printed = await run(["-p", "Beta", "server", "start", "web-1"]);
+    expect(printed.code).toBe(0);
+    expect(printed.stderr).toContain("Started web-1 in Beta");
+    const bare = await run(["server", "start", "web-1"]);
+    expect(bare.code).toBe(1);
+    expect(bare.stderr).toContain(
+      'no server named or with ID "web-1" in Alpha'
+    );
+  });
+
+  test("a name with spaces or a quote is one argv word, and quoted in the line", async () => {
+    const [spaced, quoted] = await Promise.all([
+      run(["-p", SPACED.name, "server", "inspect", "nope", "--json"]),
+      run(["-p", QUOTED.name, "server", "inspect", "nope", "--json"]),
+    ]);
+    expect(document(spaced).next).toEqual([
+      {
+        argv: ["nipa", "-p", "My Project", "server", "ls"],
+        command: "nipa -p 'My Project' server ls",
+      },
+    ]);
+    expect(document(quoted).next).toEqual([
+      {
+        argv: ["nipa", "-p", QUOTED.name, "server", "ls"],
+        command: String.raw`nipa -p 'Bob'\''s "lab"' server ls`,
+      },
+    ]);
+    const human = await run(["-p", SPACED.name, "server", "inspect", "nope"]);
+    expect(human.stderr).toContain(
+      "> Run `nipa -p 'My Project' server ls` to see your servers.\n"
+    );
+  });
+
+  test("-P reaches the human hint too, and -P with -p keeps both", async () => {
+    const profile = await run(["-P", "staging", "server", "inspect", "nope"]);
+    expect(profile.stderr).toContain(
+      "> Run `nipa -P staging server ls` to see your servers.\n"
+    );
+    const both = await run([
+      "-P",
+      "staging",
+      "-p",
+      "Beta",
+      "server",
+      "inspect",
+      "nope",
+      "--json",
+    ]);
+    expect(document(both).next).toEqual([
+      {
+        argv: ["nipa", "-P", "staging", "-p", "Beta", "server", "ls"],
+        command: "nipa -P staging -p Beta server ls",
+      },
+    ]);
+  });
+
+  test("a hint in --json carries them when it has no next", async () => {
+    const result = await run([
+      "-p",
+      "Beta",
+      "server",
+      "logs",
+      "k8s-worker-1",
+      "--json",
+    ]);
+    expect(document(result).hint).toBe(
+      "A server has one once it boots, so this one most likely never booted. Run `nipa -p Beta server history k8s-worker-1` to see what failed."
+    );
+  });
+
+  test("a note after a success names the project too", async () => {
+    const result = await run([
+      "-p",
+      "Beta",
+      "server",
+      "inspect",
+      "k8s-worker-1",
+    ]);
+    expect(result.stderr).toContain(
+      "Run `nipa -p Beta server history k8s-worker-1` to see what failed, and `nipa -p Beta server logs k8s-worker-1` for its console log."
+    );
+  });
+
+  test("a run without -P or -p prints the commands as they were", async () => {
+    const inspect = await run(["server", "inspect", "nope"]);
+    expect(inspect.stderr).toContain(
+      "> Run `nipa server ls` to see your servers.\n"
+    );
+    const json = await run(["server", "inspect", "nope", "--json"]);
+    expect(document(json).next).toEqual([
+      { argv: ["nipa", "server", "ls"], command: "nipa server ls" },
+    ]);
+  });
+
+  test("login stays a plain login under -p, and the profile's under -P", async () => {
+    await freshDir();
+    await seedSession(dir, owned.url);
+    const { sessions } = await readJsonFile("auth.json");
+    const token: string = sessions.prod.token;
+    await fetch(`${owned.url}/v3/auth/tokens`, {
+      headers: { "X-Auth-Token": token, "X-Subject-Token": token },
+      method: "DELETE",
+    });
+    const result = await run(["-p", "Beta", "server", "ls", "--json"]);
+    expect(document(result).next).toEqual([
+      { argv: ["nipa", "login"], command: "nipa login" },
+    ]);
   });
 });
 
