@@ -163,10 +163,12 @@ const findProject = (input: {
     });
   }
   if (others.length > 0) {
-    const ids = [match, ...others].map((p) => oneLine(p.id)).join(", ");
+    const twins = [match, ...others];
+    const ids = twins.map((p) => oneLine(p.id)).join(", ");
     throw new CliError(
       `${others.length + 1} projects are named "${oneLine(wanted)}"`,
       {
+        data: { ids: twins.map((p) => p.id) },
         hint: `Name one by its ID instead: ${ids}.`,
         reason: "ambiguous_name",
       }
