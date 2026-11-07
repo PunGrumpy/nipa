@@ -370,10 +370,11 @@ describe("server search --json", () => {
     expect(body).toMatchObject({
       failed: [],
       profile: "prod",
+      projects: { searched: 5, total: 5 },
       query: "web",
-      searched: 5,
-      total: 5,
     });
+    expect(body).not.toHaveProperty("searched");
+    expect(body).not.toHaveProperty("total");
     expect(body.servers.map((s: { id: string }) => s.id)).toEqual([
       WEB_2,
       WEB_1_ACTIVE,
@@ -447,8 +448,9 @@ describe("server search when a project fails", () => {
     expect(code).toBe(1);
     expect(stderr).toBe("");
     const body = JSON.parse(stdout);
-    expect(body.searched).toBe(4);
-    expect(body.total).toBe(6);
+    expect(body.projects).toEqual({ searched: 4, total: 6 });
+    expect(body).not.toHaveProperty("searched");
+    expect(body).not.toHaveProperty("total");
     expect(body.servers).toHaveLength(5);
     expect(body.failed).toEqual([
       {
@@ -600,8 +602,7 @@ describe("server search with -p", () => {
     ]);
     expect(code).toBe(0);
     const body = JSON.parse(stdout);
-    expect(body.total).toBe(1);
-    expect(body.searched).toBe(1);
+    expect(body.projects).toEqual({ searched: 1, total: 1 });
     expect(
       body.servers.map((s: { project: { name: string } }) => s.project.name)
     ).toEqual(["Beta"]);
@@ -643,7 +644,7 @@ describe("server search in a linked folder", () => {
       expect(code).toBe(0);
       expect(stderr).toBe("");
       const body = JSON.parse(stdout);
-      expect(body.total).toBe(5);
+      expect(body.projects.total).toBe(5);
       expect(
         new Set(
           body.servers.map((s: { project: { name: string } }) => s.project.name)
@@ -675,7 +676,7 @@ describe("server search in a linked folder", () => {
         folder,
         work
       );
-      expect(JSON.parse(stdout).total).toBe(1);
+      expect(JSON.parse(stdout).projects.total).toBe(1);
     } finally {
       await rm(folder, { force: true, recursive: true });
     }

@@ -198,7 +198,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
 
 `ramMb`, `vcpus`, `zone`, `attachedAs`, a volume's `name` and its `type` are `null` when the Space API doesn't send them. `nipa server inspect --json` prints the same fields for one server, under `server` instead of `servers`.
 
-`nipa server search --json` prints the profile, the `query` (`null` when you gave none), how many projects it `searched` out of the `total` it could use, the matching `servers` and the projects that `failed`. Each server has the fields above and the `project` it is in, and the servers are ordered by project name, then as the API lists them. Each failed project has its `project`, a `message` and the HTTP `status` that said so, or `null` when the project didn't answer in 15 seconds. When a project fails, the command still prints this document, exits with code `1`, and writes no error document. `-p` makes `total` and `searched` 1:
+`nipa server search --json` prints the profile, the `query` (`null` when you gave none), the `projects` count (how many it `searched` out of the `total` it could use), the matching `servers` and the projects that `failed`. Each server has the fields above and the `project` it is in, and the servers are ordered by project name, then as the API lists them. Each failed project has its `project`, a `message` and the HTTP `status` that said so, or `null` when the project didn't answer in 15 seconds. When a project fails, the command still prints this document, exits with code `1`, and writes no error document. `-p` makes `projects.searched` and `projects.total` 1:
 
 ```json
 {
@@ -210,8 +210,8 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
     }
   ],
   "profile": "prod",
+  "projects": { "searched": 5, "total": 6 },
   "query": "web",
-  "searched": 5,
   "servers": [
     {
       "addresses": [{ "address": "192.0.2.5", "type": "fixed", "version": 4 }],
@@ -228,8 +228,7 @@ Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits wit
       "volumes": [],
       "zone": "NCP-BKK"
     }
-  ],
-  "total": 6
+  ]
 }
 ```
 

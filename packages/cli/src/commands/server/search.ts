@@ -173,10 +173,12 @@ export const search = handle(
           status: failure.status,
         })),
         profile: found.profile,
+        projects: {
+          searched: found.outcomes.length - failed.length,
+          total: found.outcomes.length,
+        },
         query: query === undefined || query === "" ? null : query,
-        searched: found.outcomes.length - failed.length,
         servers: hits.map(({ project, server }) => ({ ...server, project })),
-        total: found.outcomes.length,
       });
       // The document is the result, so a failed project adds no error document.
       return failed.length > 0 ? 1 : 0;

@@ -146,7 +146,7 @@ With `--json`, a failure writes nothing to stdout and exactly one single-line JS
 A command that asks several things and gets some of them, such as `nipa server search` asking each project, returns what it got and says what it missed. Evidence: the Vercel CLI guideline asks for a nonzero exit when any part failed and for a count that never claims more than was searched:
 
 - The rows still reach stdout, and `--json` still writes its document. The exit code is 1
-- Under `--json`, the document names the failed parts (`failed`, with each one's `message` and `status`) and how many were searched out of the total, and stderr stays empty. The command writes no error document, because the document is the result and a second one would make a script parse two
+- Under `--json`, the document names the failed parts (`failed`, with each one's `message` and `status`) and `projects` with how many were `searched` out of the `total`, and stderr stays empty. The command writes no error document, because the document is the result and a second one would make a script parse two
 - Without `--json`, the context line says `in 4 of 6 projects` instead of `in 6 projects`, and an `Error:` block after the rows lists the failed parts, at most 5 and then `and 12 more`, with a hint that repeats one of them in its own scope. A search with no matches and a failure never says it found nothing anywhere
 - When every part fails the same way, and that way is the session or the network (`token_expired`, `network_error`, with the same message), the command throws that one error with its `reason`, `hint` and `next`, because a list of identical lines hides the fix. Failures that differ stay in the list
 
