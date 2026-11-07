@@ -656,6 +656,7 @@ describe("help and version, on the real table", () => {
     [["help", "-P", "staging", "logot"], "nipa -P staging help logout"],
     [["help", "--profile=staging", "logot"], "nipa -P staging help logout"],
     [["help", "-p", "Beta", "logot"], "nipa -p Beta help logout"],
+    [["help", "logot", "-p", "Beta"], "nipa -p Beta help logout"],
     [["-P", "a", "help", "-P", "b", "logot"], "nipa -P b help logout"],
     [
       ["help", "--json", "-P", "staging", "logot"],
@@ -666,6 +667,24 @@ describe("help and version, on the real table", () => {
     expect(failure.hint).toBe(`Did you mean \`nipa help logout\`?`);
     // The hint is printed through the run's scope, which the CLI sets before it throws.
     expect(inRun(failure.hint ?? "")).toBe(`Did you mean \`${command}\`?`);
+  });
+  test("help skips global options between names, as a command line does", async () => {
+    expect(await text(["help", "server", "-P", "staging", "stop"])).toBe(
+      await text(["help", "server", "stop"])
+    );
+    expect(
+      await usage(["help", "server", "-P", "staging", "nope"], realProgram)
+    ).toMatchObject({ code: 2, message: 'unknown subcommand "server nope"' });
+  });
+  test.each([
+    [["help", "-n", "5", "server"]],
+    [["help", "--", "-v"]],
+    [["help", "x"]],
+  ])("a short word suggests no command: %j", async (argv) => {
+    expect(await usage(argv, realProgram)).toMatchObject({
+      code: 2,
+      hint: "Run `nipa --help` to see the commands.",
+    });
   });
   test("help names only commands that exist", async () => {
     expect(await usage(["help", "nope"], realProgram)).toMatchObject({

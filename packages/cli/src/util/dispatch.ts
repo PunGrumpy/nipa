@@ -178,7 +178,8 @@ const unknownCommand = (input: {
     .toSorted((a, b) => a.score - b.score);
   const verb = input.help ? "help " : "";
   const hint =
-    closest && closest.score <= 2
+    // A short word is near every short command, so `5` or `-v` suggests nothing.
+    closest && closest.score <= Math.min(2, Math.floor(input.word.length / 2))
       ? `Did you mean \`nipa ${verb}${closest.name}\`?`
       : "Run `nipa --help` to see the commands.";
   return new CliError(`unknown command "${input.word}"`, {
@@ -202,6 +203,9 @@ interface HelpWords {
  * option belongs to the page path, since nipa can't know whether that
  * option takes a value. Options after a name end the path, and a `--` ends
  * the options: what follows it is a name even when it starts with a dash.
+ * Between and after the names, global options are skipped as on a command
+ * line (`help server -P x stop` names the stop page) and kept for the
+ * scope; any other option ends the path.
  */
 const helpWords = (words: readonly string[]): HelpWords => {
   const taken: GlobalValues[] = [];
@@ -219,11 +223,18 @@ const helpWords = (words: readonly string[]): HelpWords => {
     }
     rest = rest.slice(1);
   }
-  const end = rest.findIndex((word) => word.startsWith("-"));
-  return {
-    globals: Object.assign({}, ...taken),
-    names: end === -1 ? rest : rest.slice(0, end),
-  };
+  const names: string[] = [];
+  for (
+    let [word] = rest;
+    word !== undefined && !word.startsWith("-");
+    [word] = rest
+  ) {
+    names.push(word);
+    const after = takeGlobals({ unknown: "stop", words: rest.slice(1) });
+    taken.push(after.globals);
+    ({ rest } = after);
+  }
+  return { globals: Object.assign({}, ...taken), names };
 };
 
 /**
