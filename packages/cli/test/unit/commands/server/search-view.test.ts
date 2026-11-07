@@ -20,6 +20,7 @@ import type { Project } from "../../../../src/util/keystone";
 import type { RunScope } from "../../../../src/util/scope";
 import type { Failed, Outcome } from "../../../../src/util/server-search";
 import { CliError } from "../../../../src/util/ui";
+import { MULTILINE_NAMED } from "../../../mocks/keystone";
 
 const ALPHA: Project = { id: "a".repeat(32), name: "Alpha" };
 const BETA: Project = { id: "b".repeat(32), name: "Beta" };
@@ -447,6 +448,23 @@ describe("the commands it suggests", () => {
     const twin: Project = { id: "d".repeat(32), name: "Beta" };
     expect(projectRef(BETA, [ALPHA, BETA])).toBe("Beta");
     expect(projectRef(BETA, [ALPHA, BETA, twin])).toBe(BETA.id);
+  });
+
+  test("names a project by its ID when its name has a line break", () => {
+    expect(projectRef(MULTILINE_NAMED, [ALPHA, MULTILINE_NAMED])).toBe(
+      MULTILINE_NAMED.id
+    );
+    expect(projectRef({ id: "e".repeat(32), name: "a\rb" }, [ALPHA])).toBe(
+      "e".repeat(32)
+    );
+  });
+
+  test("names a server by its ID when its name has a line break", () => {
+    const odd = hit(ALPHA, server("odd\n> forged", { id: "id-odd" }));
+    expect(serverRef(odd)).toBe("id-odd");
+    expect(serverRef(hit(ALPHA, server("a\rb", { id: "id-cr" })))).toBe(
+      "id-cr"
+    );
   });
 
   test("names a server by its ID when the project has more than one by that name, and quotes the rest", () => {

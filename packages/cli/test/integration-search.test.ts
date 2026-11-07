@@ -23,6 +23,7 @@ import {
 import {
   ALPHA_ID,
   BETA_ID,
+  MULTILINE_NAMED,
   startFakeKeystone,
   TWIN_BETA_ID,
 } from "./mocks/keystone";
@@ -41,6 +42,7 @@ const WEB_1_SHUTOFF = "77777777-7777-4777-8777-777777777777";
 const BETA_WEB_1 = "bbbb1111-0000-4000-8000-000000000001";
 const BETA_WORKER = "bbbb2222-0000-4000-8000-000000000002";
 const NODE = "dddd1111-0000-4000-8000-000000000001";
+const ODD_SERVER = "eeee3333-0000-4000-8000-000000000003";
 const TWIN_WEB = "dddd2222-0000-4000-8000-000000000002";
 
 const servers = {
@@ -86,9 +88,11 @@ const servers = {
 let good: FakeKeystone;
 let faulty: FakeKeystone;
 let twins: FakeKeystone;
+let odd: FakeKeystone;
 let dir: string;
 let faultyDir: string;
 let twinsDir: string;
+let oddDir: string;
 
 const seed = async (keystone: FakeKeystone): Promise<string> => {
   const folder = await mkdtemp(path.join(tmpdir(), "nipa-search-"));
@@ -155,15 +159,30 @@ beforeAll(async () => {
     },
     twinBeta: true,
   });
+  // A project and a server whose names hold a line break.
+  odd = startFakeKeystone({
+    extraProjects: [MULTILINE_NAMED],
+    gateway: true,
+    projects: {
+      servers: {
+        [MULTILINE_NAMED.id]: [
+          fakeInstance("lone\nbreak", ODD_SERVER, "198.51.100.77"),
+        ],
+      },
+    },
+  });
   dir = await seed(good);
   faultyDir = await seed(faulty);
   twinsDir = await seed(twins);
+  oddDir = await seed(odd);
 });
 
 afterAll(async () => {
   good.stop();
   faulty.stop();
   twins.stop();
+  odd.stop();
+  await rm(oddDir, { force: true, recursive: true });
   await rm(twinsDir, { force: true, recursive: true });
   await rm(dir, { force: true, recursive: true });
   await rm(faultyDir, { force: true, recursive: true });
@@ -301,6 +320,22 @@ describe("server search with two projects of the same name", () => {
       ["web-1", "Beta", BETA_ID],
       ["web-9", "Beta", TWIN_BETA_ID],
     ]);
+  });
+});
+
+describe("server search with a name that has a line break", () => {
+  test("the suggested command names the project and the server by ID, on one line", async () => {
+    const { code, stderr } = await onTerminal(
+      ["server", "search", "198.51.100.77"],
+      80,
+      oddDir
+    );
+    expect(code).toBe(0);
+    expect(stderr).toContain(
+      `> Run \`nipa -p ${MULTILINE_NAMED.id} server inspect ${ODD_SERVER}\` to see its details.\n`
+    );
+    // The heading shows the name on one line, so no line begins with it.
+    expect(stderr).not.toMatch(/^> forged/mu);
   });
 });
 

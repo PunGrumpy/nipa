@@ -300,14 +300,21 @@ export const failureMessage = (input: {
   ].join("\n");
 };
 
+// A name with a line break can't be typed back: the shell would see two lines.
+const hasLineBreak = (text: string): boolean => /[\n\r]/u.test(text);
+
 /**
  * How a command names a project of another run: its name, or its ID when
- * another project in the account has that name too.
+ * another project in the account has that name too, or the name has a line
+ * break and so can't be copied back.
  */
 export const projectRef = (
   project: Project,
   projects: readonly Project[]
-): string => (sharesName(project, projects) ? project.id : project.name);
+): string =>
+  sharesName(project, projects) || hasLineBreak(project.name)
+    ? project.id
+    : project.name;
 
 /**
  * A command for a match, in the profile this run named and in the project of
@@ -330,7 +337,11 @@ export const commandFor = (input: {
 
 /**
  * The server a command takes: its name, or its ID when the project has more
- * than one by that name, quoted for the shell.
+ * than one by that name or the name has a line break, quoted for the shell.
  */
 export const serverRef = (hit: Hit): string =>
-  shellQuote(hit.nameRepeats ? hit.server.id : hit.server.name);
+  shellQuote(
+    hit.nameRepeats || hasLineBreak(hit.server.name)
+      ? hit.server.id
+      : hit.server.name
+  );
