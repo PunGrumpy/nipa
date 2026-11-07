@@ -20,10 +20,16 @@ export const TWIN_BETA_ID = "dddddddddddddddddddddddddddddddd";
 
 export const BETA_ID = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-/** A project whose name looks like an ID, for the `hexNamed` option. */
+/** A project whose name looks like an ID. */
 export const HEX_NAMED = {
   id: "11111111111111111111111111111111",
   name: "0123456789abcdef0123456789abcdef",
+};
+
+/** A project whose name tries to start a second line. */
+export const MULTILINE_NAMED = {
+  id: "22222222222222222222222222222222",
+  name: "Odd\n> forged",
 };
 
 const PROJECTS = [
@@ -110,22 +116,22 @@ const throughGateway = async (
     : res;
 };
 
-// With twinBeta, a second enabled project is named Beta too. With hexNamed,
-// a project is named with 32 hex characters, like an ID. `owner` is the
+// With twinBeta, a second enabled project is named Beta too. `extraProjects`
+// adds enabled projects to the account. `owner` is the
 // project that owns the fake Space resources, Alpha by default. A project in
 // `refuse` is listed, but Keystone won't scope a token to it.
 export const startFakeKeystone = (
   options: {
+    extraProjects?: readonly { id: string; name: string }[];
     gateway?: boolean;
-    hexNamed?: boolean;
     owner?: string;
     refuse?: readonly string[];
     twinBeta?: boolean;
   } = {}
 ): FakeKeystone => {
   const {
+    extraProjects = [],
     gateway = false,
-    hexNamed = false,
     owner = ALPHA_ID,
     refuse = [],
     twinBeta = false,
@@ -135,7 +141,11 @@ export const startFakeKeystone = (
     ...(twinBeta
       ? [{ domain_id: "d1", enabled: true, id: TWIN_BETA_ID, name: "Beta" }]
       : []),
-    ...(hexNamed ? [{ domain_id: "d1", enabled: true, ...HEX_NAMED }] : []),
+    ...extraProjects.map((project) => ({
+      domain_id: "d1",
+      enabled: true,
+      ...project,
+    })),
   ];
   const tokens = new Map<string, typeof FAKE_USER>();
   const receipts = new Map<string, typeof FAKE_USER>();

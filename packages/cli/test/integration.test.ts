@@ -40,6 +40,7 @@ import {
   BETA_ID,
   FAKE_USER,
   HEX_NAMED,
+  MULTILINE_NAMED,
   startFakeKeystone,
   TWIN_BETA_ID,
 } from "./mocks/keystone";
@@ -2289,7 +2290,10 @@ describe("--project against other Keystones", () => {
   });
 
   test("a project named like an ID is found by its name", async () => {
-    const hex = startFakeKeystone({ gateway: true, hexNamed: true });
+    const hex = startFakeKeystone({
+      extraProjects: [HEX_NAMED],
+      gateway: true,
+    });
     try {
       await freshDir();
       await seedSession(dir, hex.url);
@@ -2299,6 +2303,27 @@ describe("--project against other Keystones", () => {
       expect(stderr).toContain(`Using project ${HEX_NAMED.name}`);
     } finally {
       hex.stop();
+    }
+  });
+
+  test("a project name with a newline can't forge a second line", async () => {
+    const odd = startFakeKeystone({
+      extraProjects: [MULTILINE_NAMED],
+      gateway: true,
+    });
+    try {
+      await freshDir();
+      await seedSession(dir, odd.url);
+      const used = await run(["-p", MULTILINE_NAMED.id, "env"]);
+      expect(used.code).toBe(0);
+      expect(used.stderr).toBe("> Using project Odd\\n> forged\n");
+      const missing = await run(["-p", "Nope\n> forged", "server", "ls"]);
+      expect(missing.code).toBe(1);
+      expect(missing.stderr).toBe(
+        'Error: no project named or with ID "Nope\\n> forged"\n> Your projects: Alpha, Beta, Odd\\n> forged\n'
+      );
+    } finally {
+      odd.stop();
     }
   });
 

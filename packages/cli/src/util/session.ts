@@ -36,6 +36,7 @@ import {
   formatDuration,
   log,
   note,
+  oneLine,
   success,
   withSpinner,
 } from "./ui";
@@ -156,17 +157,20 @@ const findProject = (input: {
   const [match, ...others] =
     byId.length > 0 ? byId : projects.filter((p) => p.name === wanted);
   if (!match) {
-    throw new CliError(`no project named or with ID "${wanted}"`, {
-      hint: `Your projects: ${projects.map((p) => p.name).join(", ")}`,
+    throw new CliError(`no project named or with ID "${oneLine(wanted)}"`, {
+      hint: `Your projects: ${projects.map((p) => oneLine(p.name)).join(", ")}`,
       reason: "not_found",
     });
   }
   if (others.length > 0) {
-    const ids = [match, ...others].map((p) => p.id).join(", ");
-    throw new CliError(`${others.length + 1} projects are named "${wanted}"`, {
-      hint: `Name one by its ID instead: ${ids}.`,
-      reason: "ambiguous_name",
-    });
+    const ids = [match, ...others].map((p) => oneLine(p.id)).join(", ");
+    throw new CliError(
+      `${others.length + 1} projects are named "${oneLine(wanted)}"`,
+      {
+        hint: `Name one by its ID instead: ${ids}.`,
+        reason: "ambiguous_name",
+      }
+    );
   }
   return match;
 };
@@ -351,12 +355,14 @@ export const authenticate = async (input: {
     listProjects({ authUrl: profile.authUrl, token: token.value })
   );
   const project = findProject({ projects, wanted: wantedName });
-  const scoped = await withSpinner(`Switching to ${project.name}…`, () =>
-    rescope({
-      authUrl: profile.authUrl,
-      projectId: project.id,
-      token: token.value,
-    })
+  const scoped = await withSpinner(
+    `Switching to ${oneLine(project.name)}…`,
+    () =>
+      rescope({
+        authUrl: profile.authUrl,
+        projectId: project.id,
+        token: token.value,
+      })
   );
   return toSession(scoped, project);
 };
@@ -517,10 +523,10 @@ const unusableProject = (input: {
   const revoked = `If Keystone revoked your session, run \`${loginLine(active.name)}\`.`;
   return target.from === "link"
     ? new CliError(
-        `can't use project ${project.name}, which ${displayPath(target.link.file)} links to`,
+        `can't use project ${oneLine(project.name)}, which ${displayPath(target.link.file)} links to`,
         { hint: `Run \`nipa link\` to pick another project. ${revoked}` }
       )
-    : new CliError(`can't use project ${project.name}`, {
+    : new CliError(`can't use project ${oneLine(project.name)}`, {
         hint: `Check the name or ID of the project. ${revoked}`,
       });
 };
@@ -533,7 +539,7 @@ const rescopeTo = async (input: {
 }): Promise<Token | undefined> => {
   const { active, project, session } = input;
   try {
-    return await withSpinner(`Switching to ${project.name}…`, () =>
+    return await withSpinner(`Switching to ${oneLine(project.name)}…`, () =>
       rescope({
         authUrl: active.profile.authUrl,
         projectId: project.id,
@@ -593,7 +599,7 @@ const projectSession = async (input: {
     throw unusableProject({ active, project, target });
   }
   const scoped = toSession(token, project);
-  const name = bold(scoped.project.name);
+  const name = bold(oneLine(scoped.project.name));
   log(
     target.from === "link"
       ? `Using project ${name} from ${dim(displayPath(target.link.file))}`
