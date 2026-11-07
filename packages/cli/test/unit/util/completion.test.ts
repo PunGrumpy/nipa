@@ -366,6 +366,7 @@ describe("bash", () => {
   test("server subcommands and their flags", async () => {
     expect(await bashComplete("nipa", "server", "")).toEqual([
       "ls",
+      "search",
       "inspect",
       "history",
       "logs",
@@ -410,7 +411,7 @@ describe("zsh", () => {
     const subcommands = await zshDescribed("nipa", "-p", "Beta", "server", "");
     expect(subcommands.slice(0, 2)).toEqual([
       "ls:List the servers in your project",
-      "inspect:Show a server's flavor, addresses, volumes and security groups",
+      "search:Find servers by name, ID or address in every project",
     ]);
     expect(
       await zshDescribed("nipa", "-P", "prod", "-p", "Beta", "switch", "")

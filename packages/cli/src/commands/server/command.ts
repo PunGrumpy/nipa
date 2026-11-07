@@ -31,6 +31,33 @@ export const lsSubcommand = defineCommand({
   summary: LIST_SERVERS,
 });
 
+export const searchSubcommand = defineCommand({
+  args: [{ arity: "optional", name: "query", value: { kind: "text" } }],
+  description:
+    "Looks in every project you can use for servers whose name, ID or address contains the query, ignoring case. The query is plain text, not a pattern, and without one nipa lists every server. nipa asks each project live and saves nothing, so a server that the portal, Terraform or Kubernetes just made shows up. It reads four projects at a time and gives up on one that takes more than 15 seconds. A folder's link doesn't narrow it. With `-p`, nipa searches only that project. When a project fails, nipa still prints the servers it found, then lists the projects it couldn't read and exits with code 1.",
+  examples: [
+    {
+      command: "nipa server search web",
+      description: "Find the servers named like web in every project",
+    },
+    {
+      command: "nipa server search 203.0.113.10",
+      description: "Find the server that has an address, in any project",
+    },
+    {
+      command: "nipa -p Beta server search web",
+      description: "Search only the Beta project",
+    },
+    {
+      command: "nipa server search web --json | jq -r '.servers[].id'",
+      description: "Print the ID of each match",
+    },
+  ],
+  flags: [jsonFlag],
+  name: "search",
+  summary: "Find servers by name, ID or address in every project",
+});
+
 export const inspectSubcommand = defineCommand({
   args: [serverArg],
   flags: [jsonFlag],
@@ -87,11 +114,15 @@ export const serverCommand = defineGroup({
   aliases: ["servers"],
   default: "ls",
   description:
-    "Lists, inspects, starts, stops and restarts the servers in your project, and shows what was done to a server and its console log. Name a server by its name or ID. `logs` prints the last 100 lines of the console log, which is what the Space API sends. nipa calls the Space API, the one the Nipa Cloud Space portal uses, so you don't need the OpenStack client. start, stop and restart wait until the server finishes, for 5 minutes or `--timeout`. `--no-wait` returns once the Space API takes the action.",
+    "Lists, searches, inspects, starts, stops and restarts the servers in your project, and shows what was done to a server and its console log. Name a server by its name or ID. `logs` prints the last 100 lines of the console log, which is what the Space API sends. nipa calls the Space API, the one the Nipa Cloud Space portal uses, so you don't need the OpenStack client. start, stop and restart wait until the server finishes, for 5 minutes or `--timeout`. `--no-wait` returns once the Space API takes the action.",
   examples: [
     {
       command: "nipa server ls",
       description: LIST_SERVERS,
+    },
+    {
+      command: "nipa server search web",
+      description: "Find the servers named like web in every project",
     },
     {
       command: "nipa server inspect web-1",
@@ -134,6 +165,7 @@ export const serverCommand = defineGroup({
   name: "server",
   subcommands: [
     lsSubcommand,
+    searchSubcommand,
     inspectSubcommand,
     historySubcommand,
     logsSubcommand,
@@ -142,5 +174,5 @@ export const serverCommand = defineGroup({
     restartSubcommand,
   ],
   summary:
-    "List, inspect, start, stop and restart your servers, and read their history and logs",
+    "List, search, inspect, start, stop and restart your servers, and read their history and logs",
 });

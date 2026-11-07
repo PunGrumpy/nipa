@@ -160,6 +160,17 @@ export interface SearchInput {
   readonly deadlineMs?: number;
 }
 
+/** The outcome of a project whose servers are listed, with the ones that match `query`. */
+export const searchedProject = (
+  project: Project,
+  servers: readonly Server[],
+  query?: string
+): Searched => ({
+  project,
+  repeated: repeatedNames(servers),
+  servers: servers.filter((server) => matchesServer(server, query)),
+});
+
 const searchOne = async (
   input: SearchInput,
   project: Project,
@@ -184,12 +195,7 @@ const searchOne = async (
     signedIn: { active, session: scoped },
     spaceUrl,
   });
-  const servers = await listServers(space);
-  return {
-    project,
-    repeated: repeatedNames(servers),
-    servers: servers.filter((server) => matchesServer(server, query)),
-  };
+  return searchedProject(project, await listServers(space), query);
 };
 
 /**
