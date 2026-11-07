@@ -23,6 +23,7 @@ import { CliError } from "../../../../src/util/ui";
 
 const ALPHA: Project = { id: "a".repeat(32), name: "Alpha" };
 const BETA: Project = { id: "b".repeat(32), name: "Beta" };
+const projects = [ALPHA, BETA];
 
 const server = (name: string, over: Partial<Server> = {}): Server => ({
   addresses: [{ address: "203.0.113.10", type: "floating", version: 4 }],
@@ -128,6 +129,9 @@ describe("contextLine", () => {
   });
 });
 
+const headings = (lines: readonly string[]) =>
+  plain(lines).filter((row) => /^ {2}\S/u.test(row));
+
 describe("groupLines", () => {
   const web = [
     hit(ALPHA, server("web-2", { status: "BUILD" })),
@@ -145,7 +149,9 @@ describe("groupLines", () => {
   ];
 
   test("groups the matches under their projects and marks the current one", () => {
-    const out = plain(groupLines({ current: ALPHA.id, hits: web, width: 80 }));
+    const out = plain(
+      groupLines({ current: ALPHA.id, hits: web, projects, width: 80 })
+    );
     expect(out).toEqual([
       "",
       "  Alpha (current)",
@@ -162,25 +168,27 @@ describe("groupLines", () => {
   });
 
   test("shows an ID only under a name the project repeats", () => {
-    const out = plain(groupLines({ hits: web, width: 80 })).join("\n");
+    const out = plain(groupLines({ hits: web, projects, width: 80 })).join(
+      "\n"
+    );
     expect(out.match(/ID id-/gu)).toHaveLength(2);
     expect(out).not.toContain("ID id-3");
     expect(out).not.toContain("(current)");
   });
 
   test("with nothing to show it prints nothing", () => {
-    expect(groupLines({ hits: [], width: 80 })).toEqual([]);
+    expect(groupLines({ hits: [], projects, width: 80 })).toEqual([]);
   });
 
   test("a Kubernetes node shows its role, and shortens it when the row doesn't fit", () => {
     const hits = [
       hit(ALPHA, node("payments-prod-k8s-x7f2ab9c-master-0", "master")),
     ];
-    const wide = plain(groupLines({ hits, width: 100 })).join("\n");
+    const wide = plain(groupLines({ hits, projects, width: 100 })).join("\n");
     expect(wide).toContain(
       "payments-prod-k8s-x7f2ab9c-master-0 (Kubernetes master)"
     );
-    const narrow = plain(groupLines({ hits, width: 70 }));
+    const narrow = plain(groupLines({ hits, projects, width: 70 }));
     expect(narrow.join("\n")).toContain(
       "payments-prod-k8s-x7f2ab9c-master-0 (master)"
     );
@@ -195,7 +203,7 @@ describe("groupLines", () => {
       hit(ALPHA, node("payments-prod-k8s-x7f2ab9c-node-0", "worker")),
       hit(ALPHA, server("web-1", { id: "id-1" }), true),
     ];
-    const out = plain(groupLines({ hits, width: 40 }));
+    const out = plain(groupLines({ hits, projects, width: 40 }));
     expect(out).toEqual([
       "",
       "  Alpha",
@@ -212,15 +220,19 @@ describe("groupLines", () => {
     const hits = [hit(ALPHA, server("web-1"))];
     // "    web-1" + 3 + "● Active" + 3 + "203.0.113.10"
     const exact = 4 + 5 + 3 + 8 + 3 + 12;
-    expect(plain(groupLines({ hits, width: exact }))[2]).toContain("web-1   ●");
-    expect(plain(groupLines({ hits, width: exact - 1 }))[2]).toBe("    web-1");
+    expect(plain(groupLines({ hits, projects, width: exact }))[2]).toContain(
+      "web-1   ●"
+    );
+    expect(plain(groupLines({ hits, projects, width: exact - 1 }))[2]).toBe(
+      "    web-1"
+    );
   });
 
   test("a remote name can't forge a line or carry an escape", () => {
     const hits = [
       hit(ALPHA, server("web\n  > forged\u001B[2J", { id: "id-x" })),
     ];
-    const lines = plain(groupLines({ hits, width: 80 }));
+    const lines = plain(groupLines({ hits, projects, width: 80 }));
     expect(lines).toHaveLength(4);
     expect(lines.join("\n")).not.toContain("\u001B");
   });
@@ -229,6 +241,7 @@ describe("groupLines", () => {
     const out = plain(
       groupLines({
         hits: [hit(ALPHA, server("web-1")), hit(BETA, server("web-1"))],
+        projects,
         width: 80,
       })
     );
@@ -236,6 +249,38 @@ describe("groupLines", () => {
       "  Alpha",
       "  Beta",
     ]);
+  });
+
+  describe("two projects with the same name", () => {
+    const twin: Project = { id: "d".repeat(32), name: "Beta" };
+    const hits = [
+      hit(ALPHA, server("web-1")),
+      hit(BETA, server("web-1")),
+      hit(twin, server("web-2")),
+    ];
+
+    test("each shows its ID after the name, and a project with a unique name shows none", () => {
+      const out = groupLines({
+        current: BETA.id,
+        hits,
+        projects: [ALPHA, BETA, twin],
+        width: 80,
+      });
+      expect(headings(out)).toEqual([
+        "  Alpha",
+        `  Beta ${BETA.id} (current)`,
+        `  Beta ${twin.id}`,
+      ]);
+    });
+
+    test("a narrow terminal's records show it too", () => {
+      const out = groupLines({
+        hits,
+        projects: [ALPHA, BETA, twin],
+        width: 30,
+      });
+      expect(headings(out)).toContain(`  Beta ${twin.id}`);
+    });
   });
 });
 
@@ -282,24 +327,26 @@ describe("pipeRows", () => {
       "ID",
       "Name",
       "Project",
+      "Project ID",
       "Status",
       "Address",
       "Flavor",
       "Created",
     ]);
-    expect(rows.map((row) => row.length)).toEqual([7, 7]);
+    expect(rows.map((row) => row.length)).toEqual([8, 8]);
     expect(rows[0]).toEqual([
       "id-k8s-master-0",
       "k8s-master-0",
       "Beta",
+      BETA.id,
       "Active",
       "203.0.113.10",
       "csa.large.v2",
       "2026-11-03T00:00:00.000Z",
     ]);
     // A server with no address has an empty field, not a dash.
-    expect(rows[1]?.[3]).toBe("Shutoff");
-    expect(rows[1]?.[4]).toBe("");
+    expect(rows[1]?.[4]).toBe("Shutoff");
+    expect(rows[1]?.[5]).toBe("");
   });
 });
 

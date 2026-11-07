@@ -20,7 +20,12 @@ import {
   seedSession,
   testEnv,
 } from "./helpers";
-import { ALPHA_ID, BETA_ID, startFakeKeystone } from "./mocks/keystone";
+import {
+  ALPHA_ID,
+  BETA_ID,
+  startFakeKeystone,
+  TWIN_BETA_ID,
+} from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import { fakeInstance } from "./mocks/space";
 
@@ -36,6 +41,7 @@ const WEB_1_SHUTOFF = "77777777-7777-4777-8777-777777777777";
 const BETA_WEB_1 = "bbbb1111-0000-4000-8000-000000000001";
 const BETA_WORKER = "bbbb2222-0000-4000-8000-000000000002";
 const NODE = "dddd1111-0000-4000-8000-000000000001";
+const TWIN_WEB = "dddd2222-0000-4000-8000-000000000002";
 
 const servers = {
   // Alpha has two servers named web-1, so the name can't pick one.
@@ -79,8 +85,10 @@ const servers = {
 
 let good: FakeKeystone;
 let faulty: FakeKeystone;
+let twins: FakeKeystone;
 let dir: string;
 let faultyDir: string;
+let twinsDir: string;
 
 const seed = async (keystone: FakeKeystone): Promise<string> => {
   const folder = await mkdtemp(path.join(tmpdir(), "nipa-search-"));
@@ -136,13 +144,27 @@ beforeAll(async () => {
     projects: { fail: { [FINANCE.id]: 403 }, servers },
     refuse: [OLD_TEAM.id],
   });
+  // Two enabled projects are both named Beta.
+  twins = startFakeKeystone({
+    gateway: true,
+    projects: {
+      servers: {
+        [BETA_ID]: [fakeInstance("web-1", BETA_WEB_1, "198.51.100.5")],
+        [TWIN_BETA_ID]: [fakeInstance("web-9", TWIN_WEB, "198.51.100.9")],
+      },
+    },
+    twinBeta: true,
+  });
   dir = await seed(good);
   faultyDir = await seed(faulty);
+  twinsDir = await seed(twins);
 });
 
 afterAll(async () => {
   good.stop();
   faulty.stop();
+  twins.stop();
+  await rm(twinsDir, { force: true, recursive: true });
   await rm(dir, { force: true, recursive: true });
   await rm(faultyDir, { force: true, recursive: true });
 });
@@ -255,6 +277,33 @@ describe("server search in a terminal", () => {
   });
 });
 
+describe("server search with two projects of the same name", () => {
+  test("a terminal shows each one's ID after its name", async () => {
+    const { stderr } = await onTerminal(
+      ["server", "search", "web"],
+      80,
+      twinsDir
+    );
+    expect(stderr).toContain(`  Beta ${BETA_ID}\n    web-1`);
+    expect(stderr).toContain(`  Beta ${TWIN_BETA_ID}\n    web-9`);
+    expect(stderr).not.toContain(`  Alpha ${ALPHA_ID}`);
+  });
+
+  test("a pipe names the project's ID in its own column", async () => {
+    const { stdout } = await run(["server", "search", "web"], twinsDir);
+    const rows = stdout
+      .trimEnd()
+      .split("\n")
+      .slice(1)
+      .map((line) => line.split("\t"))
+      .filter((row) => row[2] === "Beta");
+    expect(rows.map((row) => row.slice(1, 4))).toEqual([
+      ["web-1", "Beta", BETA_ID],
+      ["web-9", "Beta", TWIN_BETA_ID],
+    ]);
+  });
+});
+
 describe("server search in a pipe", () => {
   test("stdout is a tab-separated table and stderr is only the context line", async () => {
     const { code, stderr, stdout } = await run(["server", "search", "web"]);
@@ -264,18 +313,18 @@ describe("server search in a pipe", () => {
     );
     const lines = stdout.trimEnd().split("\n");
     expect(lines[0]).toBe(
-      "ID\tName\tProject\tStatus\tAddress\tFlavor\tCreated"
+      "ID\tName\tProject\tProject ID\tStatus\tAddress\tFlavor\tCreated"
     );
     const rows = lines.slice(1).map((line) => line.split("\t"));
-    expect(rows.map((row) => row.length)).toEqual(rows.map(() => 7));
-    expect(rows.map((row) => row.slice(0, 5))).toEqual([
-      [WEB_2, "web-2", "Alpha", "Build", "192.0.2.7"],
-      [WEB_1_ACTIVE, "web-1", "Alpha", "Active", "203.0.113.10"],
-      [WEB_1_SHUTOFF, "web-1", "Alpha", "Shutoff", "192.0.2.77"],
-      [BETA_WEB_1, "web-1", "Beta", "Active", "198.51.100.5"],
-      [NODE, "k8s-web-node-0", "Delta", "Active", "203.0.113.41"],
+    expect(rows.map((row) => row.length)).toEqual(rows.map(() => 8));
+    expect(rows.map((row) => row.slice(0, 6))).toEqual([
+      [WEB_2, "web-2", "Alpha", ALPHA_ID, "Build", "192.0.2.7"],
+      [WEB_1_ACTIVE, "web-1", "Alpha", ALPHA_ID, "Active", "203.0.113.10"],
+      [WEB_1_SHUTOFF, "web-1", "Alpha", ALPHA_ID, "Shutoff", "192.0.2.77"],
+      [BETA_WEB_1, "web-1", "Beta", BETA_ID, "Active", "198.51.100.5"],
+      [NODE, "k8s-web-node-0", "Delta", DELTA.id, "Active", "203.0.113.41"],
     ]);
-    expect(rows[0]?.[6]).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/u);
+    expect(rows[0]?.[7]).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/u);
     expect(stdout).not.toContain("●");
     expect(stdout).not.toContain("Kubernetes");
   });
@@ -293,7 +342,7 @@ describe("server search in a pipe", () => {
       NODE,
     ]);
     for (const line of kept) {
-      expect(line.split("\t")[3]).toBe("Active");
+      expect(line.split("\t")[4]).toBe("Active");
     }
   });
 
@@ -301,7 +350,7 @@ describe("server search in a pipe", () => {
     const none = await run(["server", "search", "zzz"]);
     expect(none.code).toBe(0);
     expect(none.stdout).toBe(
-      "ID\tName\tProject\tStatus\tAddress\tFlavor\tCreated\n"
+      "ID\tName\tProject\tProject ID\tStatus\tAddress\tFlavor\tCreated\n"
     );
     expect(none.stderr).toMatch(/^> No servers match "zzz" in 5 projects\./u);
   });

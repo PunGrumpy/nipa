@@ -140,10 +140,26 @@ const groupsOf = (hits: readonly Hit[]): Group[] => {
   return [...groups.values()];
 };
 
-const headingOf = (group: Group, current: string | undefined): string =>
-  `  ${bold(oneLine(group.project.name))}${
-    group.project.id === current ? ` ${dim("(current)")}` : ""
-  }`;
+/** Whether another project in the account has the same name, so the name can't pick it. */
+const sharesName = (project: Project, projects: readonly Project[]): boolean =>
+  projects.some(
+    (other) => other.id !== project.id && other.name === project.name
+  );
+
+// A project that shares its name with another shows its ID after the name, so
+// two groups headed "Beta" can be told apart and named in a command.
+const headingOf = (
+  group: Group,
+  current: string | undefined,
+  projects: readonly Project[]
+): string => {
+  const { id, name } = group.project;
+  const twin = sharesName(group.project, projects)
+    ? ` ${dim(oneLine(id))}`
+    : "";
+  const mark = id === current ? ` ${dim("(current)")}` : "";
+  return `  ${bold(oneLine(name))}${twin}${mark}`;
+};
 
 interface Layout {
   readonly lines: string[];
@@ -153,9 +169,10 @@ interface Layout {
 const tableLayout = (input: {
   groups: readonly Group[];
   current: string | undefined;
+  projects: readonly Project[];
   names: "full" | "short";
 }): Layout => {
-  const { current, groups, names } = input;
+  const { current, groups, names, projects } = input;
   const rows = groups.flatMap((group) => group.rows);
   const pick = (row: Row): Cell =>
     names === "short" ? (row.name.short ?? row.name) : row.name;
@@ -170,7 +187,7 @@ const tableLayout = (input: {
     widest(rows.map((row) => row.address));
   const lines = groups.flatMap((group) => [
     "",
-    headingOf(group, current),
+    headingOf(group, current, projects),
     ...group.rows.flatMap((row) => [
       `${ROW_INDENT}${painted(pick(row), nameWidth)}${GAP}${painted(row.status, statusWidth)}${GAP}${row.address}`,
       ...idLine(row),
@@ -183,11 +200,12 @@ const tableLayout = (input: {
 // line, and its status and address beneath.
 const recordLines = (
   groups: readonly Group[],
-  current: string | undefined
+  current: string | undefined,
+  projects: readonly Project[]
 ): string[] =>
   groups.flatMap((group) => [
     "",
-    headingOf(group, current),
+    headingOf(group, current, projects),
     ...group.rows.flatMap((row) => [
       `${ROW_INDENT}${painted(row.name.short ?? row.name)}`,
       `${DETAIL_INDENT}${painted(row.status)}${GAP}${row.address}`,
@@ -201,29 +219,33 @@ const recordLines = (
  * shortens, then each server takes two lines. A name, an ID and an address
  * are never cut. Each group starts after a blank line and the last is
  * followed by one, so the lines sit between the context line and the next
- * step. `current` is the ID of the project `nipa server ls` shows.
+ * step. `current` is the ID of the project `nipa server ls` shows, and
+ * `projects` is every project the account can use, to tell apart two that
+ * share a name.
  */
 export const groupLines = (input: {
   hits: readonly Hit[];
   width: number;
+  projects: readonly Project[];
   current?: string;
 }): string[] => {
   const groups = groupsOf(input.hits);
   if (groups.length === 0) {
     return [];
   }
-  const { current, width } = input;
+  const { current, projects, width } = input;
   const layouts = (["full", "short"] as const).map((names) =>
-    tableLayout({ current, groups, names })
+    tableLayout({ current, groups, names, projects })
   );
   const fits = layouts.find((layout) => layout.width <= width);
-  return [...(fits?.lines ?? recordLines(groups, current)), ""];
+  return [...(fits?.lines ?? recordLines(groups, current, projects)), ""];
 };
 
 export const PIPE_HEADINGS = [
   "ID",
   "Name",
   "Project",
+  "Project ID",
   "Status",
   "Address",
   "Flavor",
@@ -233,13 +255,14 @@ export const PIPE_HEADINGS = [
 /**
  * One row per match for a pipe. Every field a script can use: the ID that
  * the next command takes, the bare name even for a Kubernetes node, the
- * project's name, and an ISO time.
+ * project's name and ID (two projects can share a name), and an ISO time.
  */
 export const pipeRows = (hits: readonly Hit[]): string[][] =>
   hits.map(({ project, server }) => [
     server.id,
     server.name,
     project.name,
+    project.id,
     statusLabel(server.status),
     mainAddress(server) ?? "",
     server.flavor,
@@ -284,12 +307,7 @@ export const failureMessage = (input: {
 export const projectRef = (
   project: Project,
   projects: readonly Project[]
-): string =>
-  projects.some(
-    (other) => other.id !== project.id && other.name === project.name
-  )
-    ? project.id
-    : project.name;
+): string => (sharesName(project, projects) ? project.id : project.name);
 
 /**
  * A command for a match, in the profile this run named and in the project of

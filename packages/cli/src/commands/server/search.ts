@@ -190,6 +190,7 @@ export const search = handle(
       for (const line of groupLines({
         current: found.current,
         hits,
+        projects: found.projects,
         width: stderrWidth(),
       })) {
         writeStderr(line);
