@@ -1,5 +1,5 @@
 import { handle } from "../../util/command";
-import { getConsoleLog } from "../../util/compute";
+import { getConsoleLog, lastLines } from "../../util/compute";
 import { findServer } from "../../util/find";
 import {
   bold,
@@ -21,24 +21,6 @@ const parseTail = (text: string): number => {
     );
   }
   return count;
-};
-
-/**
- * The last `count` lines of `text`, each ending in a newline, or `text` as
- * the Space API sent it when there's no count.
- */
-const lastLines = (text: string, count: number | undefined): string => {
-  if (count === undefined) {
-    return text;
-  }
-  const lines = text.split("\n");
-  if (lines.at(-1) === "") {
-    lines.pop();
-  }
-  return lines
-    .slice(-count)
-    .map((line) => `${line}\n`)
-    .join("");
 };
 
 export const logs = handle(logsSubcommand, async ({ args, client, flags }) => {

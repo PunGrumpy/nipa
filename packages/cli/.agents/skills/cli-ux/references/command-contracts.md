@@ -185,3 +185,30 @@ States to test:
 - `-p`, `-P` and both, with the suggested commands checked for each
 - A folder link, with the link file and `auth.json` unchanged
 - At most four projects open at once, and one stalled project not holding the others past its deadline
+
+## Serving an AI assistant
+
+`nipa mcp` in `src/commands/mcp` and `src/util/mcp-server.ts` runs a Model Context Protocol server. stdin and stdout carry JSON-RPC, so the command breaks every rule that assumes a person or a pipe reads stdout. nipa holds no AI key and calls no model: the assistant a person already uses starts the command.
+
+Resolution order:
+
+1. **Profile**: the run's `-P`, resolved before the assistant connects, so an unknown profile fails with the usual error and exit 1 and writes nothing to stdout
+2. **Session**: read on each tool call, never at startup, through `requireSession` with prompts that say they can't ask. An expired session is a tool error, so a `nipa login` in another terminal takes effect on the next call
+3. **Project**: the tool's `project`, else the run's `-p`, else the folder's link, else the saved project. A project never saves
+
+Rules:
+
+- Nothing but the SDK writes to stdout. Messages go to stderr, spinners are off through `setAnimation(false)`, and the update notice is off through `updateNotice: false`. Never call `client.stdout` here
+- Never prompt, whatever the terminal says. `createToolContext` builds prompts with `nonInteractive: true`, because the client's own prompts follow the terminal and `nipa mcp` can run in one
+- Every tool reads. The tool table in `src/util/mcp-tools.ts` holds no tool that starts, stops, creates, changes or deletes anything, and `test/unit/util/mcp-tools.test.ts` lists the allowed names. A tool calls the util function its command calls and returns the document `--json` prints, so the two can't drift, and the integration test compares them
+- A failure is a result with `isError`, never a protocol error. It holds the document `--json` writes to stderr: `message`, `reason`, `status`, and `hint` or `next`. A session that needs a login adds that the person must run it in a terminal
+- Import the SDK only in `src/util/mcp-server.ts`, which only `src/commands/mcp` imports and does so lazily, so other commands don't evaluate it
+- Never put a token, a password or an OTP code in a tool's answer
+
+States to test:
+
+- `initialize`, `tools/list` and `tools/call` over stdio, on Bun and on the Node bundle
+- Every line of stdout parses as a JSON-RPC frame, in a run that succeeds and in one that fails
+- An expired session and a session that never started, for a tool that needs a project and for `search_servers`
+- A tool's `project`, `-p` and `-P`, with `auth.json` and `config.json` unchanged
+- A tool that names a resource nobody has, with input the schema refuses, and a tool that doesn't exist

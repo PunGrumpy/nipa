@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  databaseProblems,
-  describeProblem,
-} from "../../../../src/commands/db/health";
 import type {
   DatabaseBackup,
   DatabaseDetail,
   DatabaseInstance,
-} from "../../../../src/util/database";
+} from "../../../src/util/database";
+import {
+  databaseProblems,
+  describeProblem,
+} from "../../../src/util/database-health";
 
 const PRIMARY: DatabaseInstance = {
   address: "192.0.2.20",

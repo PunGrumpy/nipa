@@ -6,7 +6,7 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 24 commands. Without a command, it prints help.
+nipa has 25 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
@@ -41,6 +41,7 @@ nipa has 24 commands. Without a command, it prints help.
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
 | `nipa env [--shell bash\|zsh\|fish]` | Prints the session's `OS_*` variables as shell commands |
+| `nipa mcp` | Runs a Model Context Protocol (MCP) server on stdin and stdout, so an AI assistant such as Claude Code, Claude Desktop, Cursor or Codex can read your project with your session. An assistant starts it, so you add it to the assistant's configuration. nipa holds no AI key and calls no model. The server offers read-only tools and no tool that changes anything. `-P` and `-p` pick the profile and project for the whole run, and each tool takes a `project` of its own. When the session expired, a tool answers with an error that asks you to run `nipa login`, because nipa can't ask for a password on stdin. Messages go to stderr, and stdout carries only MCP messages. See [MCP tools](#mcp-tools) and [Use nipa with an AI assistant](use-with-ai.md) |
 | `nipa profile [ls\|add\|use\|rm]` | Lists (`nipa profile ls`), adds (`nipa profile add`), picks (`nipa profile use`) or removes (`nipa profile rm`) profiles. `nipa profile list` is the same as `nipa profile ls` |
 | `nipa doctor [--json]` | Checks the config files, the profile, its Keystone and Space API, the session and whether Keystone and the Space API accept its token, the folder's link, `openstack` and `terraform`, and the last update check. It prints how to fix each problem, changes nothing, never asks for a password, and exits with code `1` when a check fails. A warning doesn't change the exit code |
 | `nipa completion [shell] [--install]` | Prints the tab completion script for `bash`, `zsh`, `fish` or `pwsh`. Without a shell, nipa uses the one in `$SHELL`. With `--install`, nipa saves the script where the shell loads it instead of printing it: `~/.zfunc/_nipa` for zsh, `~/.local/share/bash-completion/completions/nipa` for bash and `~/.config/fish/completions/nipa.fish` for fish. bash and fish honour `XDG_DATA_HOME` and `XDG_CONFIG_HOME` for those folders. PowerShell has no such folder |
@@ -692,6 +693,32 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 ```
 
 `nipa profile ls --json` prints an array with one object per profile. Each object has `name`, `current`, `loggedIn`, `authUrl`, `userDomain`, `region` and `spaceUrl`. It also has `username` and `project` from the last login, and `user` while the session is active.
+
+## MCP tools
+
+`nipa mcp` offers these tools. Each one reads, and returns the JSON that the matching command prints with `--json`, so the profile and project are named in every answer. Every tool except `whoami` also takes an optional `project`, a name or ID, which reads that project for the call and saves nothing.
+
+| Tool | Input | Same as |
+| --- | --- | --- |
+| `whoami` | none | `nipa whoami --json` |
+| `list_servers` | none | `nipa server ls --json` |
+| `inspect_server` | `server` | `nipa server inspect <server> --json` |
+| `server_console_log` | `server`, `tail` (1 to 500, default 100) | `nipa server logs <server> --tail <n> --json` |
+| `server_history` | `server` | `nipa server history <server> --json` |
+| `search_servers` | `query` | `nipa server search [query] --json`. It searches every project unless you pass `project`, or started `nipa mcp` with `-p` |
+| `list_volumes` | none | `nipa volume ls --json` |
+| `list_networks` | none | `nipa network ls --json` |
+| `list_security_groups` | none | `nipa sg ls --json` |
+| `inspect_security_group` | `group` | `nipa sg inspect <group> --json` |
+| `list_load_balancers` | none | `nipa lb ls --json` |
+| `inspect_load_balancer` | `loadBalancer` | `nipa lb inspect <lb> --json`, plus a `diagnosis` with the verdict that `nipa lb inspect` prints |
+| `list_databases` | none | `nipa db ls --json` |
+| `inspect_database` | `database` | `nipa db inspect <database> --json` |
+| `list_kubernetes_clusters` | none | `nipa k8s ls --json` |
+| `list_quotas` | none | `nipa quota ls --json` |
+| `list_flavors` | none | `nipa flavor ls --json` |
+
+A tool that fails returns an error result, with `isError` set, that holds the document `--json` writes to stderr for the same failure: `message`, `reason`, `status` and, when they apply, `hint` and `next`. An expired session gives the reason `token_expired`, or `login_required` when you never logged in.
 
 ## Update check
 

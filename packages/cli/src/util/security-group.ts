@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { utcTime } from "./api";
 import type { Space } from "./api";
+import type { Server } from "./compute";
+import type { Port } from "./network";
 
 const RuleSchema = z.object({
   direction: z.string(),
@@ -80,3 +82,33 @@ export const listSecurityGroups = async (
     .map(toSecurityGroup)
     .toSorted((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 };
+
+export interface Member {
+  id: string;
+  name: string;
+  /** The server's addresses on the ports that carry the group. */
+  addresses: string[];
+}
+
+// A server's security groups belong to its ports, which name them by ID.
+// The server list names them, and two groups can share a name.
+export const membersOf = (
+  groupId: string,
+  ports: readonly Port[],
+  servers: readonly Server[]
+): Member[] =>
+  servers.flatMap((server) => {
+    const own = ports.filter(
+      (port) =>
+        port.deviceId === server.id && port.securityGroupIds.includes(groupId)
+    );
+    return own.length > 0
+      ? [
+          {
+            addresses: own.flatMap((port) => port.addresses),
+            id: server.id,
+            name: server.name,
+          },
+        ]
+      : [];
+  });

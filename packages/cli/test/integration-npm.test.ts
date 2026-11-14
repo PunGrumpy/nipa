@@ -15,6 +15,7 @@ import {
   seedSession,
   testEnv,
 } from "./helpers";
+import { startMcp } from "./mcp-client";
 import { startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import { FAKE_SERVERS } from "./mocks/space";
@@ -71,6 +72,26 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
       testEnv(dir)
     );
     expect(code).toBe(2);
+  });
+
+  test("serves MCP tools on stdout, and stops when stdin ends", async () => {
+    const mcp = startMcp({ command: ["node", bundle], env: testEnv(dir) });
+    const server = await mcp.initialize();
+    expect(server.serverInfo.name).toBe("nipa");
+    const tools = await mcp.listTools();
+    expect(tools.map((tool) => tool.name)).toContain("list_servers");
+    const answer = await mcp.call("list_servers");
+    expect(answer.isError).toBe(false);
+    expect(answer.document).toMatchObject({
+      servers: expect.arrayContaining([
+        expect.objectContaining({ name: "web-1" }),
+      ]),
+    });
+    const { code } = await mcp.finish();
+    expect(code).toBe(0);
+    for (const line of mcp.stdoutLines) {
+      expect(JSON.parse(line)).toMatchObject({ jsonrpc: "2.0" });
+    }
   });
 
   test("lists servers through the Space API", async () => {

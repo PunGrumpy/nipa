@@ -16,6 +16,7 @@ import { lb } from "./lb";
 import { link } from "./link";
 import { login } from "./login";
 import { logout } from "./logout";
+import { mcp } from "./mcp";
 import { network } from "./network";
 import { open } from "./open";
 import { os } from "./os";
@@ -67,7 +68,7 @@ export const program: Program = {
       ],
       title: "Resources",
     },
-    { commands: [os, tf, exec, env], title: "Run tools" },
+    { commands: [os, tf, exec, env, mcp], title: "Run tools" },
     { commands: [profile, doctor, completion], title: "Setup" },
   ],
   summary:

@@ -1,5 +1,5 @@
-import type { DatabaseDetail } from "../../util/database";
-import { isFailing, statusLabel } from "../../util/status";
+import type { DatabaseDetail } from "./database";
+import { isFailing, statusLabel } from "./status";
 
 /** Where a problem is. `--json` prints these words, so they only ever grow. */
 const PARTS = ["cluster", "primary", "replica", "backup"] as const;
