@@ -26,7 +26,9 @@ import {
   LOAD_BALANCERS,
   SECURITY_GROUPS,
 } from "./find";
+import { INVESTIGATED_KINDS } from "./findings";
 import { listFlavors } from "./flavor";
+import { investigate } from "./investigate";
 import { listClusters } from "./kubernetes";
 import {
   diagnose,
@@ -530,6 +532,31 @@ const listFlavorsTool = defineTool({
   },
 });
 
+const investigateTool = defineTool({
+  description:
+    "Use this first when the user asks why a server, load balancer, database, volume or cluster is broken or failing. It finds the resource by name or ID, runs every check and returns findings, problems first, each with the evidence it read and the nipa commands to run next.",
+  input: z.object({
+    kind: z
+      .enum(INVESTIGATED_KINDS)
+      .optional()
+      .describe(
+        "Look only among this kind. Needed when the name fits more than one kind, which the error lists."
+      ),
+    name: z.string().min(1).describe("The resource's name or ID."),
+    project: projectInput,
+  }),
+  name: "investigate",
+  run: async (ctx, { kind, name, project }) => {
+    const { scope, space } = await open(ctx, project);
+    const investigation = await investigate(space, {
+      kind,
+      projectName: scope.project.name,
+      ref: name,
+    });
+    return { investigation, ...scope };
+  },
+});
+
 /** Every tool the server offers, in the order the assistant sees them. */
 export const TOOLS: readonly RegisteredTool[] = [
   whoami,
@@ -549,4 +576,5 @@ export const TOOLS: readonly RegisteredTool[] = [
   listKubernetesClusters,
   listQuotasTool,
   listFlavorsTool,
+  investigateTool,
 ];

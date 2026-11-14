@@ -760,6 +760,7 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 | `list_kubernetes_clusters` | none | `nipa k8s ls --json` |
 | `list_quotas` | none | `nipa quota ls --json` |
 | `list_flavors` | none | `nipa flavor ls --json` |
+| `investigate` | `name`, `kind` (`server`, `lb`, `db`, `volume` or `k8s`) | `nipa investigate <name> [--kind <kind>] --json`. A name that fits more than one kind returns the `ambiguous_name` error, and the assistant retries with `kind` |
 
 A tool that fails returns an error result, with `isError` set, that holds the document `--json` writes to stderr for the same failure: `message`, `reason`, `status` and, when they apply, `hint` and `next`. An expired session gives the reason `token_expired`, or `login_required` when you never logged in.
 

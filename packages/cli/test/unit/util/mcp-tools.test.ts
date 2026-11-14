@@ -18,6 +18,7 @@ const READ_ONLY_TOOLS = [
   "inspect_load_balancer",
   "inspect_security_group",
   "inspect_server",
+  "investigate",
   "list_databases",
   "list_flavors",
   "list_kubernetes_clusters",
