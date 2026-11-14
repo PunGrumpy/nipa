@@ -306,15 +306,12 @@ export const serverConsole: Check<ServerData> = ({
   }
   if (consoleLog.value.kind === "none") {
     return [
-      finding(
-        "warning",
-        CONSOLE_LOG,
-        `${server.name} has no console log. The Space API keeps one only for a server that booted`,
-        {
-          evidence: ["console log: none"],
-          next: [nextCommand("nipa", "server", "history", ref)],
-        }
-      ),
+      finding("warning", CONSOLE_LOG, `${server.name} has no console log`, {
+        evidence: [
+          "console log: none, which the Space API sends for a server that never booted",
+        ],
+        next: [nextCommand("nipa", "server", "history", ref)],
+      }),
     ];
   }
   const lines = consoleLog.value.text

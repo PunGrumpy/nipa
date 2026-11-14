@@ -10,6 +10,7 @@ import { doctor } from "./doctor";
 import { env } from "./env";
 import { exec } from "./exec";
 import { flavor } from "./flavor";
+import { investigate } from "./investigate";
 import { ip } from "./ip";
 import { k8s } from "./k8s";
 import { lb } from "./lb";
@@ -38,6 +39,10 @@ export const program: Program = {
       description: "List the servers in your project",
     },
     {
+      command: "nipa investigate web-1",
+      description: "Find out why a server or other resource is broken",
+    },
+    {
       command: "nipa os volume list",
       description: "Run any openstack command with the session",
     },
@@ -64,6 +69,7 @@ export const program: Program = {
         k8s,
         db,
         quota,
+        investigate,
         open,
       ],
       title: "Resources",
@@ -72,5 +78,5 @@ export const program: Program = {
     { commands: [profile, doctor, completion], title: "Setup" },
   ],
   summary:
-    "Log in to Nipa Cloud once, then list your servers, volumes, networks, security groups, external IPs, load balancers, Kubernetes clusters, databases and quotas, open them in the Space portal, or run openstack and terraform with the session.",
+    "Log in to Nipa Cloud once, then list your servers, volumes, networks, security groups, external IPs, load balancers, Kubernetes clusters, databases and quotas, find out why one is broken, open them in the Space portal, or run openstack and terraform with the session.",
 };

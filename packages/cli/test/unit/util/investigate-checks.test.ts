@@ -370,13 +370,7 @@ describe("server checks", () => {
   test("console log: none is a warning, and a failed read adds nothing here", () => {
     expect(
       brief(serverConsole(server({ consoleLog: ok({ kind: "none" }) })))
-    ).toEqual([
-      [
-        "warning",
-        "console-log",
-        "web-1 has no console log. The Space API keeps one only for a server that booted",
-      ],
-    ]);
+    ).toEqual([["warning", "console-log", "web-1 has no console log"]]);
     expect(serverConsole(server({ consoleLog: failed("boom") }))).toEqual([]);
   });
 

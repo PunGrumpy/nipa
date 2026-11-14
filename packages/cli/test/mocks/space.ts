@@ -812,6 +812,9 @@ export const FAKE_CONSOLE_LOG = [
   "web-1 login: ",
 ].join("\n");
 
+/** Console logs that differ from FAKE_CONSOLE_LOG, by server ID. A test sets and clears them. */
+export const FAKE_CONSOLE_LOGS: Record<string, string | null> = {};
+
 // Nova's lock and task, which only v4 sends. web-2 is still building.
 const TASKS = new Map([[WEB_2_ID, "spawning"]]);
 const LOCKED = new Set([WEB_1_ID]);
@@ -861,7 +864,9 @@ const handleView = (input: {
   if (input.status === "ERROR") {
     return spaceFault(406, "Something went wrong, please try again later.");
   }
-  return Response.json({ logs: FAKE_CONSOLE_LOG });
+  return Response.json({
+    logs: FAKE_CONSOLE_LOGS[input.id] ?? FAKE_CONSOLE_LOG,
+  });
 };
 
 const handleInstance = (input: {
