@@ -42,18 +42,31 @@ export interface Investigation {
   cannotSee: string[];
 }
 
-/** A read the judge can do without: its value, or why it failed. */
-export type Read<T> = { ok: true; value: T } | { ok: false; reason: string };
+/**
+ * A read the judge can do without: its value, or why it failed. `error` is
+ * what the request threw, for a caller that has to fail with it.
+ */
+export type Read<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: string; error?: Error };
 
 export const readOf = <T>(result: PromiseSettledResult<T>): Read<T> => {
   if (result.status === "fulfilled") {
     return { ok: true, value: result.value };
   }
   const { reason } = result;
-  return {
-    ok: false,
-    reason: reason instanceof Error ? reason.message : String(reason),
-  };
+  return reason instanceof Error
+    ? { error: reason, ok: false, reason: reason.message }
+    : { ok: false, reason: String(reason) };
+};
+
+/**
+ * `promise` as a Read. It settles at once, so a read that fails while
+ * another is still loading is never an unhandled rejection.
+ */
+export const settle = async <T>(promise: Promise<T>): Promise<Read<T>> => {
+  const [result] = await Promise.allSettled([promise]);
+  return readOf(result);
 };
 
 /** One check: the findings it draws from already-loaded data. */
@@ -78,11 +91,13 @@ export const finding = (
 
 const RANK: Record<Severity, number> = { ok: 2, problem: 0, warning: 1 };
 
-/** Runs every check on `data`, problems first. A sort keeps checks in order within a severity. */
+/** Problems first, then warnings, then passes, each in the order given. */
+export const sortFindings = (findings: readonly Finding[]): Finding[] =>
+  findings.toSorted((a, b) => RANK[a.severity] - RANK[b.severity]);
+
+/** Runs every check on `data`, problems first. */
 export const judge = <D>(checks: readonly Check<D>[], data: D): Finding[] =>
-  checks
-    .flatMap((check) => check(data))
-    .toSorted((a, b) => RANK[a.severity] - RANK[b.severity]);
+  sortFindings(checks.flatMap((check) => check(data)));
 
 /** `findings` with each `next` run in this run's profile and project. */
 export const scopeFindings = (
