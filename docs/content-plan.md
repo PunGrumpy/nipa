@@ -10,6 +10,7 @@ These docs serve 3 groups of readers:
 
 - Nipa Cloud users whose account uses multi-factor authentication (MFA), and who want to run `openstack` or `terraform` without an openrc file.
 - Nipa staff who also work against a staging Keystone, and who need to switch between it and production without logging in again.
+- People who use an AI assistant and want it to read their project to help find a problem.
 - Contributors, people or coding agents, who add a command to nipa.
 
 After reading the docs, readers should be able to:
@@ -20,6 +21,7 @@ After reading the docs, readers should be able to:
 4. Find the cause of a login or session error.
 5. Add a command by copying the closest command folder.
 6. Release a new version.
+7. Add nipa to an AI assistant, and say what the assistant can and can't do.
 
 ## Each doc page
 
@@ -32,6 +34,7 @@ Each page does one job, based on its content type:
 | [Use nipa with a staging Keystone](profiles.md) | How-to | Add a profile and switch to it |
 | [CLI reference](cli-reference.md) | Reference | Look up commands, options, variables, files and exit codes |
 | [How nipa logs in with MFA](how-login-works.md) | Conceptual | Explain receipts, scopes and where the token goes |
+| [Use nipa with an AI assistant](use-with-ai.md) | How-to | Add `nipa mcp` to an assistant and know what it can read |
 | [Fix login and session errors](troubleshooting.md) | Troubleshooting | Find the cause of an error message |
 | [Add a command to nipa](add-a-command.md) | How-to | Add a command or subcommand, with its tests |
 | [Release nipa](releasing.md) | How-to | Release a new version and its binaries |

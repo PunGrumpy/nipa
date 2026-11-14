@@ -38,6 +38,10 @@ nipa tf plan
 
 To use one profile and project in a folder, such as your Terraform code, run `nipa -P staging link my-project` there.
 
+To let an AI assistant such as Claude Code, Cursor or Codex read your project, add `nipa mcp` to it, for example with `claude mcp add nipa -- nipa mcp`. It can list and inspect your resources with your session, and it can't change anything.
+
+To let an AI assistant such as Claude Code, Cursor or Codex read your project, add `nipa mcp` to it, for example with `claude mcp add nipa -- nipa mcp`. It can list and inspect your resources with your session, and it can't change anything.
+
 When a command fails, run `nipa doctor`. It checks your profile, session and network in one go and says what to fix.
 
 ## Documentation
@@ -47,6 +51,8 @@ Pick the page for what you want to do:
 - [Run your first command with nipa](https://github.com/PunGrumpy/nipa/blob/main/docs/quickstart.md): install, log in and list servers
 - [Use nipa with a staging Keystone](https://github.com/PunGrumpy/nipa/blob/main/docs/profiles.md): add a profile and switch to it
 - [How nipa logs in with MFA](https://github.com/PunGrumpy/nipa/blob/main/docs/how-login-works.md): what nipa sends to Keystone and where it keeps the token
+- [Use nipa with an AI assistant](https://github.com/PunGrumpy/nipa/blob/main/docs/use-with-ai.md): let Claude Code, Cursor or Codex read your project, read-only
+- [Use nipa with an AI assistant](https://github.com/PunGrumpy/nipa/blob/main/docs/use-with-ai.md): let Claude Code, Cursor or Codex read your project, read-only
 - [Fix login and session errors](https://github.com/PunGrumpy/nipa/blob/main/docs/troubleshooting.md): find the cause of an error message
 
 ## Contributing
