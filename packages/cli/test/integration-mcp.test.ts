@@ -21,6 +21,7 @@ import { startMcp } from "./mcp-client";
 import type { Json, Params } from "./mcp-client";
 import { startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
+import { FAKE_VOLUMES } from "./mocks/space";
 
 let keystone: FakeKeystone;
 let dir: string;
@@ -94,7 +95,7 @@ describe("nipa mcp", () => {
       expect(JSON.parse(line)).toMatchObject({ jsonrpc: "2.0" });
     }
     // Messages go to stderr, and nothing asks the person anything.
-    expect(stderr).toContain("Serving 17 read-only tools for the prod profile");
+    expect(stderr).toContain("Serving 18 read-only tools for the prod profile");
     expect(stderr).not.toContain("available");
     expect(stderr).not.toContain("Password");
   });
@@ -123,6 +124,11 @@ describe("nipa mcp", () => {
       ["list_kubernetes_clusters", {}, ["k8s", "ls"]],
       ["list_quotas", {}, ["quota", "ls"]],
       ["list_flavors", {}, ["flavor", "ls"]],
+      [
+        "investigate",
+        { name: "k8s-worker-1" },
+        ["investigate", "k8s-worker-1"],
+      ],
     ];
     await Promise.all(
       pairs.map(async ([tool, input, argv]) => {
@@ -155,6 +161,76 @@ describe("nipa mcp", () => {
       },
     });
     await mcp.finish();
+  });
+
+  test("investigate finds what is wrong with a broken server, as investigate --json prints it", async () => {
+    const mcp = startMcp({ env: env() });
+    await mcp.initialize();
+    const answer = await mcp.call("investigate", { name: "k8s-worker-1" });
+    expect(answer.isError).toBe(false);
+    expect(withoutTimes(answer.document)).toEqual(
+      await cli(["investigate", "k8s-worker-1", "--json"])
+    );
+    expect(answer.document).toMatchObject({
+      investigation: { kind: "server", name: "k8s-worker-1" },
+      profile: "prod",
+      project: { name: "Alpha" },
+    });
+    expect(answer.document).toMatchObject({
+      investigation: {
+        findings: expect.arrayContaining([
+          expect.objectContaining({
+            check: "status",
+            evidence: ["status: ERROR"],
+            severity: "problem",
+          }),
+        ]),
+      },
+    });
+    await mcp.finish();
+  });
+
+  test("investigate on a name of two kinds is the ambiguous_name error, and kind picks one", async () => {
+    FAKE_VOLUMES.push({
+      ageMs: 60_000,
+      attachments: [],
+      availability_zone: "NCP-BKK",
+      bootable: "false",
+      id: "vvvv8888-0000-4000-8000-000000000008",
+      name: "web-1",
+      size: 20,
+      status: "available",
+      volume_type: "Standard_SSD",
+    });
+    const mcp = startMcp({ env: env() });
+    try {
+      await mcp.initialize();
+      const answer = await mcp.call("investigate", { name: "web-1" });
+      expect(answer.isError).toBe(true);
+      expect(answer.document).toMatchObject({
+        data: { ids: expect.any(Array) },
+        hint: expect.stringContaining("nipa investigate web-1 --kind volume"),
+        reason: "ambiguous_name",
+        status: "action_required",
+      });
+      const picked = await mcp.call("investigate", {
+        kind: "volume",
+        name: "web-1",
+      });
+      expect(picked.isError).toBe(false);
+      expect(withoutTimes(picked.document)).toEqual(
+        await cli(["investigate", "web-1", "--kind", "volume", "--json"])
+      );
+      const wrong = await mcp.call("investigate", {
+        kind: "network",
+        name: "web-1",
+      });
+      expect(wrong.isError).toBe(true);
+      expect(wrong.document).toMatchObject({ reason: "invalid_arguments" });
+    } finally {
+      FAKE_VOLUMES.pop();
+      await mcp.finish();
+    }
   });
 
   test("a tool's project reads another project and saves nothing", async () => {
