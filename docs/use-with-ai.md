@@ -81,12 +81,13 @@ claude mcp add nipa-beta -- nipa -p Beta mcp
 Ask the assistant about your project in plain words:
 
 - Which of my servers are in an error state, and why?
+- Why is web-1 broken?
 - Why can't I reach web-1? Check its security groups and its console log.
 - Which project has a server with the address 203.0.113.10?
 - Is the load balancer for api healthy, and which member is down?
 - Am I close to a quota limit?
 
-The assistant picks the tools. It starts with a list, inspects what looks wrong, and reads the history and console log of a server that failed.
+The assistant picks the tools. For a question like "Why is web-1 broken?", it starts with `investigate`, which runs the same checks as `nipa investigate`: findings with problems first, each with the evidence it read and the nipa commands to run next. For a broader question, it starts with a list, inspects what looks wrong, and reads the history and console log of a server that failed. When a name fits more than one kind, such as a server and a volume called `web-1`, the tool says so and the assistant asks again with the kind.
 
 ## What the assistant can and can't do
 
@@ -95,6 +96,7 @@ Every tool reads. Nothing the assistant can call starts, stops, restarts, create
 - **Servers**: list and inspect them, read the end of a console log (up to 500 lines), list what was done to a server, and search by name, ID or address in every project
 - **Network and storage**: list networks, volumes and security groups, and inspect a security group with the rules that open SSH, RDP or a database to the internet
 - **Services**: list and inspect load balancers (with a diagnosis of which part is down) and databases, and list Kubernetes clusters
+- **Root cause**: investigate a server, load balancer, database, volume or Kubernetes cluster by name or ID, and get what's wrong with it, with the evidence and the commands to run next
 - **Account**: show who you're logged in as, the quotas and the flavors
 
 The assistant can't log in, switch your project, run `openstack` or `terraform`, or read your password or token. nipa never puts them in a tool's answer.
