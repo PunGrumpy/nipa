@@ -131,6 +131,16 @@ Nova couldn't finish an action on the server, most often its create. Look at it 
 2. Run `nipa server history <server>` to see every action on the server, newest first, with the request ID that Nova logged each one under. Give that ID to Nipa Cloud support when you ask them why it failed
 3. Run `nipa server logs <server>` to read the console log, where cloud-init writes what it did at boot. If nipa says the server has no console log yet, the server never booted, so the cause is in the create, not inside the server
 
+## You don't know why a resource is broken
+
+Run `nipa investigate <name-or-id>`, or `nipa why`, on the server, load balancer, database, volume or Kubernetes cluster. It reads what `server inspect`, `server history`, `server logs`, `lb inspect`, `db inspect`, `volume ls`, `k8s ls` and `quota ls` would show, and lists the problems first, each with the field and value it read and the command that shows more. Start with the first problem, and run the commands under it.
+
+- **A problem**: the data shows something wrong, such as `status: ERROR`, a failed create, or a console log line with `Out of memory`
+- **A warning**: something that may matter, such as a server that is still building, a locked server, a quota at 90% or more while a resource is being made, or a read that failed
+- **No problem found in what nipa can see**: every check passed. The last line names what nipa can't read, such as the hypervisor's logs, which only Nipa Cloud's operators can. If the resource still doesn't work, give the request IDs from `nipa server history` to Nipa Cloud support
+
+When the name fits more than one kind, such as a server and a volume both named `web`, nipa lists a command for each. Run it with `--kind`, such as `nipa investigate web --kind server`, or with the ID.
+
 ## "… are named …"
 
 Two or more servers, volumes, networks, security groups, load balancers or databases in the project have the name you gave, such as `2 servers in my-project are named "web"`, so nipa can't tell which one you mean. The error lists up to five of them, one per line with its ID and what tells them apart, such as its status and address. If there are more, it says how many and to run the `ls` command with `--json` for their IDs. Run the command again with one ID in place of the name.
