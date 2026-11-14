@@ -1,14 +1,13 @@
-// The npm package is the Node bundle of src/index.ts. These tests build it the
+// The npm package is the Node bundle of src/bin.ts. These tests build it the
 // way `bun run build:npm` does, then run it with node.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import pkg from "../package.json" with { type: "json" };
 import {
-  ENTRY,
   runProcess,
   runWithClosedStderr,
   runWithClosedStdout,
@@ -20,21 +19,33 @@ import { startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import { FAKE_SERVERS } from "./mocks/space";
 
+const BUILD = path.join(import.meta.dir, "..", "scripts", "build-npm.ts");
+const CACHE_FOLDER = "node-compile-cache";
+
 let dir: string;
 let bundle: string;
+let temp: string;
 let keystone: FakeKeystone;
 
+// Node keeps its compile cache in the OS temp folder, which TMPDIR moves
+// here so a test run leaves nothing in the real one.
 const node = (...args: string[]) =>
-  runProcess(["node", bundle, ...args], testEnv(dir));
+  runProcess(["node", bundle, ...args], { ...testEnv(dir), TMPDIR: temp });
+
+const cacheFiles = async (root: string): Promise<string[]> => {
+  try {
+    return await readdir(path.join(root, CACHE_FOLDER), { recursive: true });
+  } catch {
+    return [];
+  }
+};
 
 describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
   beforeAll(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "nipa-npm-"));
+    temp = await mkdtemp(path.join(tmpdir(), "nipa-npm-tmp-"));
     bundle = path.join(dir, "nipa.js");
-    const build = await runProcess(
-      ["bun", "build", ENTRY, "--target=node", "--minify", "--outfile", bundle],
-      testEnv(dir)
-    );
+    const build = await runProcess(["bun", BUILD, dir], testEnv(dir));
     expect(build.code).toBe(0);
     keystone = startFakeKeystone();
     await seedSession(dir, keystone.url);
@@ -43,6 +54,7 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
   afterAll(async () => {
     keystone.stop();
     await rm(dir, { force: true, recursive: true });
+    await rm(temp, { force: true, recursive: true });
   });
 
   test("starts with a node shebang", async () => {
@@ -57,20 +69,52 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
+  test("caches compiled code in the temp folder, not the config directory", async () => {
+    await node("--version");
+    const cached = await cacheFiles(temp);
+    expect(cached.length).toBeGreaterThan(0);
+    expect(await cacheFiles(dir)).toEqual([]);
+  });
+
+  test("NODE_DISABLE_COMPILE_CACHE keeps the cache off", async () => {
+    const off = await mkdtemp(path.join(tmpdir(), "nipa-npm-off-"));
+    try {
+      const { code, stdout } = await runProcess(["node", bundle, "--version"], {
+        ...testEnv(dir),
+        NODE_DISABLE_COMPILE_CACHE: "1",
+        TMPDIR: off,
+      });
+      expect(code).toBe(0);
+      expect(stdout.trim()).toBe(pkg.version);
+      expect(await cacheFiles(off)).toEqual([]);
+    } finally {
+      await rm(off, { force: true, recursive: true });
+    }
+  });
+
+  test("a temp folder that can't be written is not an error", async () => {
+    const { code, stdout } = await runProcess(["node", bundle, "--version"], {
+      ...testEnv(dir),
+      TMPDIR: bundle,
+    });
+    expect(code).toBe(0);
+    expect(stdout.trim()).toBe(pkg.version);
+  });
+
   test("a closed stdout is not an error", async () => {
     const { code, stderr } = await runWithClosedStdout(
       ["node", bundle, "profile", "ls", "--json"],
-      testEnv(dir)
+      { ...testEnv(dir), TMPDIR: temp }
     );
     expect(stderr).toBe("");
     expect(code).toBe(0);
   });
 
   test("a closed stderr keeps the exit code of the error", async () => {
-    const { code } = await runWithClosedStderr(
-      ["node", bundle, "logn"],
-      testEnv(dir)
-    );
+    const { code } = await runWithClosedStderr(["node", bundle, "logn"], {
+      ...testEnv(dir),
+      TMPDIR: temp,
+    });
     expect(code).toBe(2);
   });
 
