@@ -30,6 +30,7 @@
   },
   "files": [
     "dist/nipa.js",
+    "dist/chunks",
     "README.md",
     "LICENSE"
   ],
@@ -40,7 +41,7 @@
   "scripts": {
     "dev": "bun src/index.ts",
     "build": "bun build src/index.ts --compile --minify --outfile dist/nipa",
-    "build:npm": "bun build src/index.ts --target=node --minify --outfile dist/nipa.js",
+    "build:npm": "bun scripts/build-npm.ts",
     "build:release": "bun scripts/build-release.ts",
     "test": "bun test",
     "typecheck": "tsc-ts --noEmit",

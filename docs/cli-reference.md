@@ -94,7 +94,7 @@ nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the
 
 ## Other environment variables
 
-These variables change where nipa keeps files and when it checks for updates:
+These variables change where nipa keeps files and when it checks for updates. The npm package also follows Node.js's own variables for its compiled-code cache:
 
 | Variable | What it does |
 | --- | --- |
@@ -104,6 +104,8 @@ These variables change where nipa keeps files and when it checks for updates:
 | `NIPA_NO_UPDATE_CHECK` | Turns off the update check when set to any value |
 | `NO_UPDATE_NOTIFIER` | Turns off the update check when set to any value |
 | `CI` | Turns off prompts, spinners and the update check when set to any value |
+| `NODE_COMPILE_CACHE` | The npm package keeps the code Node.js compiled for it in this directory. The default is `node-compile-cache` in the temporary directory. The nipa binary has no such cache |
+| `NODE_DISABLE_COMPILE_CACHE` | Turns that cache off when set to any value |
 
 ## Files
 

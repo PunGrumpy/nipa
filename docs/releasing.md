@@ -29,7 +29,7 @@ A pull request that users don't see, such as one that only changes tests, CI, do
 When changesets reach `main`, the Release workflow opens a pull request titled "chore: version packages", and updates it with each new changeset. Merging it does 4 things:
 
 1. Bumps the version in `packages/cli/package.json` and adds the changesets to `packages/cli/CHANGELOG.md`
-2. Publishes `nipa-cli` to npm as `packages/cli/dist/nipa.js`, a bundle for Node.js 22.13 or later. npm trusts the Release workflow through Trusted Publishing, so the repository stores no npm token
+2. Publishes `nipa-cli` to npm as `packages/cli/dist/nipa.js` and the `packages/cli/dist/chunks/` folder it loads, a bundle for Node.js 22.13 or later. npm trusts the Release workflow through Trusted Publishing, so the repository stores no npm token
 3. Tags the commit `v<version>`
 4. Builds the binaries for macOS, Linux and Windows, and attaches them and a `SHA256SUMS` file to a GitHub release, with that version's `CHANGELOG.md` section as the notes
 
@@ -46,7 +46,7 @@ bun run build:release
 bun run build:npm
 ```
 
-The first command writes the binaries and `SHA256SUMS` to `packages/cli/dist/`. The second writes the npm bundle, `packages/cli/dist/nipa.js`, which `node packages/cli/dist/nipa.js --version` runs. `bun run build` builds only the binary for your machine, as `packages/cli/dist/nipa`.
+The first command writes the binaries and `SHA256SUMS` to `packages/cli/dist/`. The second writes the npm bundle, `packages/cli/dist/nipa.js` and `packages/cli/dist/chunks/`, which `node packages/cli/dist/nipa.js --version` runs. `nipa.js` turns on Node.js's compile cache and then loads the chunk with the code, because Node.js caches the compiled code only of files it loads after that. `bun run build` builds only the binary for your machine, as `packages/cli/dist/nipa`.
 
 To check the package that npm would publish, run this in `packages/cli`:
 
