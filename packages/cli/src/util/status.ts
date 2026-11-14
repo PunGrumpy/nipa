@@ -54,15 +54,23 @@ export const isFailing = (status: string): boolean => {
   );
 };
 
-const paintFor = (status: string): Paint => {
+/**
+ * Whether `status` says the resource is on its way somewhere, such as BUILD,
+ * Cinder's creating or Octavia's PENDING_CREATE.
+ */
+export const isChanging = (status: string): boolean => {
   const upper = status.toUpperCase();
-  if (RUNNING.has(upper)) {
+  return CHANGING.has(upper) || upper.startsWith("PENDING_");
+};
+
+const paintFor = (status: string): Paint => {
+  if (RUNNING.has(status.toUpperCase())) {
     return green;
   }
   if (isFailing(status)) {
     return red;
   }
-  if (CHANGING.has(upper) || upper.startsWith("PENDING_")) {
+  if (isChanging(status)) {
     return yellow;
   }
   return gray;

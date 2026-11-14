@@ -35,6 +35,7 @@ nipa has 25 commands. Without a command, it prints help.
 | `nipa lb ls [--json]` | Lists the load balancers in your project with their status, health, virtual IP, listener count and age. In a pipe, it prints one load balancer ID per line. `nipa lb`, `nipa lb list`, `nipa loadbalancer` and `nipa loadbalancers` do the same |
 | `nipa lb inspect <lb> [--json]` | Shows one load balancer's status, health, virtual IP, external IP and flavor, then each listener, backend group and member with its status and health, by name or ID. It ends with one line that says what stops the load balancer from serving, such as `2 of 3 members are down`, or that every part is healthy. In a pipe, it prints the load balancer's ID |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip`, `nipa ips` and `nipa ip list` do the same |
+| `nipa investigate <resource> [options]` | Finds the server, load balancer, database, volume or Kubernetes cluster with this name or ID and says what's wrong with it, from what the Space API shows: problems first, then warnings, then what passed. Each finding names the field and value it read, such as `status: ERROR`, and the commands that show more, such as `nipa server history web-1`. It checks a server's status, a task that hasn't finished an hour after the last action, its lock, its last failed action with who and when, console log lines that show a kernel panic, the out-of-memory killer, a cloud-init failure or a full disk, volumes that aren't in use, a missing address, and the compute quotas when a create failed. A load balancer gets the verdict `nipa lb inspect` ends with, a database the problems `nipa db inspect` names and logs in an error state, a volume its error states and attachments to servers that are gone, and a cluster its nodes and masters that aren't active. A quota at 90% or more is a warning for a resource that is being made or failed. A read that fails is a warning, not an error. When every check passes, it says no problem was found in what nipa can see, and it always names what nipa can't see, such as the hypervisor's logs. When the name fits more than one kind, it fails with a command for each, and `--kind` picks one. It exits with code `0` whatever it finds. In a pipe, it prints the resource's ID. `nipa why` is the same command |
 | `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one, so nipa names the project to switch to there. With `-p`, nipa checks that you can use that project and names it, instead of the saved one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
 | `nipa quota ls [--json]` | Shows each quota of your project, such as servers, vCPUs, RAM and volumes, by group, with how much it uses, its limit and the percent used. A quota at 80% or more shows in yellow, and one at 100% shows in red, because the next create of that resource fails. A note under the table counts them. It exits with code `0` either way. In a pipe, it prints one tab-separated line per quota: its group and name, such as `compute/ram`, the amount used, the limit or `unlimited`, and the unit of both, such as `MB`, `GB` or `Bytes`, or `-` for a count. `nipa quota`, `nipa quotas`, `nipa quota list` and `nipa limits` do the same |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
@@ -58,7 +59,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server search`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server search`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls`, `investigate` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -69,6 +70,7 @@ These options belong to one command:
 | `--install` | `completion` | Saves the script where the shell loads it, instead of printing it |
 | `-y, --yes` | `profile rm`, `server stop`, `server restart` | Skips the confirmation. When nipa can't prompt, these commands need it |
 | `--no-wait` | `server start`, `server stop`, `server restart` | Returns once the Space API takes the action, without waiting for the server |
+| `--kind <server\|lb\|db\|volume\|k8s>` | `investigate` | Looks only among servers, load balancers, databases, volumes or Kubernetes clusters, for a name that more than one kind has |
 | `-n, --tail <n>` | `server logs` | Prints only the last `n` lines. Without it, nipa prints every line the Space API sends |
 | `--timeout <duration>` | `server start`, `server stop`, `server restart` | How long to wait for the server, as a number and `s`, `m` or `h`, such as `90s` or `10m`. The default is `5m`. It can't go with `--no-wait` |
 
@@ -665,6 +667,45 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
       "used": 11
     }
   ]
+}
+```
+
+`nipa investigate --json` prints the profile, the project and the investigation. `kind` is `server`, `lb`, `db`, `volume` or `k8s`, and a Kubernetes cluster's `name` is its ID. `findings` has the problems first, then the warnings, then the checks that passed. `severity` is `problem`, `warning` or `ok`, and `check` names the check, such as `status`, `actions`, `task`, `lock`, `console-log`, `volumes`, `address`, `serving`, `health`, `logs`, `attachments`, `nodes`, `masters`, `quota`, `read` for a read that failed or `resolve` for a kind nipa couldn't list. `evidence` has the fields and values the check read, and `next` the commands that show more, in the shape of an error's `next`, with `-P` and `-p` when the run had them. `cannotSee` names what nipa can't read for this kind. A script reads the problems with `select(.severity == "problem")`, because the exit code is `0` whatever nipa finds:
+
+```json
+{
+  "investigation": {
+    "cannotSee": [
+      "what runs inside the server beyond the last 100 console log lines",
+      "the hypervisor and its logs, which only Nipa Cloud's operators can read"
+    ],
+    "findings": [
+      {
+        "check": "status",
+        "evidence": ["status: ERROR"],
+        "next": [
+          {
+            "argv": ["nipa", "server", "history", "web-1"],
+            "command": "nipa server history web-1"
+          }
+        ],
+        "severity": "problem",
+        "summary": "web-1 is in Error"
+      },
+      {
+        "check": "address",
+        "evidence": ["internal: 192.0.2.5"],
+        "next": [],
+        "severity": "ok",
+        "summary": "web-1 has an IP address"
+      }
+    ],
+    "id": "1234…",
+    "kind": "server",
+    "name": "web-1"
+  },
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" }
 }
 ```
 

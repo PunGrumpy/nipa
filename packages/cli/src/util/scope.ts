@@ -188,6 +188,24 @@ export const suggest = (command: string, scope?: RunScope): Suggestion => {
   };
 };
 
+/**
+ * Like `suggest`, for a command whose words are already split, such as one
+ * that ends in a resource name with a space in it. Every word is quoted for
+ * the printed `command`, and `argv` keeps each one whole.
+ */
+export const suggestWords = (
+  words: readonly string[],
+  scope?: RunScope
+): Suggestion => {
+  const [head = "", ...rest] = words;
+  const options = scope && head === "nipa" ? optionsFor(scope, rest) : [];
+  const argv = [head, ...options, ...rest];
+  return {
+    argv,
+    command: argv.map((word) => shellQuote(word)).join(" "),
+  };
+};
+
 // A command in backticks, such as `nipa server start db-1`.
 const SPAN = /`nipa(?: [^\n`]*)?`/gu;
 

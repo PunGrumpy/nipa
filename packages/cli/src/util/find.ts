@@ -123,6 +123,57 @@ const candidateLines = <T extends Named>(
     : lines;
 };
 
+/** The items whose ID is `ref`, or else the items named `ref`. */
+export const matching = <T extends Named>(
+  items: readonly T[],
+  ref: string
+): T[] => {
+  const byId = items.filter((item) => item.id === ref);
+  return byId.length > 0 ? byId : items.filter((item) => item.name === ref);
+};
+
+/** What an error needs to name a kind and the command that lists it. */
+export type FindableName = Pick<
+  Findable<Named>,
+  "lsCommand" | "noun" | "plural"
+>;
+
+/** The error for a `ref` that names no item of `kind`. */
+export const notFoundError = (
+  kind: FindableName,
+  projectName: string,
+  ref: string
+): CliError =>
+  new CliError(`no ${kind.noun} named or with ID "${ref}" in ${projectName}`, {
+    hint: `Run \`${kind.lsCommand}\` to see your ${kind.plural}.`,
+    next: [kind.lsCommand],
+    reason: "not_found",
+  });
+
+/** The error for a `ref` that names more than one item of `kind`. */
+export const ambiguousError = <T extends Named>(
+  kind: Findable<T>,
+  projectName: string,
+  ref: string,
+  candidates: readonly T[]
+): CliError =>
+  new CliError(
+    `${candidates.length} ${kind.plural} in ${projectName} are named "${ref}"`,
+    {
+      data: { ids: candidates.map((item) => item.id) },
+      hint: ["Name one by its ID:", ...candidateLines(kind, candidates)].join(
+        "\n"
+      ),
+      reason: "ambiguous_name",
+    }
+  );
+
+/** What `describe` shows for `item`, such as its status and address. */
+export const describeItem = <T extends Named>(
+  kind: Findable<T>,
+  item: T
+): readonly string[] => kind.describe?.(item) ?? [];
+
 /** The item whose ID is `ref`, or else the one item named `ref`. */
 export const findResource = async <T extends Named>(input: {
   kind: Findable<T>;
@@ -135,31 +186,12 @@ export const findResource = async <T extends Named>(input: {
     `Loading the ${kind.plural} in ${projectName}…`,
     () => kind.list(input.space)
   );
-  const byId = items.filter((item) => item.id === ref);
-  const [match, ...others] =
-    byId.length > 0 ? byId : items.filter((item) => item.name === ref);
+  const [match, ...others] = matching(items, ref);
   if (!match) {
-    throw new CliError(
-      `no ${kind.noun} named or with ID "${ref}" in ${projectName}`,
-      {
-        hint: `Run \`${kind.lsCommand}\` to see your ${kind.plural}.`,
-        next: [kind.lsCommand],
-        reason: "not_found",
-      }
-    );
+    throw notFoundError(kind, projectName, ref);
   }
   if (others.length > 0) {
-    const candidates = [match, ...others];
-    throw new CliError(
-      `${candidates.length} ${kind.plural} in ${projectName} are named "${ref}"`,
-      {
-        data: { ids: candidates.map((item) => item.id) },
-        hint: ["Name one by its ID:", ...candidateLines(kind, candidates)].join(
-          "\n"
-        ),
-        reason: "ambiguous_name",
-      }
-    );
+    throw ambiguousError(kind, projectName, ref, [match, ...others]);
   }
   return match;
 };

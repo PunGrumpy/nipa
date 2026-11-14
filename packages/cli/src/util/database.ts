@@ -266,6 +266,69 @@ const listBackups = async (
 const settled = <T>(result: PromiseSettledResult<T>): T | null =>
   result.status === "fulfilled" ? result.value : null;
 
+/** A part of a database the Space API didn't answer for, and why. */
+export interface DatabasePartFailure {
+  part: "replicas" | "logs" | "backups";
+  reason: string;
+}
+
+const failuresOf = (
+  results: readonly (readonly [
+    DatabasePartFailure["part"],
+    PromiseSettledResult<unknown>,
+  ])[]
+): DatabasePartFailure[] =>
+  results.flatMap(([part, result]) => {
+    if (result.status === "fulfilled") {
+      return [];
+    }
+    const { reason } = result;
+    const message = reason instanceof Error ? reason.message : String(reason);
+    return [{ part, reason: message }];
+  });
+
+/**
+ * `database` with its replicas, logs and backups, which need a primary, and
+ * why each part that is `null` failed. One part that fails leaves the rest.
+ */
+export const inspectDatabaseParts = async (
+  space: Space,
+  database: Database
+): Promise<{ detail: DatabaseDetail; failures: DatabasePartFailure[] }> => {
+  const { primary } = database;
+  if (!primary) {
+    return {
+      detail: {
+        ...database,
+        backups: [],
+        defaultPort: null,
+        logs: [],
+        replicas: [],
+      },
+      failures: [],
+    };
+  }
+  const [replicas, logs, backups] = await Promise.allSettled([
+    listReplicas(space, database, primary.id),
+    listLogs(space, primary.id),
+    listBackups(space, primary.id),
+  ]);
+  return {
+    detail: {
+      ...database,
+      backups: settled(backups),
+      defaultPort: DEFAULT_PORTS.get(primary.engine.toLowerCase()) ?? null,
+      logs: settled(logs),
+      replicas: settled(replicas),
+    },
+    failures: failuresOf([
+      ["replicas", replicas],
+      ["logs", logs],
+      ["backups", backups],
+    ]),
+  };
+};
+
 /**
  * `database` with its replicas, logs and backups, which need a primary. Each
  * part comes from its own endpoint, and one that fails leaves its part `null`
@@ -275,26 +338,6 @@ export const inspectDatabase = async (
   space: Space,
   database: Database
 ): Promise<DatabaseDetail> => {
-  const { primary } = database;
-  if (!primary) {
-    return {
-      ...database,
-      backups: [],
-      defaultPort: null,
-      logs: [],
-      replicas: [],
-    };
-  }
-  const [replicas, logs, backups] = await Promise.allSettled([
-    listReplicas(space, database, primary.id),
-    listLogs(space, primary.id),
-    listBackups(space, primary.id),
-  ]);
-  return {
-    ...database,
-    backups: settled(backups),
-    defaultPort: DEFAULT_PORTS.get(primary.engine.toLowerCase()) ?? null,
-    logs: settled(logs),
-    replicas: settled(replicas),
-  };
+  const { detail } = await inspectDatabaseParts(space, database);
+  return detail;
 };

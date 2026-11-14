@@ -47,8 +47,10 @@ import {
 import type { FakeKeystone } from "./mocks/keystone";
 import {
   FAKE_CONSOLE_LOG,
+  FAKE_CONSOLE_LOGS,
   FAKE_DATABASES,
   FAKE_IPS,
+  FAKE_LB_PARTS,
   FAKE_LOAD_BALANCERS,
   FAKE_NETWORKS,
   FAKE_SERVERS,
@@ -3749,6 +3751,442 @@ describe("lb inspect", () => {
     );
     expect(stderr).toContain("Run `nipa lb ls` to see your load balancers.");
     expect(stdout).toBe("");
+  });
+});
+
+describe("investigate", () => {
+  const WORKER_ID = "55555555-5555-4555-8555-555555555555";
+  const LEGACY_ID = "66666666-6666-4666-8666-666666666666";
+  const CAN_NOT_SEE_SERVER =
+    "> nipa can't see what runs inside the server beyond the last 100 console log lines, nor the hypervisor and its logs, which only Nipa Cloud's operators can read.\n";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("a healthy server: every check passes, and it says what nipa can't see", async () => {
+    const { code, stderr, stdout } = await run([
+      "investigate",
+      "k8s-control-plane-1",
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(
+      /^> Server k8s-control-plane-1 in Alpha \[\d+(?:ms|s)\]\n/u
+    );
+    expect(stderr).toMatch(/OK\s+k8s-control-plane-1 is Active\n/u);
+    expect(stderr).toMatch(
+      /OK\s+The console log shows no kernel panic, out-of-memory, cloud-init or full-disk lines\n/u
+    );
+    expect(stderr).toContain("> No problem found in what nipa can see.\n");
+    expect(stderr).toContain(CAN_NOT_SEE_SERVER);
+    expect(stderr).not.toContain("Problem");
+    expect(stderr).not.toContain("Warning");
+    expect(stdout).toBe("44444444-4444-4444-8444-444444444444\n");
+  });
+
+  test("a server in Error: problems first, each with what it read and what to run", async () => {
+    const { code, stderr } = await run(["investigate", "k8s-worker-1"]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(
+      /\n {2}Problem {5}k8s-worker-1 is in Error\n\s+status: ERROR\n\s+Run `nipa server history k8s-worker-1`\n\s+Run `nipa server logs k8s-worker-1`\n/u
+    );
+    expect(stderr).toMatch(
+      /Problem\s+Create failed 61d ago by Ann Example\n\s+action: create\n\s+remark: Error\n/u
+    );
+    expect(stderr).toMatch(
+      /Problem\s+The project uses 10 of its 10 servers, so one more fails to create\n\s+quota compute\/instances: 10 of 10\n\s+Run `nipa quota ls`\n/u
+    );
+    expect(stderr).toMatch(/Warning\s+k8s-worker-1 has no console log\n/u);
+    expect(stderr.indexOf("Problem")).toBeLessThan(stderr.indexOf("Warning"));
+    expect(stderr.indexOf("Warning")).toBeLessThan(stderr.indexOf("OK "));
+    expect(stderr).toContain(
+      "> NOTE: Found 3 problems and 2 warnings in what nipa can see.\n"
+    );
+    expect(stderr).not.toContain("No problem found");
+  });
+
+  test("`why` is the same command, and the console log's OOM lines are evidence", async () => {
+    FAKE_CONSOLE_LOGS[LEGACY_ID] =
+      `${FAKE_CONSOLE_LOG}\n[ 9312.004] Out of memory: Killed process 4121 (postgres)\n`;
+    try {
+      const { code, stderr } = await run(["why", "legacy-node-1"]);
+      expect(code).toBe(0);
+      expect(stderr).toMatch(/Problem\s+legacy-node-1 is shut off\n/u);
+      expect(stderr).toContain("Run `nipa server start legacy-node-1`");
+      expect(stderr).toMatch(
+        /Problem\s+The console log shows the kernel killing processes for lack of memory\n\s+\[ 9312\.004\] Out of memory: Killed process 4121 \(postgres\)\n\s+Run `nipa server logs legacy-node-1`\n/u
+      );
+    } finally {
+      FAKE_CONSOLE_LOGS[LEGACY_ID] = null;
+    }
+  });
+
+  test("--json writes the profile, project and investigation, and nothing on stderr", async () => {
+    const { code, stderr, stdout } = await run([
+      "investigate",
+      WORKER_ID,
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    const { investigation, profile, project } = JSON.parse(stdout);
+    expect(profile).toBe("prod");
+    expect(project.name).toBe("Alpha");
+    expect(investigation).toMatchObject({
+      id: WORKER_ID,
+      kind: "server",
+      name: "k8s-worker-1",
+    });
+    expect(investigation.cannotSee).toContain(
+      "the hypervisor and its logs, which only Nipa Cloud's operators can read"
+    );
+    expect(investigation.findings[0]).toEqual({
+      check: "status",
+      evidence: ["status: ERROR"],
+      next: [
+        {
+          argv: ["nipa", "server", "history", WORKER_ID],
+          command: `nipa server history ${WORKER_ID}`,
+        },
+        {
+          argv: ["nipa", "server", "logs", WORKER_ID],
+          command: `nipa server logs ${WORKER_ID}`,
+        },
+      ],
+      severity: "problem",
+      summary: "k8s-worker-1 is in Error",
+    });
+    const severities = investigation.findings.map(
+      (f: { severity: string }) => f.severity
+    );
+    expect(severities).toEqual(
+      severities.toSorted(
+        (a: string, b: string) =>
+          ["problem", "warning", "ok"].indexOf(a) -
+          ["problem", "warning", "ok"].indexOf(b)
+      )
+    );
+  });
+
+  test("a next command keeps -P and -p, with a project name as one argv word", async () => {
+    const { code, stderr, stdout } = await run([
+      "-P",
+      "prod",
+      "-p",
+      "Alpha",
+      "investigate",
+      "k8s-worker-1",
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    const [first] = JSON.parse(stdout).investigation.findings;
+    expect(first.next[0]).toEqual({
+      argv: [
+        "nipa",
+        "-P",
+        "prod",
+        "-p",
+        "Alpha",
+        "server",
+        "history",
+        "k8s-worker-1",
+      ],
+      command: "nipa -P prod -p Alpha server history k8s-worker-1",
+    });
+    const human = await run(["-p", "Alpha", "investigate", "k8s-worker-1"]);
+    expect(human.stderr).toContain(
+      "Run `nipa -p Alpha server history k8s-worker-1`"
+    );
+  });
+
+  test("a failed read is a warning, not a crash", async () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    keystone.faults.set(`GET /api/v4/instances/${id}/logs`, 500);
+    try {
+      const { code, stderr } = await run([
+        "investigate",
+        "k8s-control-plane-1",
+      ]);
+      expect(code).toBe(0);
+      expect(stderr).toMatch(
+        /Warning\s+nipa couldn't read the console log\n\s+error: Internal Server Error\n/u
+      );
+      expect(stderr).toContain(
+        "> No problem found in what nipa can see, and 1 warning.\n"
+      );
+    } finally {
+      keystone.faults.clear();
+    }
+  });
+
+  test("a healthy load balancer passes, and a broken one gets diagnose's verdict", async () => {
+    const healthyId = "bbbb3333-0000-4000-8000-000000000003";
+    FAKE_LOAD_BALANCERS.push({
+      ageMs: 86_400_000,
+      external_ip_id: "cccc0000-0000-4000-8000-000000000000",
+      flavor_id: "lbf-1",
+      id: healthyId,
+      listeners: [{ id: "listener-9" }],
+      name: "ok-lb",
+      operating_status: "ONLINE",
+      provider: "amphora",
+      provisioning_status: "ACTIVE",
+      vip_address: "192.0.2.32",
+    });
+    const part = { operating_status: "ONLINE", provisioning_status: "ACTIVE" };
+    FAKE_LB_PARTS.set(healthyId, {
+      backend_groups: [
+        {
+          ...part,
+          healthcheck: {
+            ...part,
+            delay: 5,
+            id: "hm-9",
+            max_retries: 3,
+            timeout: 3,
+            type: "TCP",
+          },
+          id: "pool-9",
+          lb_algorithm: "ROUND_ROBIN",
+          members: [{ id: "m-9" }],
+          name: "ok-pool",
+          protocol: "TCP",
+        },
+      ],
+      listeners: [
+        {
+          ...part,
+          allowed_cidrs: null,
+          backend_group_id: "pool-9",
+          id: "listener-9",
+          name: "ok-tcp",
+          protocol: "TCP",
+          protocol_port: 80,
+        },
+      ],
+      members: new Map([
+        [
+          "pool-9",
+          [
+            {
+              ...part,
+              address: "192.0.2.5",
+              backup: false,
+              id: "m-9",
+              name: "m-9",
+              protocol_port: 80,
+              weight: 1,
+            },
+          ],
+        ],
+      ]),
+    });
+    try {
+      const healthy = await run(["investigate", "ok-lb"]);
+      expect(healthy.code).toBe(0);
+      expect(healthy.stderr).toMatch(/^> Load balancer ok-lb in Alpha/u);
+      expect(healthy.stderr).toMatch(
+        /OK\s+All listeners and members are healthy\n/u
+      );
+      expect(healthy.stderr).toContain(
+        "> No problem found in what nipa can see.\n"
+      );
+    } finally {
+      FAKE_LOAD_BALANCERS.pop();
+      FAKE_LB_PARTS.delete(healthyId);
+    }
+    const broken = await run(["investigate", "web-lb"]);
+    expect(broken.code).toBe(0);
+    expect(broken.stderr).toMatch(
+      /Problem\s+1 of 2 listeners is unhealthy, 1 of 2 listeners has no members to send traffic to and 1 of 3 members is down\n\s+listener web-https: provisioning_status ERROR, operating_status ONLINE\n/u
+    );
+    expect(broken.stderr).toContain(
+      "member web-2: provisioning_status ACTIVE, operating_status ERROR"
+    );
+    // A backup member that waits for the others isn't evidence of a fault.
+    expect(broken.stderr).not.toContain("member web-3");
+    expect(broken.stderr).toContain("Run `nipa lb inspect web-lb`");
+  });
+
+  test("a healthy database passes, and one without a primary is a problem", async () => {
+    const healthy = await run(["investigate", "orders"]);
+    expect(healthy.code).toBe(0);
+    expect(healthy.stderr).toMatch(/^> Database orders in Alpha/u);
+    expect(healthy.stderr).toMatch(/OK\s+The primary is Active and Healthy\n/u);
+    expect(healthy.stderr).toContain(
+      "> No problem found in what nipa can see.\n"
+    );
+    expect(healthy.stderr).toContain(
+      "the database's log lines and queries, because the Space API sends each log's state and not its contents"
+    );
+    const broken = await run(["investigate", "cache", "--kind", "db"]);
+    expect(broken.code).toBe(0);
+    expect(broken.stderr).toMatch(
+      /Problem\s+The cluster has no primary yet\n\s+primary: none\n\s+Run `nipa db inspect cache`\n/u
+    );
+  });
+
+  test("a healthy volume names its server, and one attached to a gone server is a problem", async () => {
+    const healthy = await run(["investigate", "web-1-vol-0"]);
+    expect(healthy.code).toBe(0);
+    expect(healthy.stderr).toMatch(/^> Volume web-1-vol-0 in Alpha/u);
+    expect(healthy.stderr).toMatch(/OK\s+Attached to web-1 at \/dev\/vda\n/u);
+    expect(healthy.stderr).toContain(
+      "> No problem found in what nipa can see.\n"
+    );
+    FAKE_VOLUMES.push({
+      ageMs: 86_400_000,
+      attachments: [{ device: "/dev/vdb", serverId: "gone-0000" }],
+      availability_zone: "NCP-BKK",
+      bootable: "false",
+      id: "vvvv9999-0000-4000-8000-000000000009",
+      name: "orphan",
+      size: 20,
+      status: "in-use",
+      volume_type: "Standard_SSD",
+    });
+    try {
+      const broken = await run(["investigate", "orphan"]);
+      expect(broken.code).toBe(0);
+      expect(broken.stderr).toMatch(
+        /Problem\s+orphan is attached to server gone-0000, which isn't in the project's server list\n\s+attachment: server gone-0000 at \/dev\/vdb\n\s+servers: none with that ID\n/u
+      );
+    } finally {
+      FAKE_VOLUMES.pop();
+    }
+  });
+
+  test("a healthy Kubernetes cluster passes, and a broken one names the node and its failed create", async () => {
+    const clusterId = "dddd3333-0000-4000-8000-000000000003";
+    const metadata = { kube_version: "1.34.9", magnum_cluster_id: clusterId };
+    const master = FAKE_SERVERS.find((s) => s.name === "k8s-control-plane-1");
+    if (!master) {
+      throw new Error("the fake has no k8s-control-plane-1");
+    }
+    const node = (id: string, name: string, role: string) => ({
+      ageMs: 86_400_000,
+      external_ips: [],
+      flavor: master.flavor,
+      id,
+      internal_ips: [{ address: "198.51.100.30" }],
+      metadata: { ...metadata, magnum_role: role },
+      name,
+      status: "ACTIVE",
+    });
+    FAKE_SERVERS.push(
+      node("77777777-7777-4777-8777-777777777777", "ok-master-1", "master"),
+      node("88888888-8888-4888-8888-888888888888", "ok-worker-1", "worker")
+    );
+    try {
+      const healthy = await run(["investigate", clusterId, "--kind", "k8s"]);
+      expect(healthy.code).toBe(0);
+      expect(healthy.stderr).toMatch(
+        new RegExp(`^> Kubernetes cluster ${clusterId} in Alpha`, "u")
+      );
+      expect(healthy.stderr).toMatch(/OK\s+All 2 nodes are Active\n/u);
+      expect(healthy.stderr).toContain(
+        "> No problem found in what nipa can see.\n"
+      );
+    } finally {
+      FAKE_SERVERS.splice(-2);
+    }
+    const broken = await run([
+      "investigate",
+      "dddd1111-0000-4000-8000-000000000001",
+    ]);
+    expect(broken.code).toBe(0);
+    expect(broken.stderr).toMatch(
+      /Problem\s+Node k8s-worker-1 \(worker\) is in Error\n\s+node k8s-worker-1 status: ERROR\n\s+last action: create failed 61d ago by Ann Example\n\s+Run `nipa investigate 55555555-5555-4555-8555-555555555555`\n/u
+    );
+    expect(broken.stderr).toContain(
+      "Kubernetes itself, such as pods, node conditions and the API server"
+    );
+  });
+
+  test("a name of two kinds fails and names a command for each", async () => {
+    FAKE_VOLUMES.push({
+      ageMs: 60_000,
+      attachments: [],
+      availability_zone: "NCP-BKK",
+      bootable: "false",
+      id: "vvvv8888-0000-4000-8000-000000000008",
+      name: "web-1",
+      size: 20,
+      status: "available",
+      volume_type: "Standard_SSD",
+    });
+    try {
+      const { code, stderr, stdout } = await run(["investigate", "web-1"]);
+      expect(code).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain(
+        'Error: "web-1" in Alpha names a server and a volume\n> Pick one with `--kind` or its ID:\n'
+      );
+      expect(stderr).toMatch(
+        /`nipa investigate web-1 --kind server`\s+server\s+● Active\s+203\.0\.113\.10\n/u
+      );
+      expect(stderr).toMatch(
+        /`nipa investigate web-1 --kind volume`\s+volume\s+● Available\s+20 GB\n/u
+      );
+      const json = await run(["investigate", "web-1", "--json"]);
+      expect(json.code).toBe(1);
+      expect(json.stdout).toBe("");
+      expect(document(json)).toMatchObject({
+        data: {
+          ids: [
+            "22222222-2222-4222-8222-222222222222",
+            "vvvv8888-0000-4000-8000-000000000008",
+          ],
+        },
+        reason: "ambiguous_name",
+        status: "action_required",
+      });
+      const picked = await run(["investigate", "web-1", "--kind", "volume"]);
+      expect(picked.code).toBe(0);
+      expect(picked.stderr).toMatch(/^> Volume web-1 in Alpha/u);
+    } finally {
+      FAKE_VOLUMES.pop();
+    }
+  });
+
+  test("a name that matches nothing names every list command", async () => {
+    const { code, stderr, stdout } = await run(["investigate", "nope"]);
+    expect(code).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toBe(
+      'Error: no server, load balancer, database, volume or Kubernetes cluster named or with ID "nope" in Alpha\n> Run `nipa server ls`, `nipa lb ls`, `nipa db ls`, `nipa volume ls` or `nipa k8s ls` to see them.\n'
+    );
+    const json = await run(["investigate", "nope", "--json"]);
+    expect(document(json)).toMatchObject({
+      next: [
+        { command: "nipa server ls" },
+        { command: "nipa lb ls" },
+        { command: "nipa db ls" },
+        { command: "nipa volume ls" },
+        { command: "nipa k8s ls" },
+      ],
+      reason: "not_found",
+    });
+    const kinded = await run(["investigate", "nope", "--kind", "volume"]);
+    expect(kinded.stderr).toContain(
+      'Error: no volume named or with ID "nope" in Alpha\n> Run `nipa volume ls` to see your volumes.\n'
+    );
+  });
+
+  test("an unknown --kind and a missing argument are usage errors", async () => {
+    expect(await exitCode(["investigate", "web-1", "--kind", "vm"])).toBe(2);
+    expect(await exitCode(["investigate"])).toBe(2);
+  });
+
+  test("--help shows examples", async () => {
+    const { code, stdout } = await run(["investigate", "--help"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Usage: nipa investigate <resource> [options]");
+    expect(stdout).toContain("--kind <server|lb|db|volume|k8s>");
+    expect(stdout).toContain("$ nipa investigate web-1\n");
+    expect(stdout).toContain("$ nipa why orders --kind db\n");
   });
 });
 
