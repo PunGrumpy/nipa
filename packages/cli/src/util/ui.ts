@@ -3,11 +3,6 @@
 // the Vercel CLI's output manager. Results go through the client's stdout,
 // and questions through the client's prompts.
 
-import confirm from "@inquirer/confirm";
-import input from "@inquirer/input";
-import password from "@inquirer/password";
-import select from "@inquirer/select";
-
 import type { Reason } from "./errors";
 import { inRun } from "./scope";
 import { theme } from "./theme";
@@ -335,7 +330,8 @@ export const withSpinner = async <T>(
   }
 };
 
-// inquirer throws ExitPromptError on Ctrl-C.
+// inquirer throws ExitPromptError on Ctrl-C. It loads when a prompt asks for
+// it: its readline code is a share of the start of every run that never asks.
 const prompt = async <T>(ask: () => Promise<T>): Promise<T> => {
   try {
     return await ask();
@@ -428,8 +424,9 @@ export const createPrompts = (streams: {
     !refused && streams.stdin.isTTY === true && streams.stderr.isTTY === true;
   return {
     choice: (options) =>
-      prompt(() =>
-        select(
+      prompt(async () => {
+        const { default: select } = await import("@inquirer/select");
+        return select(
           {
             ...options,
             choices: options.choices.map((choice) => ({
@@ -444,30 +441,33 @@ export const createPrompts = (streams: {
             theme: promptTheme,
           },
           context
-        )
-      ),
+        );
+      }),
     confirm: (options) =>
-      prompt(() =>
-        confirm(
+      prompt(async () => {
+        const { default: confirm } = await import("@inquirer/confirm");
+        return confirm(
           {
             ...options,
             message: promptLine(options.message),
             theme: promptTheme,
           },
           context
-        )
-      ),
+        );
+      }),
     interactive,
     secret: (message) =>
-      prompt(() =>
-        password(
+      prompt(async () => {
+        const { default: password } = await import("@inquirer/password");
+        return password(
           { mask: "*", message: promptLine(message), theme: promptTheme },
           context
-        )
-      ),
+        );
+      }),
     text: (options) =>
-      prompt(() =>
-        input(
+      prompt(async () => {
+        const { default: input } = await import("@inquirer/input");
+        return input(
           {
             ...options,
             message: promptLine(options.message),
@@ -475,8 +475,8 @@ export const createPrompts = (streams: {
             theme: promptTheme,
           },
           context
-        )
-      ),
+        );
+      }),
   };
 };
 

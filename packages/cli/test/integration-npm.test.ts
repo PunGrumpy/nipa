@@ -8,6 +8,7 @@ import path from "node:path";
 
 import pkg from "../package.json" with { type: "json" };
 import {
+  runOnTerminals,
   runProcess,
   runWithClosedStderr,
   runWithClosedStdout,
@@ -99,6 +100,19 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
     });
     expect(code).toBe(0);
     expect(stdout.trim()).toBe(pkg.version);
+  });
+
+  // Prompts load from chunks of their own, only when one asks. The fake
+  // terminals run on Bun, so this proves the chunks resolve, not Node's import().
+  test("a prompt loads from the bundle's chunks under Bun", async () => {
+    const { code, stderr } = await runOnTerminals({
+      args: ["profile", "add", "dev"],
+      env: { ...testEnv(dir), NIPA_TEST_ENTRY: bundle, TMPDIR: temp },
+      terminals: ["stdin", "stderr"],
+    });
+    expect(stderr).toContain("Keystone URL");
+    expect(stderr).toContain("Canceled");
+    expect(code).toBe(130);
   });
 
   test("a closed stdout is not an error", async () => {

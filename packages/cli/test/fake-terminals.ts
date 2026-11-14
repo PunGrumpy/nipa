@@ -26,4 +26,5 @@ for (const [name, columns] of [
   }
 }
 
-await import("../src/index");
+// NIPA_TEST_ENTRY runs the npm bundle in place of the source.
+await import(process.env.NIPA_TEST_ENTRY ?? "../src/index");
