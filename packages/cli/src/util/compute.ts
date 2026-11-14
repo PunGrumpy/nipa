@@ -241,6 +241,24 @@ export const getConsoleLog = async (
   }
 };
 
+/**
+ * The last `count` lines of `text`, each ending in a newline, or `text` as
+ * the Space API sent it when there's no count.
+ */
+export const lastLines = (text: string, count: number | undefined): string => {
+  if (count === undefined) {
+    return text;
+  }
+  const lines = text.split("\n");
+  if (lines.at(-1) === "") {
+    lines.pop();
+  }
+  return lines
+    .slice(-count)
+    .map((line) => `${line}\n`)
+    .join("");
+};
+
 // Nova's instance actions. remark is "Error" when the action failed, and
 // null otherwise. started_at is UTC without a zone.
 const ActionSchema = z.object({

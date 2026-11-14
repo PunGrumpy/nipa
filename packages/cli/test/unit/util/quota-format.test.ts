@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import type { Quota } from "../../../src/util/quota";
 import {
   formatAmount,
   formatPercent,
@@ -8,9 +9,8 @@ import {
   quotaLabel,
   sortQuotas,
   summarize,
-} from "../../../../src/commands/quota/format";
-import type { Level } from "../../../../src/commands/quota/format";
-import type { Quota } from "../../../../src/util/quota";
+} from "../../../src/util/quota-format";
+import type { Level } from "../../../src/util/quota-format";
 
 const quota = (
   name: string,

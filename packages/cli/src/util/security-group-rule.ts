@@ -1,9 +1,9 @@
 // A security group rule the way people read it. The table, its order and the
 // note about open ports read this model, never the Space API's fields.
 
-import type { SecurityGroupRule } from "../../util/security-group";
-import { andList } from "../../util/ui";
-import type { Cell } from "../../util/ui";
+import type { SecurityGroupRule } from "./security-group";
+import { andList } from "./ui";
+import type { Cell } from "./ui";
 
 export type Ports =
   | { kind: "any" }

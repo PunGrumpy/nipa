@@ -1,11 +1,16 @@
 import { handle } from "../../util/command";
 import { listServers } from "../../util/compute";
-import type { Server } from "../../util/compute";
 import { findResource, SECURITY_GROUPS } from "../../util/find";
 import { listPorts } from "../../util/network";
-import type { Port } from "../../util/network";
-import { listSecurityGroups } from "../../util/security-group";
-import type { SecurityGroup } from "../../util/security-group";
+import { listSecurityGroups, membersOf } from "../../util/security-group";
+import type { Member, SecurityGroup } from "../../util/security-group";
+import {
+  compareRules,
+  exposureNote,
+  isExposed,
+  ruleCells,
+  toRule,
+} from "../../util/security-group-rule";
 import {
   bold,
   dim,
@@ -22,43 +27,6 @@ import {
 } from "../../util/ui";
 import type { Cell } from "../../util/ui";
 import { inspectSubcommand } from "./command";
-import {
-  compareRules,
-  exposureNote,
-  isExposed,
-  ruleCells,
-  toRule,
-} from "./rule";
-
-interface Member {
-  id: string;
-  name: string;
-  /** The server's addresses on the ports that carry the group. */
-  addresses: string[];
-}
-
-// A server's security groups belong to its ports, which name them by ID.
-// The server list names them, and two groups can share a name.
-const membersOf = (
-  groupId: string,
-  ports: readonly Port[],
-  servers: readonly Server[]
-): Member[] =>
-  servers.flatMap((server) => {
-    const own = ports.filter(
-      (port) =>
-        port.deviceId === server.id && port.securityGroupIds.includes(groupId)
-    );
-    return own.length > 0
-      ? [
-          {
-            addresses: own.flatMap((port) => port.addresses),
-            id: server.id,
-            name: server.name,
-          },
-        ]
-      : [];
-  });
 
 /** The server's name, then its addresses, or - for a port without one. */
 const memberCell = (member: Member): Cell =>

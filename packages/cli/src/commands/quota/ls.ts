@@ -2,16 +2,6 @@ import { handle } from "../../util/command";
 import { listQuotas } from "../../util/quota";
 import type { Quota } from "../../util/quota";
 import {
-  bold,
-  dim,
-  formatElapsed,
-  log,
-  note,
-  printTable,
-  withSpinner,
-} from "../../util/ui";
-import { lsSubcommand } from "./command";
-import {
   formatAmount,
   formatPercent,
   groupLabel,
@@ -21,7 +11,17 @@ import {
   quotaLabel,
   sortQuotas,
   summarize,
-} from "./format";
+} from "../../util/quota-format";
+import {
+  bold,
+  dim,
+  formatElapsed,
+  log,
+  note,
+  printTable,
+  withSpinner,
+} from "../../util/ui";
+import { lsSubcommand } from "./command";
 
 const printQuotas = (quotas: readonly Quota[]): void => {
   printTable({

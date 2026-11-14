@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
+import type { SecurityGroupRule } from "../../../src/util/security-group";
 import {
   compareRules,
   exposureNote,
   isExposed,
   ruleCells,
   toRule,
-} from "../../../../src/commands/sg/rule";
-import type { SecurityGroupRule } from "../../../../src/util/security-group";
+} from "../../../src/util/security-group-rule";
 
 const WEB_ID = "ssss2222";
 const NAMES = new Map([[WEB_ID, "web"]]);

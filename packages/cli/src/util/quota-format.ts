@@ -1,6 +1,6 @@
-import type { Quota } from "../../util/quota";
-import { gigabytes, plural, red, yellow } from "../../util/ui";
-import type { Paint } from "../../util/ui";
+import type { Quota } from "./quota";
+import { gigabytes, plural, red, yellow } from "./ui";
+import type { Paint } from "./ui";
 
 interface GroupLabels {
   label: string;

@@ -7,6 +7,8 @@ import type {
   DatabaseLog,
   DatabaseReplica,
 } from "../../util/database";
+import { databaseProblems, describeProblem } from "../../util/database-health";
+import type { DatabaseProblem } from "../../util/database-health";
 import { DATABASES, findResource } from "../../util/find";
 import { statusCell, statusLabel } from "../../util/status";
 import {
@@ -26,8 +28,6 @@ import {
 } from "../../util/ui";
 import type { Cell, Field } from "../../util/ui";
 import { inspectSubcommand } from "./command";
-import { databaseProblems, describeProblem } from "./health";
-import type { DatabaseProblem } from "./health";
 
 const RECENT_BACKUPS = 5;
 
