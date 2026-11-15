@@ -14,7 +14,7 @@ import { profileAmong, projectAmong, setRunScope } from "./scope";
 import type { RunScope } from "./scope";
 import { namesOf, profileUseOf, projectUseOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
-import { closest } from "./suggest";
+import { closestBy } from "./suggest";
 import { CliError, setJsonMode, usageError } from "./ui";
 
 /** What a run ended with. src/index.ts prints, sets the exit code and shows the update notice. */
@@ -107,13 +107,33 @@ const orList = (words: readonly string[]): string => {
   return rest.length === 0 ? last : `${rest.join(", ")} or ${last}`;
 };
 
-/** Derived from the spec, so it matches today's "Use ls." and "Use ls, add, use or rm." */
-const unknownSubcommand = (group: Group, word: string): CliError =>
-  usageError(
-    `unknown subcommand "${group.spec.name} ${word}"`,
-    `Use ${orList(group.spec.subcommands.map((sub) => sub.name))}.`,
-    "unknown_command"
-  );
+/**
+ * The hint lists every subcommand, unless one is close to the word: then it
+ * suggests that one. A person who asked for help is told to read its help.
+ */
+const unknownSubcommand = (input: {
+  group: Group;
+  help: boolean;
+  word: string;
+}): CliError => {
+  const { group, word } = input;
+  const message = `unknown subcommand "${group.spec.name} ${word}"`;
+  const near = closestBy(word, group.spec.subcommands, namesOf);
+  if (!near) {
+    return usageError(
+      message,
+      `Use ${orList(group.spec.subcommands.map((sub) => sub.name))}.`,
+      "unknown_command"
+    );
+  }
+  const line = `nipa ${input.help ? "help " : ""}${group.spec.name} ${near.name}`;
+  return new CliError(message, {
+    data: { suggestion: line },
+    exitCode: 2,
+    hint: `Did you mean \`${line}\`?`,
+    reason: "unknown_command",
+  });
+};
 
 /**
  * Finds a group's subcommand: the first word after the group's name that
@@ -146,6 +166,32 @@ const pickSubcommand = (group: Group, words: readonly string[]): Resolved => {
 };
 
 /**
+ * The command a mistyped word most likely means, by name or alias, as its
+ * name. When no command is close, the one group with a subcommand of exactly
+ * that name or alias: `logs` is `server logs`. A subcommand several groups
+ * share, such as `inspect`, names none of them.
+ */
+const suggestCommand = (
+  program: ProgramSpec,
+  word: string
+): string | undefined => {
+  const commands = program.sections.flatMap((s) => s.commands);
+  const near = closestBy(word, commands, namesOf);
+  if (near) {
+    return near.name;
+  }
+  const owners = commands.flatMap((command) =>
+    command.kind === "group"
+      ? command.subcommands
+          .filter((sub) => namesOf(sub).includes(word))
+          .map((sub) => `${command.name} ${sub.name}`)
+      : []
+  );
+  const [only] = owners;
+  return owners.length === 1 ? only : undefined;
+};
+
+/**
  * Suggests the closest command that help lists. A person who asked for help
  * (`nipa help logot`, `nipa logot --help`) is told to read that command's
  * help, never to run the command: pasting `nipa logout` would revoke the
@@ -156,18 +202,15 @@ const unknownCommand = (input: {
   program: ProgramSpec;
   word: string;
 }): CliError => {
-  const closestName = closest(
-    input.word,
-    input.program.sections.flatMap((s) => s.commands.map((c) => c.name))
-  );
-  const verb = input.help ? "help " : "";
-  const hint =
-    closestName === undefined
-      ? "Run `nipa --help` to see the commands."
-      : `Did you mean \`nipa ${verb}${closestName}\`?`;
+  const near = suggestCommand(input.program, input.word);
+  const line = near && `nipa ${input.help ? "help " : ""}${near}`;
   return new CliError(`unknown command "${input.word}"`, {
+    data: line === undefined ? undefined : { suggestion: line },
     exitCode: 2,
-    hint,
+    hint:
+      line === undefined
+        ? "Run `nipa --help` to see the commands."
+        : `Did you mean \`${line}\`?`,
     reason: "unknown_command",
   });
 };
@@ -254,7 +297,7 @@ const helpPath = (input: {
   }
   const leaf = command.subcommands.get(second);
   if (!leaf) {
-    throw unknownSubcommand(command, second);
+    throw unknownSubcommand({ group: command, help: true, word: second });
   }
   return [command.spec, leaf.spec];
 };
@@ -365,7 +408,11 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   // A word that names no subcommand fails even with --help: a page for
   // `nipa server nope --help` would be some other command's.
   if (resolved.kind === "unknown") {
-    throw unknownSubcommand(resolved.group, resolved.word);
+    throw unknownSubcommand({
+      group: resolved.group,
+      help: front.globals.help === true || asksForHelp(after),
+      word: resolved.word,
+    });
   }
   // Help wins over any other word after the command and over --version.
   if (front.globals.help || asksForHelp(after)) {

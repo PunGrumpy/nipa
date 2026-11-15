@@ -214,6 +214,18 @@ const usage = async (argv: string[], program: Program = spy) => {
   throw new Error(`no error for ${argv.join(" ")}`);
 };
 
+const failureOf = async (argv: string[]): Promise<CliError> => {
+  try {
+    await go(argv, realProgram);
+  } catch (error) {
+    if (error instanceof CliError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error(`no error for ${argv.join(" ")}`);
+};
+
 const reasonOf = async (argv: string[]) => {
   try {
     await go(argv);
@@ -584,6 +596,61 @@ describe("help and version, on the real table", () => {
   ])("a typo %j suggests %s", async (argv, hint) => {
     expect(await usage(argv, realProgram)).toMatchObject({ code: 2, hint });
   });
+  test.each([
+    // A word near no command, but the name of one group's subcommand.
+    [["logs", "web-1"], "Did you mean `nipa server logs`?", "nipa login"],
+    // A word that is the name of subcommands in several groups names none.
+    [["inspect", "web-1"], "Run `nipa --help` to see the commands.", "Did you"],
+    [["vm", "ls"], "Run `nipa --help` to see the commands.", "Did you"],
+    [["sever", "ls"], "Did you mean `nipa server`?", "Run `nipa --help`"],
+    // An alias counts, and the suggestion is the canonical name.
+    [["machine-type"], "Did you mean `nipa flavor`?", "Run `nipa --help`"],
+    [["machine-typez"], "Did you mean `nipa flavor`?", "Run `nipa --help`"],
+    [["Server"], "Did you mean `nipa server`?", "Run `nipa --help`"],
+  ])("an unknown command %j hints %s", async (argv, hint, gone) => {
+    const failure = await failureOf(argv);
+    expect(failure).toMatchObject({ exitCode: 2, hint });
+    expect(failure.hint).not.toContain(gone);
+    expect(failure.reason).toBe("unknown_command");
+    const suggestion = /`(?<line>nipa [^`]+)`\?$/u.exec(hint)?.groups?.line;
+    expect(failure.data?.suggestion).toBe(
+      hint.startsWith("Did you mean") ? suggestion : undefined
+    );
+  });
+  test.each([
+    [["server", "inpect", "web-1"], "nipa server inspect"],
+    [["servers", "lgos"], "nipa server logs"],
+    [["server", "Ls"], "nipa server ls"],
+    [["server", "restrat"], "nipa server restart"],
+  ])("an unknown subcommand %j suggests %s", async (argv, line) => {
+    const failure = await failureOf(argv);
+    expect(failure).toMatchObject({
+      data: { suggestion: line },
+      exitCode: 2,
+      hint: `Did you mean \`${line}\`?`,
+      reason: "unknown_command",
+    });
+    expect(failure.hint).not.toContain("Use ls");
+  });
+  test("an unknown subcommand near none lists them all", async () => {
+    const failure = await failureOf(["server", "nope"]);
+    expect(failure.hint).toBe(
+      "Use ls, search, inspect, history, logs, start, stop or restart."
+    );
+    expect(failure.data).toBeUndefined();
+  });
+  test.each([
+    [["help", "server", "inpect"], "nipa help server inspect"],
+    [["server", "inpect", "--help"], "nipa help server inspect"],
+    [["--help", "server", "inpect"], "nipa help server inspect"],
+    [["logs", "--help"], "nipa help server logs"],
+    [["help", "logs"], "nipa help server logs"],
+    [["help", "logot"], "nipa help logout"],
+  ])("a help request %j suggests reading help: %s", async (argv, line) => {
+    const failure = await failureOf(argv);
+    expect(failure.hint).toBe(`Did you mean \`${line}\`?`);
+    expect(failure.data?.suggestion).toBe(line);
+  });
   test("a typo in a help request never suggests running a command", async () => {
     // `nope` is two edits from `open`, too far for a word of four letters.
     expect(await usage(["help", "nope"], realProgram)).toMatchObject({
@@ -598,9 +665,11 @@ describe("help and version, on the real table", () => {
     expect(await usage(["xylophone", "--help"], realProgram)).toMatchObject({
       hint: "Run `nipa --help` to see the commands.",
     });
-    // An unknown subcommand lists the names; it suggests no command at all.
+    // A subcommand too reads as help, and an unknown one near none lists the names.
     const sub = await usage(["help", "server", "stap"], realProgram);
-    expect(sub.hint).not.toContain("`");
+    expect(sub.hint).toBe("Did you mean `nipa help server stop`?");
+    const far = await usage(["help", "server", "xylophone"], realProgram);
+    expect(far.hint).not.toContain("`");
   });
   test.each([
     [

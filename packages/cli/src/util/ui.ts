@@ -10,9 +10,14 @@ import { theme } from "./theme";
 // Everything these paint goes to stderr, so stderr decides the colors.
 export const { bold, cyan, dim, gray, green, red, yellow } = theme.stderr;
 
-/** What a script reads from a failure. `ids`: the items a name matches. */
+/**
+ * What a script reads from a failure. `ids`: the items a name matches.
+ * `suggestion`: nipa's guess at what was meant, a word or a command line.
+ * It is a guess, so a script reads it and never runs it.
+ */
 export interface ErrorData {
-  readonly ids: readonly string[];
+  readonly ids?: readonly string[];
+  readonly suggestion?: string;
 }
 
 export class CliError extends Error {
