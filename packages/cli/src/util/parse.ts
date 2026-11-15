@@ -11,7 +11,8 @@ import type {
   Input,
   LeafSpec,
 } from "./spec";
-import { usageError } from "./ui";
+import { closest } from "./suggest";
+import { CliError, usageError } from "./ui";
 
 type RawFlags = ReadonlyMap<string, string | true>;
 interface Front {
@@ -75,6 +76,37 @@ const needed = (input: {
     );
   }
   return checked(flag, next);
+};
+
+/**
+ * The error for an option nobody defined. A long option close to one the
+ * command takes is suggested, `--jsno` as `--json`; a short one, or one near
+ * none, gets the hint that points at `--help`.
+ */
+const unknownOption = (input: {
+  flags: readonly FlagSpec[];
+  help: string;
+  word: string;
+}): CliError => {
+  const { word } = input;
+  const typed = word.startsWith("--") ? word.slice(2).split("=")[0] : undefined;
+  const near =
+    typed === undefined
+      ? undefined
+      : closest(
+          typed,
+          input.flags.map((flag) => flag.long)
+        );
+  const message = `unknown option "${word}"`;
+  if (near === undefined) {
+    return usageError(message, input.help, "unknown_option");
+  }
+  return new CliError(message, {
+    data: { suggestion: `--${near}` },
+    exitCode: 2,
+    hint: `Did you mean \`--${near}\`?`,
+    reason: "unknown_option",
+  });
 };
 
 const readOption = (input: {
@@ -182,11 +214,11 @@ const readGlobal = (input: {
     word,
   });
   if (!read && input.unknown === "reject") {
-    throw usageError(
-      `unknown option "${word}"`,
-      "Run `nipa --help` to see the options.",
-      "unknown_option"
-    );
+    throw unknownOption({
+      flags: GLOBAL_FLAGS,
+      help: "Run `nipa --help` to see the options.",
+      word,
+    });
   }
   return read;
 };
@@ -286,11 +318,11 @@ const tokenize = (input: {
     if (word.startsWith("-") && word !== "-") {
       const read = readOption({ hints, index, next: words[i + 1], word });
       if (!read) {
-        throw usageError(
-          `unknown option "${word}"`,
-          `Run \`${hints.command} --help\` to see the options.`,
-          "unknown_option"
-        );
+        throw unknownOption({
+          flags: [...flags, ...GLOBAL_FLAGS],
+          help: `Run \`${hints.command} --help\` to see the options.`,
+          word,
+        });
       }
       for (const { flag, value } of read.options) {
         (ownNames.has(flag.long) ? own : globals).set(flag.long, value);
