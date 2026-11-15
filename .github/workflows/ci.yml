@@ -18,6 +18,7 @@ jobs:
   check:
     name: Lint and typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,6 +40,7 @@ jobs:
   test:
     name: Test / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -79,6 +81,7 @@ jobs:
     # `semver: none` because users don't see their changes.
     if: "github.event_name == 'pull_request' && github.event.pull_request.title != 'chore: version packages' && !contains(github.event.pull_request.labels.*.name, 'semver: none')"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -96,6 +99,7 @@ jobs:
   zizmor:
     name: Audit workflows
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -111,6 +115,7 @@ jobs:
     if: always()
     needs: [check, test, changeset, zizmor]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
