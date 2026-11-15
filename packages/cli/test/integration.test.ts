@@ -1415,6 +1415,106 @@ describe("passthroughs on a profile without a Space API URL", () => {
   });
 });
 
+describe("project ls", () => {
+  const ALPHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("a pipe gets a header and a tab-separated row per project, ID first", async () => {
+    const { code, stderr, stdout } = await run(["project", "ls"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(`ID\tName\n${ALPHA}\tAlpha\n${BETA_ID}\tBeta\n`);
+    expect(stderr).toMatch(/> 2 projects in prod \[\d+(?:ms|s)\]/u);
+    expect(stderr).not.toMatch(/Name\s+ID/u);
+    const aliases = await run(["projects", "list"]);
+    expect(aliases.stdout).toBe(stdout);
+    const bare = await run(["project"]);
+    expect(bare.stdout).toBe(stdout);
+  });
+
+  test("a terminal gets the table on stderr and nothing on stdout", async () => {
+    const { code, stderr, stdout } = await runOnTerminals({
+      args: ["project", "ls"],
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/Name\s+ID\n/u);
+    expect(stderr).toMatch(new RegExp(`Alpha\\s+${ALPHA}  \\(current\\)`, "u"));
+    expect(stderr).toMatch(new RegExp(`Beta\\s+${BETA_ID}\\n`, "u"));
+    expect(stderr).not.toContain("(saved)");
+    expect(stderr).not.toContain("(this folder)");
+  });
+
+  test("a row with no marker has no escape sequence after its ID", async () => {
+    const { stderr } = await runOnTerminals({
+      args: ["project", "ls"],
+      env: { ...testEnv(dir), ...colorEnv({ FORCE_COLOR: "1" }) },
+      terminals: ["stdout", "stderr"],
+    });
+    expect(stderr).toContain("\u001B[");
+    expect(stderr).toContain(`${BETA_ID}\n`);
+  });
+
+  test("--json lists every project, and exactly one is current", async () => {
+    const { code, stderr, stdout } = await run(["project", "ls", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toMatchObject({
+      link: null,
+      profile: "prod",
+      project: { id: ALPHA, name: "Alpha" },
+      projects: [
+        { current: true, id: ALPHA, name: "Alpha" },
+        { current: false, id: BETA_ID, name: "Beta" },
+      ],
+    });
+  });
+
+  test("in a folder linked to Beta, Beta is current and Alpha is saved", async () => {
+    const work = inDir("projects-work");
+    await mkdir(work, { recursive: true });
+    await runIn(work, ["link", "Beta"]);
+    const json = await runIn(work, ["project", "ls", "--json"]);
+    const parsed = JSON.parse(json.stdout);
+    expect(parsed.project).toMatchObject({ id: ALPHA, name: "Alpha" });
+    expect(parsed.link.project).toMatchObject({ id: BETA_ID, name: "Beta" });
+    expect(parsed.projects).toEqual([
+      { current: false, id: ALPHA, name: "Alpha" },
+      { current: true, id: BETA_ID, name: "Beta" },
+    ]);
+    const who = await runIn(work, ["whoami", "--json"]);
+    const whoami = JSON.parse(who.stdout);
+    expect(parsed.project).toEqual(whoami.project);
+    expect(parsed.link).toEqual(whoami.link);
+    const terminal = await runOnTerminals({
+      args: ["project", "ls"],
+      cwd: work,
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(terminal.stderr).toContain(`${BETA_ID}  (current)`);
+    expect(terminal.stderr).toContain(`${ALPHA}  (saved)`);
+    expect(terminal.stderr).not.toContain("(this folder)");
+    await runIn(work, ["unlink"]);
+  });
+
+  test("without a session and without a terminal, --json writes the login error and nothing else", async () => {
+    await freshDir();
+    const result = await run(["project", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      reason: "login_required",
+      status: "action_required",
+    });
+    await seedSession(dir, keystone.url);
+  });
+});
+
 describe("server ls", () => {
   beforeAll(async () => {
     await freshDir();
@@ -2519,6 +2619,8 @@ describe("--project on a command that never reads a project", () => {
 
   const refused: [string, string[]][] = [
     ["nipa whoami", ["whoami"]],
+    ["nipa project", ["project"]],
+    ["nipa project ls", ["project", "ls"]],
     ["nipa completion", ["completion", "bash"]],
     ["nipa doctor", ["doctor"]],
     ["nipa switch", ["switch", "Beta"]],
