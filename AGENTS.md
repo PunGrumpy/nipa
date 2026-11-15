@@ -11,7 +11,7 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 
 ## Check and ship a change
 
-This is a Bun monorepo. `packages/cli` is the `nipa` command and has its own `AGENTS.md`, `apps/web` is the site, and `docs/` holds the user docs. `plans/` is not tracked.
+This is a Bun monorepo. `packages/cli` is the `nipa` command and has its own `AGENTS.md`, `apps/web` is the site, and `docs/` holds the user docs. `plans/` is ignored, so keep private notes there.
 
 Run `bun run verify` from the repository root before you push. It runs the lint and format check, the type check, the package check for the CLI, the tests and the site build, in that order. CI runs the same checks, then also builds the compiled binary and the npm package and runs `--version` on both, which `verify` does not. The tests run against a fake Keystone, so they need no account. Format only the files you changed with `bunx ultracite fix <files>`, not `bun run fix`.
 
