@@ -10,20 +10,24 @@ import type { ResourceKind } from "../../util/spec";
 import { isActive, loadConfig, loadSession } from "../../util/store";
 import { completeCommand } from "./command";
 
-// The account's projects, kept per profile like the resource names. An
-// expired session is a failed load: the last list stands in.
+// The account's projects, kept per profile like the resource names. After a
+// logout there is no session and nothing to offer. An expired session is a
+// failed load: the last list stands in.
 const projectNames = async (client: Client): Promise<string[]> => {
   const active = await client.profile();
+  const saved = await loadSession(active.name);
+  if (!saved) {
+    return [];
+  }
   return cachedNames({
     key: `${active.name}:projects`,
     load: async () => {
-      const session = await loadSession(active.name);
-      if (!isActive(session)) {
+      if (!isActive(saved)) {
         throw new Error(`the ${active.name} session expired`);
       }
       const projects = await listProjects({
         authUrl: active.profile.authUrl,
-        token: session.token,
+        token: saved.token,
       });
       return projects.map((p) => p.name);
     },

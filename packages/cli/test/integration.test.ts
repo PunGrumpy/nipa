@@ -4692,6 +4692,21 @@ describe("__complete", () => {
     expect(stderr).toBe("");
   });
 
+  test("after a logout no project names are offered, even saved ones", async () => {
+    await mkdir(path.dirname(namesFile()), { recursive: true });
+    await writeFile(
+      namesFile(),
+      JSON.stringify({
+        "prod:projects": { at: Date.now() - 5 * 60_000, names: ["Old"] },
+      })
+    );
+    await rm(path.join(dir, "auth.json"));
+    const { code, stderr, stdout } = await run(["__complete", "projects"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toBe("");
+  });
+
   test("a Space API that never answers gives up after 2 seconds", async () => {
     const hung = startFakeKeystone({
       gateway: true,
