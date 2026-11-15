@@ -618,6 +618,145 @@ esac
   });
 });
 
+describe.if(has("pwsh"))("pwsh names with shell syntax", () => {
+  let hostile: string;
+  let marker: string;
+
+  const PLAIN = "web-1";
+  const SPACED = "web 1";
+  const QUOTED = "it's";
+  const BRACKETED = "web[1]";
+  // Characters PowerShell treats specially, and a command that would create
+  // the marker file if it were run.
+  let SYNTAX = "";
+
+  // Writes each argument on its own line, so a name with a space stays one.
+  const stubNipa = () => `#!/bin/sh
+case "$1 $2" in
+  "__complete servers")
+    printf '%s\\n' '${PLAIN}' '${SPACED}' "${QUOTED}" '${BRACKETED}' '${SYNTAX}' ;;
+  "server inspect") { printf '%s\\n' "$@"; echo '--'; } >> "$HOME/nipa-args" ;;
+  *) exec bun "${ENTRY}" "$@" ;;
+esac
+`;
+
+  const pwshIn = async (command: string) => {
+    const { stdout } = await runProcess(
+      ["pwsh", "-NoProfile", "-Command", command],
+      testEnv(hostile)
+    );
+    return lines(stdout);
+  };
+
+  /** The text and the list entry of each completion, in the order offered. */
+  const completions = async (line: string) => {
+    const typed = line.replaceAll("'", "''");
+    const out = await pwshIn(
+      `. '${path.join(hostile, "completion.ps1")}'; (TabExpansion2 -inputScript '${typed}' -cursorColumn ${line.length}).CompletionMatches | ForEach-Object { $_.CompletionText + [char]9 + $_.ListItemText }`
+    );
+    return out.map((l): [string, string] => {
+      const [text = "", list = ""] = l.split("\t");
+      return [text, list];
+    });
+  };
+
+  /** What nipa got from each line `nipa server inspect <text>`, run in turn. */
+  const inspected = async (texts: string[]) => {
+    const file = path.join(hostile, "nipa-args");
+    await rm(file, { force: true });
+    await pwshIn(texts.map((text) => `nipa server inspect ${text}`).join("; "));
+    const recorded = await readFile(file, "utf-8");
+    const runs = recorded.split("--\n");
+    return runs.slice(0, -1).map((run) => run.split("\n").slice(0, -1));
+  };
+
+  beforeAll(async () => {
+    hostile = await mkdtemp(path.join(tmpdir(), "nipa-completion-pwsh-"));
+    marker = path.join(hostile, "marker");
+    SYNTAX = `a$(ni ${marker});\`b`;
+    const bin = path.join(hostile, "bin");
+    await mkdir(bin);
+    await writeFile(path.join(bin, "nipa"), stubNipa());
+    await chmod(path.join(bin, "nipa"), 0o755);
+    const { stdout } = await nipa("completion", "pwsh");
+    await writeFile(path.join(hostile, "completion.ps1"), stdout);
+  });
+
+  afterAll(async () => {
+    await rm(hostile, { force: true, recursive: true });
+  });
+
+  test(
+    "a plain name is inserted as it is and the rest in single quotes",
+    async () => {
+      const offered = await completions("nipa server inspect ");
+      expect(offered).toEqual([
+        [PLAIN, PLAIN],
+        [`'${SPACED}'`, SPACED],
+        [`'it''s'`, QUOTED],
+        [`'${BRACKETED}'`, BRACKETED],
+        [`'${SYNTAX}'`, SYNTAX],
+      ]);
+    },
+    PWSH_TIMEOUT_MS
+  );
+
+  test(
+    "the line that results gives nipa one literal argument and runs nothing",
+    async () => {
+      const offered = await completions("nipa server inspect ");
+      expect(offered).toHaveLength(5);
+      expect(await inspected(offered.map(([text]) => text))).toEqual(
+        offered.map(([, name]) => ["server", "inspect", name])
+      );
+      expect(await Bun.file(marker).exists()).toBe(false);
+    },
+    PWSH_TIMEOUT_MS * 2
+  );
+
+  test(
+    "a typed word is matched as text, not as a wildcard pattern",
+    async () => {
+      expect(await completions("nipa server inspect web[")).toEqual([
+        [`'${BRACKETED}'`, BRACKETED],
+      ]);
+      expect(await completions("nipa server inspect web?")).toEqual([]);
+      expect(await completions("nipa server inspect web*")).toEqual([]);
+    },
+    PWSH_TIMEOUT_MS * 2
+  );
+
+  test(
+    "a word typed after an opening quote still matches",
+    async () => {
+      expect(await completions("nipa server inspect 'web ")).toEqual([
+        [`'${SPACED}'`, SPACED],
+      ]);
+      expect(await completions('nipa server inspect "it')).toEqual([
+        [`'it''s'`, QUOTED],
+      ]);
+      expect(await completions("nipa server inspect 'web 1'")).toEqual([
+        [`'${SPACED}'`, SPACED],
+      ]);
+    },
+    PWSH_TIMEOUT_MS * 2
+  );
+
+  test(
+    "commands and flags are inserted unquoted",
+    async () => {
+      expect(await completions("nipa lo")).toEqual([
+        ["login", "login"],
+        ["logout", "logout"],
+      ]);
+      expect(await completions("nipa whoami --j")).toEqual([
+        ["--json", "--json"],
+      ]);
+    },
+    PWSH_TIMEOUT_MS * 2
+  );
+});
+
 describe("the names follow the -P and -p typed", () => {
   let stub: string;
 
