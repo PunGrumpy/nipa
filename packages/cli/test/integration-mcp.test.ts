@@ -95,7 +95,7 @@ describe("nipa mcp", () => {
       expect(JSON.parse(line)).toMatchObject({ jsonrpc: "2.0" });
     }
     // Messages go to stderr, and nothing asks the person anything.
-    expect(stderr).toContain("Serving 18 read-only tools for the prod profile");
+    expect(stderr).toContain("Serving 19 read-only tools for the prod profile");
     expect(stderr).not.toContain("available");
     expect(stderr).not.toContain("Password");
   });
@@ -105,6 +105,7 @@ describe("nipa mcp", () => {
     await mcp.initialize();
     const pairs: [string, Params, string[]][] = [
       ["whoami", {}, ["whoami"]],
+      ["list_projects", {}, ["project", "ls"]],
       ["list_servers", {}, ["server", "ls"]],
       ["inspect_server", { server: "web-1" }, ["server", "inspect", "web-1"]],
       ["server_history", { server: "web-1" }, ["server", "history", "web-1"]],
@@ -294,6 +295,7 @@ describe("nipa mcp", () => {
     await mcp.initialize();
     const calls: [string, Params][] = [
       ["list_servers", {}],
+      ["list_projects", {}],
       ["search_servers", { query: "web" }],
       ["whoami", {}],
     ];
@@ -315,7 +317,7 @@ describe("nipa mcp", () => {
     const { code, stderr } = await mcp.finish();
     expect(code).toBe(0);
     expect(stderr).not.toContain("Password");
-    expect(mcp.stdoutLines).toHaveLength(5);
+    expect(mcp.stdoutLines).toHaveLength(6);
     for (const line of mcp.stdoutLines) {
       expect(JSON.parse(line)).toMatchObject({ jsonrpc: "2.0" });
     }

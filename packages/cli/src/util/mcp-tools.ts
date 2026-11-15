@@ -36,6 +36,7 @@ import {
   listLoadBalancers,
 } from "./load-balancer";
 import { listNetworks, listPorts } from "./network";
+import { projectsDocument } from "./projects";
 import { listQuotas } from "./quota";
 import { sortQuotas } from "./quota-format";
 import { listSecurityGroups, membersOf } from "./security-group";
@@ -170,6 +171,17 @@ const whoami = defineTool({
       region: active.profile.region,
       user: session.user,
     };
+  },
+});
+
+const listProjectsTool = defineTool({
+  description:
+    "List the projects this account can use, with their IDs, and say which one is the saved project. Call it to get the `project` value the other tools take.",
+  input: noInput,
+  name: "list_projects",
+  run: async (ctx) => {
+    const { active, session } = await ctx.savedSession();
+    return projectsDocument(active, session);
   },
 });
 
@@ -560,6 +572,7 @@ const investigateTool = defineTool({
 /** Every tool the server offers, in the order the assistant sees them. */
 export const TOOLS: readonly RegisteredTool[] = [
   whoami,
+  listProjectsTool,
   listServersTool,
   inspectServer,
   serverConsoleLog,

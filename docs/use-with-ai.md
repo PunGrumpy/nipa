@@ -74,7 +74,7 @@ claude mcp add nipa-staging -- nipa -P staging mcp
 claude mcp add nipa-beta -- nipa -p Beta mcp
 ```
 
-`-P` picks the profile, and `-p` picks the project for the whole run without saving it. Every tool except `whoami` also takes a `project`, a name or ID, so the assistant can look at another project for one question. Neither changes the project that `nipa switch` saved. The server reads your session on each call, so a `nipa login` or `nipa switch` in a terminal takes effect without restarting the assistant.
+`-P` picks the profile, and `-p` picks the project for the whole run without saving it. Every tool except `whoami` and `list_projects` also takes a `project`, a name or ID, so the assistant can look at another project for one question, and `list_projects` is where it finds the names and IDs. Neither changes the project that `nipa switch` saved. The server reads your session on each call, so a `nipa login` or `nipa switch` in a terminal takes effect without restarting the assistant.
 
 ## Ask a question
 
@@ -97,7 +97,7 @@ Every tool reads. Nothing the assistant can call starts, stops, restarts, create
 - **Network and storage**: list networks, volumes and security groups, and inspect a security group with the rules that open SSH, RDP or a database to the internet
 - **Services**: list and inspect load balancers (with a diagnosis of which part is down) and databases, and list Kubernetes clusters
 - **Root cause**: investigate a server, load balancer, database, volume or Kubernetes cluster by name or ID, and get what's wrong with it, with the evidence and the commands to run next
-- **Account**: show who you're logged in as, the quotas and the flavors
+- **Account**: show who you're logged in as, list the projects you can use, and read the quotas and the flavors
 
 The assistant can't log in, switch your project, run `openstack` or `terraform`, or read your password or token. nipa never puts them in a tool's answer.
 

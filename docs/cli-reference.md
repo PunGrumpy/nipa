@@ -754,11 +754,12 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 
 ## MCP tools
 
-`nipa mcp` offers these tools. Each one reads, and returns the JSON that the matching command prints with `--json`, so the profile and project are named in every answer. Every tool except `whoami` also takes an optional `project`, a name or ID, which reads that project for the call and saves nothing.
+`nipa mcp` offers these tools. Each one reads, and returns the JSON that the matching command prints with `--json`, so the profile and project are named in every answer. Every tool except `whoami` and `list_projects` also takes an optional `project`, a name or ID, which reads that project for the call and saves nothing.
 
 | Tool | Input | Same as |
 | --- | --- | --- |
 | `whoami` | none | `nipa whoami --json` |
+| `list_projects` | none | `nipa project ls --json`. It reads the saved session, so `-p` and a folder's link don't change the list. Use an ID or name from it as another tool's `project` |
 | `list_servers` | none | `nipa server ls --json` |
 | `inspect_server` | `server` | `nipa server inspect <server> --json` |
 | `server_console_log` | `server`, `tail` (1 to 500, default 100) | `nipa server logs <server> --tail <n> --json` |
