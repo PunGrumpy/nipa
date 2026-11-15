@@ -411,7 +411,7 @@ describe("zsh", () => {
     const subcommands = await zshDescribed("nipa", "-p", "Beta", "server", "");
     expect(subcommands.slice(0, 2)).toEqual([
       "ls:List the servers in your project",
-      "search:Find servers by name, ID or address in every project",
+      "search:Search every project by name, ID or address",
     ]);
     expect(
       await zshDescribed("nipa", "-P", "prod", "-p", "Beta", "switch", "")

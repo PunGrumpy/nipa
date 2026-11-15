@@ -16,6 +16,7 @@ import {
 } from "../../../src/util/command";
 import type { Program } from "../../../src/util/command";
 import { run } from "../../../src/util/dispatch";
+import { inRun } from "../../../src/util/scope";
 import { CliError, isJsonMode, setJsonMode } from "../../../src/util/ui";
 
 // A spy program: every handler records what it got, without the client.
@@ -372,8 +373,12 @@ describe("dispatch", () => {
     expect(seen).toEqual([{ args: {}, flags: { json: true }, name: "whoami" }]);
     await go(["-d", "whoami"]);
     expect(lastGlobals).toEqual({ debug: true });
-    await go(["whoami", "-dv"]);
-    expect(seen).toHaveLength(1);
+    // -v in a cluster is the version, so the command never runs.
+    expect(await go(["whoami", "-dv"])).toEqual({
+      kind: "print",
+      text: "9.9.9",
+    });
+    expect(seen).toEqual([]);
   });
   test("choices and values", async () => {
     await go(["env", "--shell", "fish"]);
@@ -491,7 +496,237 @@ describe("help and version, on the real table", () => {
   });
   test("main help", async () => {
     expect(await text([])).toBe(await text(["--help"]));
-    expect(await text(["help", "nope"])).toBe(await text(["--help"]));
+    expect(await text(["help"])).toBe(await text(["--help"]));
+    expect(await text(["help", "--json"])).toBe(await text(["--help"]));
+  });
+  test("help wins over the version at every depth", async () => {
+    const main = await text(["--help"]);
+    expect(await text(["--help", "--version"])).toBe(main);
+    expect(await text(["--version", "--help"])).toBe(main);
+    expect(await text(["-hv"])).toBe(main);
+    expect(await text(["whoami", "--version", "--help"])).toBe(
+      await text(["help", "whoami"])
+    );
+    expect(await text(["server", "stop", "x", "-v", "-h"])).toBe(
+      await text(["help", "server", "stop"])
+    );
+    // A --version before the command gives way to a --help after it.
+    expect(await text(["-v", "whoami", "--help"])).toBe(
+      await text(["help", "whoami"])
+    );
+    expect(await text(["--version", "server", "stop", "--help"])).toBe(
+      await text(["help", "server", "stop"])
+    );
+    expect(await text(["-v", "help", "--help"])).toBe(
+      await text(["help", "--help"])
+    );
+    expect(await text(["-v", "server", "-yh"])).toBe(
+      await text(["server", "-yh"])
+    );
+  });
+  test("a version before a command still prints it when no help follows", async () => {
+    expect(await text(["-v", "whoami"])).toBe("9.9.9");
+    expect(await text(["-v", "server", "stop", "web"])).toBe("9.9.9");
+  });
+  test.each([[["-v", "os", "--help"]], [["-v", "exec", "x", "--help"]]])(
+    "a version before a passthrough command wins over a --help after it: %j",
+    async (argv) => {
+      expect(await go(argv)).toMatchObject({ kind: "print", text: "9.9.9" });
+      expect(seen).toEqual([]);
+      expect(lastGlobals).toBeNull();
+    }
+  );
+  test.each([
+    [["whoami", "--version"]],
+    [["whoami", "-v"]],
+    [["server", "-v"]],
+    [["server", "--version"]],
+    [["server", "stop", "web", "-y", "-v"]],
+    [["-P", "staging", "server", "stop", "web", "-yv"]],
+    // Before the command's own argument checks.
+    [["server", "stop", "-v"]],
+    [["server", "inspect", "--version"]],
+    [["server", "stop", "web", "extra", "-v"]],
+    [["whoami", "--bogus", "-v"]],
+    [["whoami", "extra", "-v"]],
+    [["server", "logs", "web", "--tail", "-v"]],
+    // The MCP server is not started, the version is printed.
+    [["mcp", "--version"]],
+    [["mcp", "-v"]],
+  ])(
+    "the version after a command prints it and makes no client: %j",
+    async (argv) => {
+      expect(await text(argv)).toBe("9.9.9");
+      expect(lastGlobals).toBeNull();
+    }
+  );
+  test("a -v after -- is a word of the command, not the version", async () => {
+    expect(
+      await usage(["server", "stop", "web", "--", "-v"], realProgram)
+    ).toMatchObject({
+      code: 2,
+      message: 'unexpected argument "-v"',
+    });
+  });
+  test("a passthrough command hands -v to its program", async () => {
+    await go(["exec", "sh", "-v"]);
+    expect(seen).toEqual([{ args: ["-v"], command: "sh", name: "exec" }]);
+  });
+  test.each([
+    [["help", "logot"], "Did you mean `nipa help logout`?"],
+    [["help", "whoam"], "Did you mean `nipa help whoami`?"],
+    [["logot", "--help"], "Did you mean `nipa help logout`?"],
+    [["logot", "-h"], "Did you mean `nipa help logout`?"],
+    [["--help", "logot"], "Did you mean `nipa help logout`?"],
+    [["logot", "-dh"], "Did you mean `nipa help logout`?"],
+    [["logot"], "Did you mean `nipa logout`?"],
+    [["logot", "--", "--help"], "Did you mean `nipa logout`?"],
+  ])("a typo %j suggests %s", async (argv, hint) => {
+    expect(await usage(argv, realProgram)).toMatchObject({ code: 2, hint });
+  });
+  test("a typo in a help request never suggests running a command", async () => {
+    expect(await usage(["help", "nope"], realProgram)).toMatchObject({
+      hint: "Did you mean `nipa help open`?",
+    });
+    expect(await usage(["help", "xylophone"], realProgram)).toMatchObject({
+      hint: "Run `nipa --help` to see the commands.",
+    });
+    expect(await usage(["xylophone", "--help"], realProgram)).toMatchObject({
+      hint: "Run `nipa --help` to see the commands.",
+    });
+    // An unknown subcommand lists the names; it suggests no command at all.
+    const sub = await usage(["help", "server", "stap"], realProgram);
+    expect(sub.hint).not.toContain("`");
+  });
+  test.each([
+    [
+      ["help", "--json", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "--bogus", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "-y", "server", "stop"],
+      ["help", "server", "stop"],
+    ],
+    [
+      ["help", "--", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "--", "server", "stop"],
+      ["help", "server", "stop"],
+    ],
+    [
+      ["help", "-P", "x", "server"],
+      ["help", "server"],
+    ],
+    [
+      ["help", "-p", "x", "--json", "server", "ls"],
+      ["help", "server", "ls"],
+    ],
+    [
+      ["help", "--json", "--bogus", "-y", "whoami"],
+      ["help", "whoami"],
+    ],
+    [
+      ["help", "server", "--json", "ls"],
+      ["help", "server"],
+    ],
+    [["help", "--json"], []],
+    [["help", "--bogus"], []],
+    [["help", "--"], []],
+  ])(
+    "options before the name of a help page are skipped: %j",
+    async (argv, same) => {
+      expect(await text(argv)).toBe(await text(same));
+    }
+  );
+  test.each([
+    [["help", "help"]],
+    [["help", "--json", "help"]],
+    [["help", "help", "server"]],
+  ])("help has no page of its own: %j is the main page", async (argv) => {
+    expect(await text(argv)).toBe(await text([]));
+  });
+  test("extra words after a leaf are ignored by help, in both forms", async () => {
+    expect(await text(["help", "whoami", "nope"])).toBe(
+      await text(["whoami", "nope", "--help"])
+    );
+    expect(await text(["help", "whoami", "nope"])).toBe(
+      await text(["help", "whoami"])
+    );
+    expect(await text(["help", "server", "ls", "nope"])).toBe(
+      await text(["server", "ls", "nope", "--help"])
+    );
+    expect(await text(["help", "server", "ls", "nope"])).toBe(
+      await text(["help", "server", "ls"])
+    );
+  });
+  test("a name after the options is checked like any other", async () => {
+    expect(await usage(["help", "--json", "nope"], realProgram)).toMatchObject({
+      code: 2,
+      message: 'unknown command "nope"',
+    });
+    expect(
+      await usage(["help", "--bogus", "server", "nope"], realProgram)
+    ).toMatchObject({ code: 2, message: 'unknown subcommand "server nope"' });
+    expect(await usage(["help", "--", "-x"], realProgram)).toMatchObject({
+      code: 2,
+      message: 'unknown command "-x"',
+    });
+  });
+  test.each([
+    [["-P", "staging", "help", "logot"], "nipa -P staging help logout"],
+    [["help", "-P", "staging", "logot"], "nipa -P staging help logout"],
+    [["help", "--profile=staging", "logot"], "nipa -P staging help logout"],
+    [["help", "-p", "Beta", "logot"], "nipa -p Beta help logout"],
+    [["help", "logot", "-p", "Beta"], "nipa -p Beta help logout"],
+    [["-P", "a", "help", "-P", "b", "logot"], "nipa -P b help logout"],
+    [
+      ["help", "--json", "-P", "staging", "logot"],
+      "nipa -P staging help logout",
+    ],
+  ])("a typo in help keeps the run's scope: %j", async (argv, command) => {
+    const failure = await usage(argv, realProgram);
+    expect(failure.hint).toBe(`Did you mean \`nipa help logout\`?`);
+    // The hint is printed through the run's scope, which the CLI sets before it throws.
+    expect(inRun(failure.hint ?? "")).toBe(`Did you mean \`${command}\`?`);
+  });
+  test("help skips global options between names, as a command line does", async () => {
+    expect(await text(["help", "server", "-P", "staging", "stop"])).toBe(
+      await text(["help", "server", "stop"])
+    );
+    expect(
+      await usage(["help", "server", "-P", "staging", "nope"], realProgram)
+    ).toMatchObject({ code: 2, message: 'unknown subcommand "server nope"' });
+  });
+  test.each([
+    [["help", "-n", "5", "server"]],
+    [["help", "--", "-v"]],
+    [["help", "x"]],
+  ])("a short word suggests no command: %j", async (argv) => {
+    expect(await usage(argv, realProgram)).toMatchObject({
+      code: 2,
+      hint: "Run `nipa --help` to see the commands.",
+    });
+  });
+  test("help names only commands that exist", async () => {
+    expect(await usage(["help", "nope"], realProgram)).toMatchObject({
+      code: 2,
+      message: 'unknown command "nope"',
+    });
+    expect(await usage(["help", "server", "nope"], realProgram)).toEqual({
+      code: 2,
+      hint: "Use ls, search, inspect, history, logs, start, stop or restart.",
+      message: 'unknown subcommand "server nope"',
+    });
+    expect(await usage(["help", "-P", "x", "nope"], realProgram)).toMatchObject(
+      { code: 2, message: 'unknown command "nope"' }
+    );
+    expect(await reasonOf(["help", "nope"])).toBe("unknown_command");
   });
   test("help <command> is <command> --help, and help wins", async () => {
     const login = await text(["help", "login"]);
@@ -502,10 +737,13 @@ describe("help and version, on the real table", () => {
       await text(["help", "whoami"])
     );
   });
-  test("--non-interactive shows in a subcommand's help", async () => {
-    expect(await text(["--non-interactive", "server", "ls", "--help"])).toMatch(
+  test("--non-interactive shows on the main page, and a subcommand's page points to it", async () => {
+    expect(await text(["--help"])).toMatch(
       /--non-interactive +Never prompt; fail with the flag to pass/u
     );
+    const page = await text(["--non-interactive", "server", "ls", "--help"]);
+    expect(page).not.toContain("--non-interactive");
+    expect(page).toContain("Global Options: nipa --help");
   });
   test("-h inside a cluster of short flags asks for help", async () => {
     expect(await text(["whoami", "-dh"])).toBe(await text(["help", "whoami"]));
@@ -523,12 +761,30 @@ describe("help and version, on the real table", () => {
     expect(server).toContain("-n, --tail <n>");
     expect(server).toContain("--timeout <duration>");
     expect(await text(["server", "--help"])).toBe(server);
-    expect(await text(["server", "nope", "--help"])).toBe(server);
-    expect(await text(["--help", "server", "nope"])).toBe(server);
     expect(await text(["help", "servers"])).toBe(server);
     const rm = await text(["profile", "rm", "--help"]);
     expect(rm).toContain("Usage: nipa profile rm <name> [--yes]");
     expect(await text(["help", "profile", "rm"])).toBe(rm);
+  });
+  test.each([
+    [["server", "nope", "--help"]],
+    [["server", "--help", "nope"]],
+    [["--help", "server", "nope"]],
+    [["server", "nope", "-h"]],
+  ])(
+    "an unknown subcommand fails even when help is asked for: %j",
+    async (argv) => {
+      expect(await usage(argv, realProgram)).toMatchObject({
+        code: 2,
+        message: 'unknown subcommand "server nope"',
+      });
+    }
+  );
+  test("an unknown command fails even when help is asked for", async () => {
+    expect(await usage(["nope", "--help"], realProgram)).toMatchObject({
+      code: 2,
+      message: 'unknown command "nope"',
+    });
   });
   test("passthrough: nipa's page only before the command", async () => {
     expect(await text(["--help", "os"])).toContain("Usage: nipa os <args...>");

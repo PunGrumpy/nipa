@@ -31,6 +31,13 @@ export const helpFlag = {
   value: { kind: "none" },
 } as const satisfies FlagSpec;
 
+export const versionFlag = {
+  description: "Show the version",
+  long: "version",
+  short: "v",
+  value: { kind: "none" },
+} as const satisfies FlagSpec;
+
 /**
  * Options nipa takes before any command, and after any command that isn't a
  * passthrough. The parser, the help pages and the completion scripts read
@@ -41,8 +48,7 @@ export const helpFlag = {
 export const GLOBAL_FLAGS = [
   profileFlag,
   {
-    description:
-      "Use this project, by name or ID, for this run only; login saves it",
+    description: "Use this project for this run; login saves it",
     long: "project",
     short: "p",
     value: { kind: "project" },
@@ -64,12 +70,7 @@ export const GLOBAL_FLAGS = [
     value: { kind: "none" },
   },
   helpFlag,
-  {
-    description: "Show the version",
-    long: "version",
-    short: "v",
-    value: { kind: "none" },
-  },
+  versionFlag,
 ] as const satisfies readonly FlagSpec[];
 
 /** `{ profile?: string; project?: string; debug?: true; "no-color"?: true; "non-interactive"?: true; help?: true; version?: true }` */

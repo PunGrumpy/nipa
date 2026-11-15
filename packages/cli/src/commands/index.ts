@@ -74,7 +74,7 @@ export const program: Program = {
       ],
       title: "Resources",
     },
-    { commands: [os, tf, exec, env, mcp], title: "Run tools" },
+    { commands: [os, tf, exec, env, mcp], title: "Run Tools" },
     { commands: [profile, doctor, completion], title: "Setup" },
   ],
   summary:

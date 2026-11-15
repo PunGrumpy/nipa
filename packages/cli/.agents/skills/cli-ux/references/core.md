@@ -194,3 +194,13 @@ The help pages come from the specs in each `command.ts`:
 - A `description` is full sentences. It says what the command does and anything surprising, such as `exec` removing stale `OS_*` variables
 - Examples are real commands that run as written. Prefer a common workflow over a list of every flag
 - `--help` exits 0. A group run without a subcommand runs its `default`
+- `--help` beats `--version` wherever both appear. `--version` after a command prints only the version and exits 0 before the command's own argument checks, a client or a request, even when the line is missing an argument or has an unknown option, except after `os`, `tf` and `exec`, whose words belong to their program
+- A path that names no command or subcommand fails with exit 2 and the usual unknown-command error, whether it comes from `nipa nope --help`, `nipa server nope --help` or `nipa help server nope`. Help never shows another command's page for a typo. `nipa help` alone is the main page
+- Every page fits 80 columns. A table puts a description beside its label when both fit, and wraps it under the label, two columns in from where the label's text starts, when they don't. Never cut a label or a description. A line longer than 80 is a command that can't break, such as an example
+- The main page lists a command by its name and summary, never its subcommands or arguments, so a new subcommand can't widen it. A group's page keeps each subcommand's arguments beside its name
+- Only the main page lists the global options. Every other page ends its options with `Global Options: nipa --help`. Options are in alphabetical order of their long names, once per page
+- Titles are Title Case with a colon, and bold magenta on a terminal. An example is its description, then its command two columns further in with no `$`, cyan on a terminal. A page has no "run --help" trailer
+- Put the summary directly under the usage line, and the description paragraph after it
+- A suggestion in an error for a help request, `nipa help logot` or `nipa logot --help`, is to read help: ``Did you mean `nipa help logout`?``. A command the person asked about but did not ask to run is never one they can paste and run
+- `nipa help` skips the options before the first name, known or not, so `help --json server` and `help --bogus server` name the server page. A word after an unknown option is read as a name. Options after the names end the path, and a `--` ends the options
+- Extra words after a command with no subcommands, or after a subcommand, are not names: `help whoami nope` and `help server ls nope` print the page and exit 0, as `whoami nope --help` does

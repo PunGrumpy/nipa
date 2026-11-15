@@ -136,15 +136,17 @@ describe("help and usage", () => {
     for (const text of [
       "Session:",
       "Resources:",
-      "Run tools:",
+      "Run Tools:",
       "Setup:",
-      "Global options:",
+      "Global Options:",
       "--profile <name>",
       "profile",
     ]) {
       expect(stdout).toContain(text);
     }
     expect(stdout).not.toContain("__complete");
+    expect(stdout).not.toContain("$ nipa");
+    expect(stdout).not.toContain("Run nipa <command> --help");
   });
 
   test("login's help says --project saves, and every other page says it doesn't", async () => {
@@ -153,13 +155,16 @@ describe("help and usage", () => {
     expect(login.stdout.replaceAll(/\s+/gu, " ")).toContain(
       "`--project` names the project to scope the token to and save, instead of the last one. It is the one command where the option saves the project"
     );
-    expect(login.stdout).toMatch(
-      /-p, --project <project>\s+Use this project, by name or ID, for this run only; login saves it/u
+    // Only the main page lists the global options. Every other page points to it.
+    const root = await run(["--help"]);
+    expect(root.stdout).toMatch(
+      /-p, --project <project> +Use this project for this run; login saves it\n/u
     );
+    expect(login.stdout).toContain("Global Options: nipa --help");
+    expect(login.stdout).not.toContain("--non-interactive");
     const server = await run(["server", "ls", "--help"]);
-    expect(server.stdout).toMatch(
-      /-p, --project <project>\s+Use this project, by name or ID, for this run only/u
-    );
+    expect(server.stdout).toContain("Global Options: nipa --help");
+    expect(server.stdout).not.toContain("Use this project for this run");
   });
 
   test("help for one command, as `help <command>` or `<command> --help`", async () => {
@@ -175,11 +180,149 @@ describe("help and usage", () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
+  test.each([
+    [["--help", "--version"]],
+    [["--version", "--help"]],
+    [["-v", "-h"]],
+  ])("--help wins over --version: %j", async (args) => {
+    const { code, stdout } = await run(args);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Usage: nipa [options] <command>");
+  });
+
+  test("--help wins over --version after a command too", async () => {
+    const page = await run(["server", "stop", "--version", "--help"]);
+    expect(page.code).toBe(0);
+    expect(page.stdout).toContain("Usage: nipa server stop <server>");
+  });
+
+  test("--help after a command wins over a --version before it", async () => {
+    const page = await run(["-v", "whoami", "--help"]);
+    expect(page.code).toBe(0);
+    expect(page.stdout).toContain("Usage: nipa whoami");
+    expect(page.stdout).not.toContain(pkg.version);
+  });
+
+  test("--version after a command prints only the version and runs nothing", async () => {
+    const before = keystone.requests.length;
+    const results = await Promise.all([
+      run(["whoami", "--version"]),
+      run(["server", "stop", "web-1", "-y", "-v"]),
+      run(["server", "stop", "-v"]),
+      run(["server", "inspect", "--version"]),
+      run(["server", "stop", "web", "extra", "-v"]),
+      run(["whoami", "--bogus", "-v"]),
+    ]);
+    for (const { code, stderr, stdout } of results) {
+      expect(code).toBe(0);
+      expect(stdout.trim()).toBe(pkg.version);
+      expect(stderr).toBe("");
+    }
+    expect(keystone.requests).toHaveLength(before);
+  });
+
+  test.each([
+    [["help", "nope"], 'unknown command "nope"'],
+    [["help", "server", "nope"], 'unknown subcommand "server nope"'],
+    [["server", "nope", "--help"], 'unknown subcommand "server nope"'],
+    [["nope", "--help"], 'unknown command "nope"'],
+  ])("a help path that names nothing fails: %j", async (args, message) => {
+    const { code, stderr, stdout } = await run(args);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(stderr).toContain(message);
+  });
+
+  test.each([
+    [["help", "--json", "server"], "Usage: nipa server [ls|search"],
+    [["help", "--bogus", "server"], "Usage: nipa server [ls|search"],
+    [["help", "-y", "server", "stop"], "Usage: nipa server stop <server>"],
+    [["help", "--", "server"], "Usage: nipa server [ls|search"],
+  ])(
+    "options before the name of a help page are skipped: %j",
+    async (args, usage) => {
+      const { code, stdout } = await run(args);
+      expect(code).toBe(0);
+      expect(stdout).toContain(usage);
+      expect(stdout).not.toContain("Usage: nipa [options] <command>");
+    }
+  );
+
+  test.each([
+    [["help", "whoami", "nope"], "Usage: nipa whoami"],
+    [["help", "server", "ls", "nope"], "Usage: nipa server ls"],
+    [["whoami", "nope", "--help"], "Usage: nipa whoami"],
+  ])(
+    "extra words after a leaf are ignored by help: %j",
+    async (args, usage) => {
+      const { code, stderr, stdout } = await run(args);
+      expect(code).toBe(0);
+      expect(stderr).toBe("");
+      expect(stdout).toContain(usage);
+    }
+  );
+
+  test("help help is the main page", async () => {
+    const { code, stderr, stdout } = await run(["help", "help"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(stdout).toContain("Usage: nipa [options] <command>");
+  });
+
+  test("help alone is the main page", async () => {
+    const { code, stdout } = await run(["help"]);
+    expect(code).toBe(0);
+    expect(stdout).toContain("Usage: nipa [options] <command>");
+  });
+
   test("a mistyped command suggests the closest one", async () => {
     const { code, stderr } = await run(["logn"]);
     expect(code).toBe(2);
     expect(stderr).toContain('unknown command "logn"');
     expect(stderr).toContain("Did you mean `nipa login`?");
+  });
+
+  test("a typo in a help request suggests reading help, never running the command", async () => {
+    const results = await Promise.all(
+      [
+        ["help", "logot"],
+        ["logot", "--help"],
+        ["logot", "-h"],
+        ["--help", "logot"],
+      ].map((words) => run(words))
+    );
+    for (const { code, stderr, stdout } of results) {
+      expect(code).toBe(2);
+      expect(stdout).toBe("");
+      expect(stderr).toContain("Did you mean `nipa help logout`?");
+      expect(stderr).not.toContain("`nipa logout`");
+    }
+    const nope = await run(["help", "nope"]);
+    expect(nope.stderr).toContain("Did you mean `nipa help open`?");
+    expect(nope.stderr).not.toContain("`nipa open`");
+    const far = await run(["help", "xylophone"]);
+    expect(far.stderr).toContain("Run `nipa --help` to see the commands.");
+  });
+
+  test("a typo in a help request keeps -P from the front", async () => {
+    const { code, stderr } = await run(["-P", "staging", "help", "logot"]);
+    expect(code).toBe(2);
+    expect(stderr).toContain("Did you mean `nipa -P staging help logout`?");
+  });
+
+  test("a typo in help keeps -P and -p from after help too", async () => {
+    const results = await Promise.all([
+      run(["help", "-P", "staging", "logot"]),
+      run(["help", "--profile=staging", "logot"]),
+    ]);
+    for (const { code, stderr } of results) {
+      expect(code).toBe(2);
+      expect(stderr).toContain("Did you mean `nipa -P staging help logout`?");
+    }
+    const project = await run(["help", "-p", "Beta", "logot"]);
+    expect(project.stderr).toContain(
+      "Did you mean `nipa -p Beta help logout`?"
+    );
   });
 
   test("bad options exit 2", async () => {
@@ -294,6 +437,13 @@ describe("what a terminal changes", () => {
     expect(error.stderr).not.toContain(ESC);
     expect(piped.stdout).not.toContain(ESC);
     expect(colorful.stderr).toContain(ESC);
+  });
+
+  test("help paints its titles bold magenta and its example commands cyan", async () => {
+    const { stdout } = await onTerminals(["stdout"], ["server", "--help"]);
+    expect(stdout).toContain(`${ESC}[1m${ESC}[35mUsage:${ESC}[39m${ESC}[22m`);
+    expect(stdout).toContain(`${ESC}[1m${ESC}[35mSubcommands:`);
+    expect(stdout).toContain(`${ESC}[36mnipa server ls${ESC}[39m`);
   });
 
   test("a prompt follows the colors of the lines around it", async () => {
@@ -837,6 +987,22 @@ describe("a failed --json command that names a resource", () => {
     expect(code).toBe(3);
     expect(stdout).toBe("out:--json server list\n");
     expect(stderr).toBe("err:--json server list\n");
+  });
+
+  test("os -v and --version go to openstack, not to nipa", async () => {
+    await mkdir(inDir("bin"), { recursive: true });
+    await writeFile(inDir("bin", "openstack"), '#!/bin/sh\necho "out:$*"\n');
+    await chmod(inDir("bin", "openstack"), 0o755);
+    const flags = ["-v", "--version"];
+    const results = await Promise.all(flags.map((flag) => run(["os", flag])));
+    for (const [i, { code, stderr, stdout }] of results.entries()) {
+      expect(code).toBe(0);
+      expect(stdout).toBe(`out:${flags[i]}\n`);
+      expect(stderr).not.toContain(pkg.version);
+    }
+    // Before the command, the flag is nipa's.
+    const own = await run(["-v", "os"]);
+    expect(own.stdout.trim()).toBe(pkg.version);
   });
 });
 
@@ -4185,8 +4351,8 @@ describe("investigate", () => {
     expect(code).toBe(0);
     expect(stdout).toContain("Usage: nipa investigate <resource> [options]");
     expect(stdout).toContain("--kind <server|lb|db|volume|k8s>");
-    expect(stdout).toContain("$ nipa investigate web-1\n");
-    expect(stdout).toContain("$ nipa why orders --kind db\n");
+    expect(stdout).toContain("      nipa investigate web-1\n");
+    expect(stdout).toContain("      nipa why orders --kind db\n");
   });
 });
 
