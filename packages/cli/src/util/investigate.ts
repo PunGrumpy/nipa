@@ -83,6 +83,8 @@ interface Look {
   candidates: Candidate[];
   /** The error for a name that more than one item of this kind has. */
   ambiguous: CliError | undefined;
+  /** The name of every item of this kind, for a close one to suggest. */
+  names: string[];
 }
 
 /** A Kubernetes cluster has no name, so its ID stands in for one. */
@@ -119,7 +121,8 @@ const look = async <T extends { id: string; name: string }>(input: {
   judge: (item: T, judgeInput: JudgeInput) => Promise<Finding[]>;
 }): Promise<Look> => {
   const { findable, kind, target } = input;
-  const matches = matching(await input.items, target.ref);
+  const items = await input.items;
+  const matches = matching(items, target.ref);
   return {
     ambiguous:
       matches.length > 1
@@ -133,6 +136,7 @@ const look = async <T extends { id: string; name: string }>(input: {
       name: item.name || item.id,
     })),
     kind,
+    names: items.map((item) => item.name),
   };
 };
 
@@ -417,7 +421,12 @@ const resolve = async (
   const [candidate] = only?.candidates ?? [];
   if (!candidate) {
     throw target.kind
-      ? notFoundError(FINDABLE[target.kind], target.projectName, target.ref)
+      ? notFoundError(
+          FINDABLE[target.kind],
+          target.projectName,
+          target.ref,
+          looks.find((l) => l.kind === target.kind)?.names
+        )
       : notFoundAnywhere(target, unread);
   }
   const warnings =

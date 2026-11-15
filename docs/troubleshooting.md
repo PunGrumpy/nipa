@@ -40,7 +40,11 @@ If it happens again right after a login, the profile's Space API may belong to a
 
 ## "no project named or with ID …"
 
-`--project`, `nipa switch` or `nipa link` got a name or ID that none of your projects has. nipa matches the whole name or ID, so copy one from the list the error prints under `Your projects`. It exits with code `1`, and never falls back to your saved project.
+`--project`, `nipa switch` or `nipa link` got a name or ID that none of your projects has. nipa matches the whole name or ID, so copy one from the list the error prints under `Your projects`. It exits with code `1`, and never falls back to your saved project. When one name is close, such as `beta` for `Beta`, the error says `Did you mean` first. nipa only suggests it, because the lookup stays exact: run the command again with the name as written.
+
+## "no server named or with ID …"
+
+The project you are using has no server with that name or ID. A server that lives in another project is the usual cause, so `nipa server search <name>` looks in every project you can use, and `nipa server ls` lists this one. With `-p`, the search reads only that project, so nipa suggests `nipa server ls` alone. When a server's name is close to the one you typed, the error says `Did you mean` and names it. nipa matches the whole name or ID, and the same words work for a volume, a network or another resource, which point to their own `ls`.
 
 ## "--project doesn't apply to nipa …"
 

@@ -328,7 +328,10 @@ describe("nipa mcp", () => {
     expect(answer.isError).toBe(true);
     expect(answer.document).toMatchObject({
       message: expect.stringContaining('no server named or with ID "nope"'),
-      next: [{ command: "nipa server ls" }],
+      next: [
+        { command: "nipa server search nope" },
+        { command: "nipa server ls" },
+      ],
       reason: "not_found",
     });
     const wrong = await mcp.call("inspect_server", {});

@@ -7,9 +7,11 @@ import { listLoadBalancers } from "./load-balancer";
 import type { LoadBalancer } from "./load-balancer";
 import { listNetworks } from "./network";
 import type { Network } from "./network";
+import { runScope, shellQuote } from "./scope";
 import { listSecurityGroups } from "./security-group";
 import type { SecurityGroup } from "./security-group";
 import { statusCell } from "./status";
+import { closest } from "./suggest";
 import { CliError, oneLine, withSpinner } from "./ui";
 import { listVolumes } from "./volume";
 import type { Volume } from "./volume";
@@ -27,6 +29,11 @@ export interface Findable<T extends Named> {
   readonly plural: string;
   /** The command that lists them, such as `nipa server ls`. */
   readonly lsCommand: string;
+  /**
+   * The command that looks for a name in every project, such as
+   * `nipa server search`, for a kind a person often names in the wrong one.
+   */
+  readonly searchCommand?: string;
   readonly list: (space: Space) => Promise<T[]>;
   /**
    * What tells two items of one name apart, such as a status and an address,
@@ -46,6 +53,7 @@ export const SERVERS: Findable<Server> = {
   lsCommand: "nipa server ls",
   noun: "server",
   plural: "servers",
+  searchCommand: "nipa server search",
 };
 
 export const VOLUMES: Findable<Volume> = {
@@ -132,23 +140,59 @@ export const matching = <T extends Named>(
   return byId.length > 0 ? byId : items.filter((item) => item.name === ref);
 };
 
-/** What an error needs to name a kind and the command that lists it. */
+/** What an error needs to name a kind and the commands that find it. */
 export type FindableName = Pick<
   Findable<Named>,
-  "lsCommand" | "noun" | "plural"
+  "lsCommand" | "noun" | "plural" | "searchCommand"
 >;
 
-/** The error for a `ref` that names no item of `kind`. */
+// A word that can sit inside backticks in a hint, and after a command name,
+// and be copied back as it is.
+const copyable = (word: string): boolean =>
+  word !== "" && !word.startsWith("-") && !/[\n\r`]/u.test(word);
+
+/**
+ * The error for a `ref` that names no item of `kind`. `names` are the names
+ * of the items in the project: a close one is suggested, in the hint and in
+ * `data.suggestion`, never in `next`, because a script must not run a guess.
+ * A kind with a `searchCommand` sends the person there first, since the
+ * likeliest miss is a resource in another project. Under `-p` the search
+ * would read only that project, so it isn't suggested.
+ */
 export const notFoundError = (
   kind: FindableName,
   projectName: string,
-  ref: string
-): CliError =>
-  new CliError(`no ${kind.noun} named or with ID "${ref}" in ${projectName}`, {
-    hint: `Run \`${kind.lsCommand}\` to see your ${kind.plural}.`,
-    next: [kind.lsCommand],
-    reason: "not_found",
-  });
+  ref: string,
+  names: readonly string[] = []
+): CliError => {
+  const guess = closest(ref, names);
+  const suggestion = guess !== undefined && copyable(guess) ? guess : undefined;
+  const search =
+    kind.searchCommand !== undefined &&
+    copyable(ref) &&
+    runScope()?.project === undefined
+      ? kind.searchCommand
+      : undefined;
+  const where =
+    search === undefined
+      ? `Run \`${kind.lsCommand}\` to see your ${kind.plural}.`
+      : `Run \`${search} ${shellQuote(ref)}\` to look in every project, or \`${kind.lsCommand}\` to see the ${kind.plural} in this one.`;
+  return new CliError(
+    `no ${kind.noun} named or with ID "${ref}" in ${projectName}`,
+    {
+      data: suggestion === undefined ? undefined : { suggestion },
+      hint:
+        suggestion === undefined
+          ? where
+          : `Did you mean \`${suggestion}\`? ${where}`,
+      next:
+        search === undefined
+          ? [kind.lsCommand]
+          : [[...search.split(" "), ref], kind.lsCommand],
+      reason: "not_found",
+    }
+  );
+};
 
 /** The error for a `ref` that names more than one item of `kind`. */
 export const ambiguousError = <T extends Named>(
@@ -188,7 +232,12 @@ export const findResource = async <T extends Named>(input: {
   );
   const [match, ...others] = matching(items, ref);
   if (!match) {
-    throw notFoundError(kind, projectName, ref);
+    throw notFoundError(
+      kind,
+      projectName,
+      ref,
+      items.map((item) => item.name)
+    );
   }
   if (others.length > 0) {
     throw ambiguousError(kind, projectName, ref, [match, ...others]);
