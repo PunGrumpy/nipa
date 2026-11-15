@@ -194,7 +194,7 @@ Resolution order:
 
 1. **Profile**: the run's `-P`, resolved before the assistant connects, so an unknown profile fails with the usual error and exit 1 and writes nothing to stdout
 2. **Session**: read on each tool call, never at startup, through `requireSession` with prompts that say they can't ask. An expired session is a tool error, so a `nipa login` in another terminal takes effect on the next call
-3. **Project**: the tool's `project`, else the run's `-p`, else the folder's link, else the saved project. A project never saves
+3. **Project**: the tool's `project`, else the run's `-p`, else the folder's link, else the saved project. A project never saves. `whoami` and `list_projects` take no `project`, and both read the saved session. `list_projects` marks as `current` the project a tool called with no `project` would read, in that order, and a `-p` that matches no listed project, by ID and then by exact name, is skipped. Its `project` field stays the saved project, as in `whoami`
 
 Rules:
 

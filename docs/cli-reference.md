@@ -6,14 +6,14 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 26 commands. Without a command, it prints help.
+nipa has 27 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
 | `nipa login [options]` | Asks for your email and password, then for a one-time password (OTP) code when your account uses multi-factor authentication (MFA). Saves a token scoped to a project. With `--remember`, saves your password in the OS keychain, so later logins ask only for an OTP code |
 | `nipa logout` | Revokes the current profile's token, deletes its session, and deletes a password that `--remember` saved |
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
-| `nipa project ls [--json]` | Lists the projects your session can use in the current profile, by name, with their IDs. It reads the saved session, so a linked folder or `-p` doesn't change the list. The project the saved session uses is marked `(current)`, and one that this folder links to is marked `(this folder)`. In a pipe, it prints a header and one tab-separated line per project with its ID and name. Run `nipa project ls \| tail -n +2 \| cut -f1` for the IDs. `nipa project`, `nipa projects` and `nipa project list` do the same |
+| `nipa project ls [--json]` | Lists the projects your session can use in the current profile, by name, with their IDs. The list belongs to the profile: a linked folder changes it only by naming another profile, and `-p` exits with code `2` instead of being ignored. In a terminal, `(current)` marks the project that commands in this folder use, which is the folder's link or else the saved project, and `(saved)` marks the saved project when the folder uses another. In a pipe, it prints a header and one tab-separated line per project with its ID and name. Run `nipa project ls \| tail -n +2 \| cut -f1` for the IDs. `nipa project`, `nipa projects` and `nipa project list` do the same |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code. In a linked folder, it changes the saved project, and the folder keeps its own |
 | `nipa link [project]` | Links this folder to the profile and a project, by name or ID, in `.nipa/project.json`. Commands in this folder and the folders below it use them |
 | `nipa unlink` | Deletes the closest `.nipa/project.json`, at or above this folder |
@@ -43,7 +43,7 @@ nipa has 26 commands. Without a command, it prints help.
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
 | `nipa env [--shell bash\|zsh\|fish]` | Prints the session's `OS_*` variables as shell commands |
-| `nipa mcp` | Runs a Model Context Protocol (MCP) server on stdin and stdout, so an AI assistant such as Claude Code, Claude Desktop, Cursor or Codex can read your project with your session. An assistant starts it, so you add it to the assistant's configuration. nipa holds no AI key and calls no model. The server offers read-only tools and no tool that changes anything. `-P` and `-p` pick the profile and project for the whole run, and each tool takes a `project` of its own. When the session expired, a tool answers with an error that asks you to run `nipa login`, because nipa can't ask for a password on stdin. Messages go to stderr, and stdout carries only MCP messages. See [MCP tools](#mcp-tools) and [Use nipa with an AI assistant](use-with-ai.md) |
+| `nipa mcp` | Runs a Model Context Protocol (MCP) server on stdin and stdout, so an AI assistant such as Claude Code, Claude Desktop, Cursor or Codex can read your project with your session. An assistant starts it, so you add it to the assistant's configuration. nipa holds no AI key and calls no model. The server offers read-only tools and no tool that changes anything. `-P` and `-p` pick the profile and project for the whole run, and each tool but `whoami` and `list_projects` takes a `project` of its own. `list_projects` marks the project that the other tools read as current. When the session expired, a tool answers with an error that asks you to run `nipa login`, because nipa can't ask for a password on stdin. Messages go to stderr, and stdout carries only MCP messages. See [MCP tools](#mcp-tools) and [Use nipa with an AI assistant](use-with-ai.md) |
 | `nipa profile [ls\|add\|use\|rm]` | Lists (`nipa profile ls`), adds (`nipa profile add`), picks (`nipa profile use`) or removes (`nipa profile rm`) profiles. `nipa profile list` is the same as `nipa profile ls` |
 | `nipa doctor [--json]` | Checks the config files, the profile, its Keystone and Space API, the session and whether Keystone and the Space API accept its token, the folder's link, `openstack` and `terraform`, and the last update check. It prints how to fix each problem, changes nothing, never asks for a password, and exits with code `1` when a check fails. A warning doesn't change the exit code |
 | `nipa completion [shell] [--install]` | Prints the tab completion script for `bash`, `zsh`, `fish` or `pwsh`. Without a shell, nipa uses the one in `$SHELL`. With `--install`, nipa saves the script where the shell loads it instead of printing it: `~/.zfunc/_nipa` for zsh, `~/.local/share/bash-completion/completions/nipa` for bash and `~/.config/fish/completions/nipa.fish` for fish. bash and fish honour `XDG_DATA_HOME` and `XDG_CONFIG_HOME` for those folders. PowerShell has no such folder |
@@ -163,7 +163,7 @@ nipa exits with these codes:
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
 
-`nipa project ls --json` prints the profile, the saved session's project, the folder's link and the projects the session can use, ordered by name. `current` is `true` for the saved session's project, the one `nipa switch` changes, and for no other. `link` is `null` outside a linked folder:
+`nipa project ls --json` prints the profile, the saved session's project, the folder's link and the projects the session can use, ordered by name. `project` and `link` are what `nipa whoami --json` prints. `current` is `true` for the project that commands in this folder use, which is the folder's link or else the saved project, and for no other, so `current` and `project` differ in a linked folder. `link` is `null` outside a linked folder:
 
 ```json
 {
@@ -759,7 +759,7 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 | Tool | Input | Same as |
 | --- | --- | --- |
 | `whoami` | none | `nipa whoami --json` |
-| `list_projects` | none | `nipa project ls --json`. It reads the saved session, so `-p` and a folder's link don't change the list. Use an ID or name from it as another tool's `project` |
+| `list_projects` | none | `nipa project ls --json`. The list belongs to the profile, so `-p` and a folder's link don't change it, and the tool takes no `project`. `current` is `true` for the project that the other tools read when you give them no `project`: the server's `-p`, else the folder's link, else the saved project. A `-p` that matches no listed project, by ID or by exact name, is skipped. `project` is the saved project, as in `whoami`. Use an ID or name from the list as another tool's `project` |
 | `list_servers` | none | `nipa server ls --json` |
 | `inspect_server` | `server` | `nipa server inspect <server> --json` |
 | `server_console_log` | `server`, `tail` (1 to 500, default 100) | `nipa server logs <server> --tail <n> --json` |

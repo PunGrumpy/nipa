@@ -74,7 +74,7 @@ claude mcp add nipa-staging -- nipa -P staging mcp
 claude mcp add nipa-beta -- nipa -p Beta mcp
 ```
 
-`-P` picks the profile, and `-p` picks the project for the whole run without saving it. Every tool except `whoami` and `list_projects` also takes a `project`, a name or ID, so the assistant can look at another project for one question, and `list_projects` is where it finds the names and IDs. Neither changes the project that `nipa switch` saved. The server reads your session on each call, so a `nipa login` or `nipa switch` in a terminal takes effect without restarting the assistant.
+`-P` picks the profile, and `-p` picks the project for the whole run without saving it. Every tool except `whoami` and `list_projects` also takes a `project`, a name or ID, so the assistant can look at another project for one question, and `list_projects` is where it finds the names and IDs. `list_projects` marks as `current` the project that the other tools read when they get no `project`, which is the `-p` you started the server with, else the folder's link, else the saved project, and its `project` field stays the saved one. Neither changes the project that `nipa switch` saved. The server reads your session on each call, so a `nipa login` or `nipa switch` in a terminal takes effect without restarting the assistant.
 
 ## Ask a question
 
