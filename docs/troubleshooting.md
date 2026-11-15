@@ -180,7 +180,7 @@ After `nipa completion --install`, zsh loads the script only when `~/.zfunc` is 
 
 ## Tab completion offers old names, or the wrong project's
 
-A Tab press waits at most 2 seconds for Keystone or the Space API. When it can't load the names, because you're offline, the session expired or the API failed, it offers the names it saved in `~/.cache/nipa/names.json` in the last day, and nothing after that. nipa keeps each list for a minute, so a server you just made can take a minute to show up. The command you run still looks the name up live.
+A Tab press waits at most 2 seconds for each request to Keystone or the Space API. It can make up to three in a row, so a slow network that still answers can take longer, but an unreachable one fails on the first. When it can't load the names, because you're offline, the session expired or the API failed, it offers the names it saved in `~/.cache/nipa/names.json` in the last day, and nothing after that. nipa keeps each list for a minute, so a server you just made can take a minute to show up. The command you run still looks the name up live.
 
 The names come from the profile and project on the command line: `nipa -P staging -p Beta server inspect <Tab>` offers Beta's servers in the staging profile. Without `-P` or `-p`, they come from the folder's link, then the saved project. After `nipa os`, `-p` is openstack's, so put it before `os`.
 
