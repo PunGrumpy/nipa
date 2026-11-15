@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { resourceNames } from "../../../src/util/names";
 import { fakeSpace } from "../../helpers";
+
+// root writes anything, and Windows ignores modes
+const ignoresModes = process.getuid?.() === 0 || process.platform === "win32";
 
 let cache: string;
 const before = process.env.XDG_CACHE_HOME;
@@ -89,4 +92,26 @@ describe("resourceNames", () => {
     // More than a day after the first list, but not after the second.
     expect(await get(24 * 60 * 60_000 + 60_000, false)).toEqual(["new"]);
   });
+
+  test.skipIf(ignoresModes)(
+    "offers the names it loaded when the cache can't be written",
+    async () => {
+      const { space } = flavorSpace();
+      // nipa resets the mode of a directory it owns, so lock the parent
+      const locked = path.join(cache, "locked");
+      await mkdir(locked, { mode: 0o500 });
+      process.env.XDG_CACHE_HOME = locked;
+      try {
+        const found = await resourceNames({
+          connect: () => Promise.resolve(space),
+          kind: "flavors",
+          scope: "prod:unwritable",
+        });
+        expect(found).toEqual(["a", "b"]);
+      } finally {
+        process.env.XDG_CACHE_HOME = cache;
+        await chmod(locked, 0o700);
+      }
+    }
+  );
 });

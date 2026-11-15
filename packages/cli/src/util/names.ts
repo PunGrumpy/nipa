@@ -84,7 +84,7 @@ const CacheSchema = z.record(
  * The names saved under `key`, or what `load` finds. The one place the cache
  * rules live: a list younger than FRESH_MS is used as it is, and when `load`
  * fails for any reason a list younger than STALE_MS stands in. Never throws
- * for a failed load.
+ * for a failed load or a cache it can't write.
  */
 export const cachedNames = async (input: {
   key: string;
@@ -106,7 +106,14 @@ export const cachedNames = async (input: {
     // Offline, a revoked session or an API error: the last list, if recent.
     return hit && now - hit.at < STALE_MS ? hit.names : [];
   }
-  await writeCache(CACHE_FILE, { ...cache, [key]: { at: now, names: found } });
+  try {
+    await writeCache(CACHE_FILE, {
+      ...cache,
+      [key]: { at: now, names: found },
+    });
+  } catch {
+    // A read-only home or a full disk: the names still answer this Tab press.
+  }
   return found;
 };
 
