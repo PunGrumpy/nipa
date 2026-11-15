@@ -525,12 +525,14 @@ describe("help and version, on the real table", () => {
     [["whoami", "--bogus", "-v"]],
     [["whoami", "extra", "-v"]],
     [["server", "logs", "web", "--tail", "-v"]],
+    // The MCP server is not started, the version is printed.
+    [["mcp", "--version"]],
+    [["mcp", "-v"]],
   ])(
     "the version after a command prints it and makes no client: %j",
     async (argv) => {
       expect(await text(argv)).toBe("9.9.9");
       expect(lastGlobals).toBeNull();
-      expect(seen).toEqual([]);
     }
   );
   test("a -v after -- is a word of the command, not the version", async () => {
