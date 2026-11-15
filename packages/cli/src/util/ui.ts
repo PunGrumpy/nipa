@@ -27,8 +27,12 @@ export class CliError extends Error {
   readonly exitCode: number;
   /** The stable code a script reads in place of the message. */
   readonly reason: Reason;
-  /** Recovery commands, whole and static, such as `nipa login -P staging`. */
-  readonly next?: readonly string[];
+  /**
+   * Recovery commands: a whole, static one such as `nipa login -P staging`,
+   * or its words when one of them is a name the person typed, which may hold
+   * a space or a quote.
+   */
+  readonly next?: readonly (string | readonly string[])[];
 
   constructor(
     message: string,
@@ -37,7 +41,7 @@ export class CliError extends Error {
       data?: ErrorData;
       exitCode?: number;
       reason?: Reason;
-      next?: readonly string[];
+      next?: readonly (string | readonly string[])[];
     } = {}
   ) {
     super(message);
