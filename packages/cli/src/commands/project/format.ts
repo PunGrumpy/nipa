@@ -1,24 +1,36 @@
-import type { ProjectsDocument } from "../../util/projects";
+import type { ListedProject, ProjectsDocument } from "../../util/projects";
 import type { Cell } from "../../util/ui";
 import { printTable, withDetail } from "../../util/ui";
 
 export const PIPE_HEADINGS = ["ID", "Name"];
 
-/** What follows a project's ID: the saved project, or the one this folder links to. */
+/**
+ * What follows a project's ID: `(current)` on the project commands here use,
+ * and `(saved)` on the saved session's project when that is a different one.
+ */
 export const markerOf = (
-  document: Pick<ProjectsDocument, "link">,
+  document: Pick<ProjectsDocument, "project">,
   project: { current: boolean; id: string }
 ): string => {
   if (project.current) {
     return "  (current)";
   }
-  return document.link?.project.id === project.id ? "  (this folder)" : "";
+  return document.project.id === project.id ? "  (saved)" : "";
+};
+
+export const idCell = (
+  document: ProjectsDocument,
+  project: ListedProject
+): Cell => {
+  const marker = markerOf(document, project);
+  // A plain cell, so a row with no marker carries no empty color sequence.
+  return marker === "" ? { text: project.id } : withDetail(project.id, marker);
 };
 
 const tableRows = (document: ProjectsDocument): Cell[][] =>
   document.projects.map((project) => [
     { text: project.name },
-    withDetail(project.id, markerOf(document, project)),
+    idCell(document, project),
   ]);
 
 /** Name and ID in full. A terminal too narrow for both gets a record per project. */

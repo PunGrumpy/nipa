@@ -1442,6 +1442,18 @@ describe("project ls", () => {
     expect(stderr).toMatch(/Name\s+ID\n/u);
     expect(stderr).toMatch(new RegExp(`Alpha\\s+${ALPHA}  \\(current\\)`, "u"));
     expect(stderr).toMatch(new RegExp(`Beta\\s+${BETA_ID}\\n`, "u"));
+    expect(stderr).not.toContain("(saved)");
+    expect(stderr).not.toContain("(this folder)");
+  });
+
+  test("a row with no marker has no escape sequence after its ID", async () => {
+    const { stderr } = await runOnTerminals({
+      args: ["project", "ls"],
+      env: { ...testEnv(dir), ...colorEnv({ FORCE_COLOR: "1" }) },
+      terminals: ["stdout", "stderr"],
+    });
+    expect(stderr).toContain("\u001B[");
+    expect(stderr).toContain(`${BETA_ID}\n`);
   });
 
   test("--json lists every project, and exactly one is current", async () => {
@@ -1459,40 +1471,32 @@ describe("project ls", () => {
     });
   });
 
-  test("a linked folder or --project doesn't change the list, and the link is marked", async () => {
+  test("in a folder linked to Beta, Beta is current and Alpha is saved", async () => {
     const work = inDir("projects-work");
     await mkdir(work, { recursive: true });
     await runIn(work, ["link", "Beta"]);
     const json = await runIn(work, ["project", "ls", "--json"]);
     const parsed = JSON.parse(json.stdout);
+    expect(parsed.project).toMatchObject({ id: ALPHA, name: "Alpha" });
     expect(parsed.link.project).toMatchObject({ id: BETA_ID, name: "Beta" });
-    expect(
-      parsed.projects.filter((p: { current: boolean }) => p.current)
-    ).toEqual([{ current: true, id: ALPHA, name: "Alpha" }]);
+    expect(parsed.projects).toEqual([
+      { current: false, id: ALPHA, name: "Alpha" },
+      { current: true, id: BETA_ID, name: "Beta" },
+    ]);
+    const who = await runIn(work, ["whoami", "--json"]);
+    const whoami = JSON.parse(who.stdout);
+    expect(parsed.project).toEqual(whoami.project);
+    expect(parsed.link).toEqual(whoami.link);
     const terminal = await runOnTerminals({
       args: ["project", "ls"],
       cwd: work,
       env: testEnv(dir),
       terminals: ["stdout", "stderr"],
     });
-    expect(terminal.stderr).toContain(`${BETA_ID}  (this folder)`);
-    expect(terminal.stderr).toContain(`${ALPHA}  (current)`);
+    expect(terminal.stderr).toContain(`${BETA_ID}  (current)`);
+    expect(terminal.stderr).toContain(`${ALPHA}  (saved)`);
+    expect(terminal.stderr).not.toContain("(this folder)");
     await runIn(work, ["unlink"]);
-  });
-
-  test("-p is refused, with and without the subcommand", async () => {
-    const results = await Promise.all(
-      [
-        ["-p", "Beta", "project", "ls"],
-        ["-p", "Beta", "project"],
-        ["project", "ls", "--project", "Beta"],
-      ].map((args) => run(args))
-    );
-    for (const { code, stderr, stdout } of results) {
-      expect(code).toBe(2);
-      expect(stdout).toBe("");
-      expect(stderr).toContain("--project");
-    }
   });
 
   test("without a session and without a terminal, --json writes the login error and nothing else", async () => {
@@ -2611,6 +2615,8 @@ describe("--project on a command that never reads a project", () => {
 
   const refused: [string, string[]][] = [
     ["nipa whoami", ["whoami"]],
+    ["nipa project", ["project"]],
+    ["nipa project ls", ["project", "ls"]],
     ["nipa completion", ["completion", "bash"]],
     ["nipa doctor", ["doctor"]],
     ["nipa switch", ["switch", "Beta"]],

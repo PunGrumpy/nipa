@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 
 import {
+  idCell,
   markerOf,
   pipeRows,
   printProjects,
@@ -11,20 +12,22 @@ const ALPHA = "a".repeat(32);
 const BETA = "b".repeat(32);
 const GAMMA = "c".repeat(32);
 
+// Alpha is the saved project. The folder's link, when there is one, is what
+// commands here use, so it is the one marked current.
 const documentOf = (
   link: ProjectsDocument["link"] = null,
   names: readonly string[] = ["Alpha", "Beta", "Gamma"]
 ): ProjectsDocument => {
   const ids = [ALPHA, BETA, GAMMA];
+  const current = link?.project.id ?? ALPHA;
   return {
     link,
     profile: "prod",
     project: { id: ALPHA, name: "Alpha" },
-    projects: names.map((name, index) => ({
-      current: index === 0,
-      id: ids[index] ?? `${index}`.repeat(32),
-      name,
-    })),
+    projects: names.map((name, index) => {
+      const id = ids[index] ?? `${index}`.repeat(32);
+      return { current: id === current, id, name };
+    }),
   };
 };
 
@@ -34,12 +37,20 @@ const linkedTo = (id: string, name: string): ProjectsDocument["link"] => ({
 });
 
 describe("project ls rows", () => {
-  test("marks the saved project, and the one this folder links to", () => {
+  test("marks the project this folder uses, and the saved one when it differs", () => {
     const document = documentOf(linkedTo(BETA, "Beta"));
     const markers = document.projects.map((project) =>
       markerOf(document, project)
     );
-    expect(markers).toEqual(["  (current)", "  (this folder)", ""]);
+    expect(markers).toEqual(["  (saved)", "  (current)", ""]);
+  });
+
+  test("with no link, the saved project is (current) and nothing says (saved)", () => {
+    const document = documentOf();
+    const markers = document.projects.map((project) =>
+      markerOf(document, project)
+    );
+    expect(markers).toEqual(["  (current)", "", ""]);
   });
 
   test("a link to the saved project says (current) once", () => {
@@ -85,16 +96,12 @@ describe("project ls table", () => {
     (width) => {
       const out = lines(documentOf(linkedTo(BETA, "Beta")), width);
       expect(out[1]).toMatch(/^ {2}Name {2,}ID$/u);
-      expect(out).toContain(
-        `  Alpha   ${" ".repeat(2)}${ALPHA}  (current)`.replace(
-          / {4,}/u,
-          "     "
-        )
-      );
-      expect(out.some((line) => line.endsWith(`${BETA}  (this folder)`))).toBe(
+      expect(out.some((line) => line.endsWith(`${ALPHA}  (saved)`))).toBe(true);
+      expect(out.some((line) => line.endsWith(`${BETA}  (current)`))).toBe(
         true
       );
       expect(out.some((line) => line.endsWith(GAMMA))).toBe(true);
+      expect(out.join("\n")).not.toContain("(this folder)");
       expect(Math.max(...out.map((line) => line.length))).toBeLessThanOrEqual(
         width
       );
@@ -105,8 +112,20 @@ describe("project ls table", () => {
     const out = lines(documentOf(linkedTo(BETA, "Beta")), 40);
     expect(out.join("\n")).not.toMatch(/Name\s+ID/u);
     expect(out).toContain("  Alpha");
-    expect(out).toContain(`    ${ALPHA}  (current)`);
-    expect(out).toContain(`    ${BETA}  (this folder)`);
+    expect(out).toContain(`    ${ALPHA}  (saved)`);
+    expect(out).toContain(`    ${BETA}  (current)`);
+    expect(out).toContain(`    ${GAMMA}`);
+  });
+
+  test("a row with no marker has a plain ID cell, so no escape follows the ID", () => {
+    const document = documentOf(linkedTo(BETA, "Beta"));
+    const [saved, current, plain] = document.projects.map((project) =>
+      idCell(document, project)
+    );
+    // A painted cell dims what follows the ID, which is empty here.
+    expect(plain).toEqual({ text: GAMMA });
+    expect(saved?.paint).toBeFunction();
+    expect(current?.paint).toBeFunction();
   });
 
   test("a name that holds a newline stays on one line", () => {

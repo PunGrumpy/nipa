@@ -14,7 +14,8 @@ import { lsSubcommand } from "./command";
 import { PIPE_HEADINGS, pipeRows, printProjects } from "./format";
 
 export const ls = handle(lsSubcommand, async ({ client, flags }) => {
-  // The saved session, so a linked folder or `-p` doesn't change the list.
+  // Keystone lists the same projects for any token of the profile, so the
+  // saved session is enough. `current` still follows the folder's link.
   const { active, session } = await client.savedSession();
   const started = performance.now();
   const document = await projectsDocument(active, session);
