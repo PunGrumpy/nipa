@@ -3,27 +3,36 @@ import type { Client } from "../../util/command";
 import type { CompleteKind } from "../../util/completion";
 import { setRequestTimeout } from "../../util/http";
 import { listProjects } from "../../util/keystone";
-import { resourceNames } from "../../util/names";
+import { cachedNames, resourceNames } from "../../util/names";
 import { openstackCompletions, valueKind } from "../../util/openstack";
 import { connect, requireSession } from "../../util/session";
 import type { ResourceKind } from "../../util/spec";
 import { isActive, loadConfig, loadSession } from "../../util/store";
 import { completeCommand } from "./command";
 
+// The account's projects, kept per profile like the resource names. An
+// expired session is a failed load: the last list stands in.
 const projectNames = async (client: Client): Promise<string[]> => {
   const active = await client.profile();
-  const session = await loadSession(active.name);
-  if (!isActive(session)) {
-    return [];
-  }
-  const projects = await listProjects({
-    authUrl: active.profile.authUrl,
-    token: session.token,
+  return cachedNames({
+    key: `${active.name}:projects`,
+    load: async () => {
+      const session = await loadSession(active.name);
+      if (!isActive(session)) {
+        throw new Error(`the ${active.name} session expired`);
+      }
+      const projects = await listProjects({
+        authUrl: active.profile.authUrl,
+        token: session.token,
+      });
+      return projects.map((p) => p.name);
+    },
   });
-  return projects.map((p) => p.name);
 };
 
-// The Space API only, without a login: a Tab press never prompts.
+// The Space API only, without a login: a Tab press never prompts. The names
+// come from the run's `-p` when it has one, kept under the project as typed,
+// else from the folder's link or the saved project.
 const spaceNames = async (
   client: Client,
   kind: ResourceKind
@@ -31,20 +40,22 @@ const spaceNames = async (
   const active = await client.profile();
   const saved = await loadSession(active.name);
   const { spaceUrl } = active.profile;
-  if (!(isActive(saved) && spaceUrl)) {
+  if (!(saved && spaceUrl)) {
     return [];
   }
-  const project = active.link?.link.project ?? saved.project;
+  const project =
+    client.project ?? (active.link?.link.project ?? saved.project).id;
   return resourceNames({
     connect: async () => {
       const signedIn = await requireSession({
         active,
+        project: client.project,
         prompts: { ...client.prompts, interactive: false },
       });
       return connect({ signedIn, spaceUrl }).space;
     },
     kind,
-    scope: `${active.name}:${project.id}`,
+    scope: `${active.name}:${project}`,
   });
 };
 
