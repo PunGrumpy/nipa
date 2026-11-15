@@ -14,6 +14,7 @@ import { profileAmong, projectAmong, setRunScope } from "./scope";
 import type { RunScope } from "./scope";
 import { namesOf, profileUseOf, projectUseOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
+import { closest } from "./suggest";
 import { CliError, setJsonMode, usageError } from "./ui";
 
 /** What a run ended with. src/index.ts prints, sets the exit code and shows the update notice. */
@@ -144,23 +145,6 @@ const pickSubcommand = (group: Group, words: readonly string[]): Resolved => {
   };
 };
 
-const editDistance = (a: string, b: string): number => {
-  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i += 1) {
-    const current = [i];
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      current[j] = Math.min(
-        (previous[j] ?? 0) + 1,
-        (current[j - 1] ?? 0) + 1,
-        (previous[j - 1] ?? 0) + cost
-      );
-    }
-    previous = current;
-  }
-  return previous[b.length] ?? 0;
-};
-
 /**
  * Suggests the closest command that help lists. A person who asked for help
  * (`nipa help logot`, `nipa logot --help`) is told to read that command's
@@ -172,16 +156,15 @@ const unknownCommand = (input: {
   program: ProgramSpec;
   word: string;
 }): CliError => {
-  const [closest] = input.program.sections
-    .flatMap((s) => s.commands)
-    .map((c) => ({ name: c.name, score: editDistance(input.word, c.name) }))
-    .toSorted((a, b) => a.score - b.score);
+  const closestName = closest(
+    input.word,
+    input.program.sections.flatMap((s) => s.commands.map((c) => c.name))
+  );
   const verb = input.help ? "help " : "";
   const hint =
-    // A short word is near every short command, so `5` or `-v` suggests nothing.
-    closest && closest.score <= Math.min(2, Math.floor(input.word.length / 2))
-      ? `Did you mean \`nipa ${verb}${closest.name}\`?`
-      : "Run `nipa --help` to see the commands.";
+    closestName === undefined
+      ? "Run `nipa --help` to see the commands."
+      : `Did you mean \`nipa ${verb}${closestName}\`?`;
   return new CliError(`unknown command "${input.word}"`, {
     exitCode: 2,
     hint,

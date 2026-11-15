@@ -298,8 +298,9 @@ describe("help and usage", () => {
       expect(stderr).not.toContain("`nipa logout`");
     }
     const nope = await run(["help", "nope"]);
-    expect(nope.stderr).toContain("Did you mean `nipa help open`?");
-    expect(nope.stderr).not.toContain("`nipa open`");
+    // `nope` is two edits from `open`, too far for a word of four letters.
+    expect(nope.stderr).toContain("Run `nipa --help` to see the commands.");
+    expect(nope.stderr).not.toContain("Did you mean");
     const far = await run(["help", "xylophone"]);
     expect(far.stderr).toContain("Run `nipa --help` to see the commands.");
   });

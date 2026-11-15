@@ -585,8 +585,12 @@ describe("help and version, on the real table", () => {
     expect(await usage(argv, realProgram)).toMatchObject({ code: 2, hint });
   });
   test("a typo in a help request never suggests running a command", async () => {
+    // `nope` is two edits from `open`, too far for a word of four letters.
     expect(await usage(["help", "nope"], realProgram)).toMatchObject({
-      hint: "Did you mean `nipa help open`?",
+      hint: "Run `nipa --help` to see the commands.",
+    });
+    expect(await usage(["help", "logot"], realProgram)).toMatchObject({
+      hint: "Did you mean `nipa help logout`?",
     });
     expect(await usage(["help", "xylophone"], realProgram)).toMatchObject({
       hint: "Run `nipa --help` to see the commands.",
