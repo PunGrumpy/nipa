@@ -892,8 +892,12 @@ ${commands}
     $typed = @($words | Select-Object -Skip $start -First ($index - $start))
     @(nipa @scope __complete openstack -- @typed $wordToComplete 2>$null)
   }
-  # The profile and project options before the cursor. A quoted value is
-  # passed on without its quotes.
+  # A word as the command will get it: a quoted value, alone or after
+  # --project=, without its quotes.
+  function Unquoted($element) {
+    if ($element -is [System.Management.Automation.Language.StringConstantExpressionAst]) { $element.Value } else { $element.ToString() }
+  }
+  # The profile and project options before the cursor, unquoted.
   function Scope {
     $command = $null
     for ($j = 1; $j -lt $index; $j++) {
@@ -902,12 +906,11 @@ ${commands}
       if ($word -cin ${pwshList(SCOPE_WORDS)}) {
         if ($j + 1 -lt $index) {
           $word
-          $value = $commandAst.CommandElements[$j + 1]
-          if ($value -is [System.Management.Automation.Language.StringConstantExpressionAst]) { $value.Value } else { $value.ToString() }
+          Unquoted $commandAst.CommandElements[$j + 1]
         }
         $j += 1
       }
-      elseif (${SCOPE_JOINED.map((word) => `$word -clike ${pwshQuote(word)}`).join(" -or ")}) { $word }
+      elseif (${SCOPE_JOINED.map((word) => `$word -clike ${pwshQuote(word)}`).join(" -or ")}) { Unquoted $commandAst.CommandElements[$j] }
       elseif ($word -notlike '-*' -and -not $command) {
         $command = $word
         if ($command -cin ${pwshList(passthroughs)}) { return }

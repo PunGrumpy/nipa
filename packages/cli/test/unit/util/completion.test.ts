@@ -677,7 +677,7 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
           "pwsh",
           "-NoProfile",
           "-Command",
-          `. '${path.join(stub, "completion.ps1")}'; (TabExpansion2 -inputScript '${line}' -cursorColumn ${line.length}).CompletionMatches | Out-Null`,
+          `. '${path.join(stub, "completion.ps1")}'; (TabExpansion2 -inputScript '${line.replaceAll("'", "''")}' -cursorColumn ${line.length}).CompletionMatches | Out-Null`,
         ],
         testEnv(stub)
       )
@@ -816,6 +816,14 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
         "__complete",
         "servers",
       ]);
+      // The value of a joined option reaches nipa without its quotes.
+      const servers = ["--project=My Project", "__complete", "servers"];
+      expect(
+        await pwshRun('nipa --project="My Project" server inspect ')
+      ).toEqual(servers);
+      expect(
+        await pwshRun("nipa --project='My Project' server inspect ")
+      ).toEqual(servers);
     },
     PWSH_TIMEOUT_MS
   );
