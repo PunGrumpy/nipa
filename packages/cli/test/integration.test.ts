@@ -55,6 +55,7 @@ import {
   FAKE_NETWORKS,
   FAKE_SERVERS,
   FAKE_VOLUMES,
+  fakeInstance,
 } from "./mocks/space";
 
 let dir: string;
@@ -81,6 +82,9 @@ const exitCode = async (args: string[]): Promise<number> => {
 };
 
 const inDir = (...parts: string[]) => path.join(dir, ...parts);
+
+/** The tab completion cache, under HOME's .cache since testEnv sets no XDG_CACHE_HOME. */
+const namesFile = () => inDir(".cache", "nipa", "names.json");
 
 const infra = () => inDir("infra");
 const modules = () => inDir("infra", "modules");
@@ -4579,4 +4583,148 @@ describe("broken files", () => {
       }
     }
   );
+});
+
+describe("__complete", () => {
+  const ALPHA_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const BETA_SERVER = "beta-only";
+  let tab: FakeKeystone;
+
+  const tabProjectLists = () =>
+    tab.requests.filter((r) => r === "GET /v3/auth/projects").length;
+
+  beforeAll(() => {
+    tab = startFakeKeystone({
+      gateway: true,
+      projects: {
+        servers: {
+          [BETA_ID]: [
+            fakeInstance(
+              BETA_SERVER,
+              "beeeeeee-0000-4000-8000-000000000001",
+              "192.0.2.9"
+            ),
+          ],
+        },
+      },
+    });
+  });
+
+  afterAll(() => {
+    tab.stop();
+  });
+
+  beforeEach(async () => {
+    await freshDir();
+    await seedSession(dir, tab.url);
+  });
+
+  test("-p names come from that project, kept under the project as typed", async () => {
+    const beta = await run(["-p", "Beta", "__complete", "servers"]);
+    expect(beta.code).toBe(0);
+    expect(beta.stdout).toBe(`${BETA_SERVER}\n`);
+    const saved = await run(["__complete", "servers"]);
+    expect(saved.stdout.trim().split("\n")).toEqual(
+      FAKE_SERVERS.map((server) => server.name)
+    );
+    expect(saved.stdout).not.toContain(BETA_SERVER);
+    const cache = JSON.parse(await readFile(namesFile(), "utf-8"));
+    expect(cache["prod:Beta:servers"].names).toEqual([BETA_SERVER]);
+  });
+
+  test("an unknown -p prints nothing and exits 0", async () => {
+    const { code, stderr, stdout } = await run([
+      "-p",
+      "Nope",
+      "__complete",
+      "servers",
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toBe("");
+  });
+
+  test("keeps the project names for a minute", async () => {
+    const lists = tabProjectLists();
+    const first = await run(["__complete", "projects"]);
+    expect(first.stdout).toBe("Alpha\nBeta\n");
+    expect(tabProjectLists()).toBe(lists + 1);
+    const second = await run(["__complete", "projects"]);
+    expect(second.stdout).toBe(first.stdout);
+    expect(tabProjectLists()).toBe(lists + 1);
+  });
+
+  test("an unreachable Space API falls back to the names it last saved", async () => {
+    await mkdir(path.dirname(namesFile()), { recursive: true });
+    await writeFile(
+      namesFile(),
+      JSON.stringify({
+        [`prod:${ALPHA_ID}:servers`]: {
+          at: Date.now() - 5 * 60_000,
+          names: ["cached-1"],
+        },
+      })
+    );
+    const config = await readJsonFile("config.json");
+    // Nothing listens on port 1, so the connection fails at once.
+    config.profiles.prod.spaceUrl = "http://127.0.0.1:1/api";
+    await writeFile(path.join(dir, "config.json"), JSON.stringify(config));
+    const { code, stderr, stdout } = await run(["__complete", "servers"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("cached-1\n");
+    expect(stderr).toBe("");
+  });
+
+  test("an expired session falls back to the names it last saved", async () => {
+    await mkdir(path.dirname(namesFile()), { recursive: true });
+    await writeFile(
+      namesFile(),
+      JSON.stringify({
+        "prod:projects": { at: Date.now() - 5 * 60_000, names: ["Old"] },
+      })
+    );
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.prod.expiresAt = new Date(Date.now() - 1000).toISOString();
+    await writeFile(path.join(dir, "auth.json"), JSON.stringify(auth));
+    const { code, stderr, stdout } = await run(["__complete", "projects"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("Old\n");
+    expect(stderr).toBe("");
+  });
+
+  test("after a logout no project names are offered, even saved ones", async () => {
+    await mkdir(path.dirname(namesFile()), { recursive: true });
+    await writeFile(
+      namesFile(),
+      JSON.stringify({
+        "prod:projects": { at: Date.now() - 5 * 60_000, names: ["Old"] },
+      })
+    );
+    await rm(path.join(dir, "auth.json"));
+    const { code, stderr, stdout } = await run(["__complete", "projects"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toBe("");
+  });
+
+  test("a Space API that never answers gives up after 2 seconds", async () => {
+    const hung = startFakeKeystone({
+      gateway: true,
+      projects: { hang: [ALPHA_ID] },
+    });
+    try {
+      await seedSession(dir, hung.url);
+      const started = performance.now();
+      const { code, stderr, stdout } = await run(["__complete", "servers"]);
+      const elapsed = performance.now() - started;
+      expect(code).toBe(0);
+      expect(stdout).toBe("");
+      expect(stderr).toBe("");
+      expect(elapsed).toBeGreaterThan(2000);
+      expect(elapsed).toBeLessThan(10_000);
+      expect(hung.aborted).toContain(`GET /api/v3/instances ${ALPHA_ID}`);
+    } finally {
+      hung.stop();
+    }
+  }, 30_000);
 });

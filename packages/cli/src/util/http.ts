@@ -27,6 +27,16 @@ const describe = (error: Error): string =>
 /** How long one request, body included, may take unless the caller says. */
 const REQUEST_TIMEOUT_MS = 30_000;
 
+let requestTimeoutMs = REQUEST_TIMEOUT_MS;
+
+/**
+ * Replaces REQUEST_TIMEOUT_MS for the rest of the run. Process-wide, so only
+ * `nipa __complete` calls it: a Tab press can't wait 30 seconds.
+ */
+export const setRequestTimeout = (ms: number): void => {
+  requestTimeoutMs = ms;
+};
+
 // Where a redirect points, for the error. Never the query: it may hold secrets.
 const redirectTarget = (res: Response, url: string): string | undefined => {
   const location = res.headers.get("Location");
@@ -47,7 +57,8 @@ const redirectTarget = (res: Response, url: string): string | undefined => {
  *
  * A redirect isn't followed unless the caller asks with `redirect: "follow"`:
  * fetch re-sends the body and custom headers, such as X-Auth-Token, to the new
- * host on a 307. A request with no `signal` gives up after REQUEST_TIMEOUT_MS.
+ * host on a 307. A request with no `signal` gives up after REQUEST_TIMEOUT_MS,
+ * or what setRequestTimeout set.
  */
 export const request = async (
   url: string,
@@ -62,7 +73,7 @@ export const request = async (
     res = await fetch(url, {
       ...init,
       redirect,
-      signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: init.signal ?? AbortSignal.timeout(requestTimeoutMs),
     });
   } catch (error) {
     throw new NetworkError(

@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { resourceNames } from "../../../src/util/names";
 import { fakeSpace } from "../../helpers";
+
+// root writes anything, and Windows ignores modes
+const ignoresModes = process.getuid?.() === 0 || process.platform === "win32";
 
 let cache: string;
 const before = process.env.XDG_CACHE_HOME;
@@ -50,4 +53,65 @@ describe("resourceNames", () => {
     await get("prod:p1", 60_000);
     expect(asked).toHaveLength(3);
   });
+
+  test("offers the last list when a new one can't be loaded, for a day", async () => {
+    const { space } = flavorSpace();
+    const get = (scope: string, now: number, works: boolean) =>
+      resourceNames({
+        connect: () =>
+          works
+            ? Promise.resolve(space)
+            : Promise.reject(new Error("can't reach the Space API")),
+        kind: "flavors",
+        now,
+        scope,
+      });
+    expect(await get("prod:stale", 0, true)).toEqual(["a", "b"]);
+    expect(await get("prod:stale", 5 * 60_000, false)).toEqual(["a", "b"]);
+    expect(await get("prod:stale", 25 * 60 * 60_000, false)).toEqual([]);
+    expect(await get("prod:never", 0, false)).toEqual([]);
+  });
+
+  test("a new list replaces the old one and its age", async () => {
+    let listed = [{ name: "old" }];
+    const space = fakeSpace({
+      get: (_route, schema) =>
+        Promise.resolve(schema.parse({ machine_types: listed })),
+    });
+    const get = (now: number, works = true) =>
+      resourceNames({
+        connect: () =>
+          works ? Promise.resolve(space) : Promise.reject(new Error("down")),
+        kind: "flavors",
+        now,
+        scope: "prod:replaced",
+      });
+    expect(await get(0)).toEqual(["old"]);
+    listed = [{ name: "new" }];
+    expect(await get(2 * 60_000)).toEqual(["new"]);
+    // More than a day after the first list, but not after the second.
+    expect(await get(24 * 60 * 60_000 + 60_000, false)).toEqual(["new"]);
+  });
+
+  test.skipIf(ignoresModes)(
+    "offers the names it loaded when the cache can't be written",
+    async () => {
+      const { space } = flavorSpace();
+      // nipa resets the mode of a directory it owns, so lock the parent
+      const locked = path.join(cache, "locked");
+      await mkdir(locked, { mode: 0o500 });
+      process.env.XDG_CACHE_HOME = locked;
+      try {
+        const found = await resourceNames({
+          connect: () => Promise.resolve(space),
+          kind: "flavors",
+          scope: "prod:unwritable",
+        });
+        expect(found).toEqual(["a", "b"]);
+      } finally {
+        process.env.XDG_CACHE_HOME = cache;
+        await chmod(locked, 0o700);
+      }
+    }
+  );
 });

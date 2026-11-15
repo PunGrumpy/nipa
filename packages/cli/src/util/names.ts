@@ -1,5 +1,7 @@
-// Resource names for tab completion, from the Space API. A Tab press asks
-// again within seconds, so nipa keeps each list for a minute.
+// Names for tab completion: resources from the Space API, and projects from
+// Keystone. A Tab press asks again within seconds, so nipa keeps each list
+// for a minute. When a new list can't be loaded, a list up to a day old beats
+// none: the command that runs still looks the name up live.
 
 import { z } from "zod";
 
@@ -17,6 +19,7 @@ import { readCache, writeCache } from "./store";
 
 const CACHE_FILE = "names.json";
 const FRESH_MS = 60_000;
+const STALE_MS = 24 * 60 * 60_000;
 
 const NamedSchema = z.object({ name: z.string() });
 
@@ -77,21 +80,53 @@ const CacheSchema = z.record(
   z.object({ at: z.number(), names: z.array(z.string()) })
 );
 
-export const resourceNames = async (input: {
-  /** The Space API, made only when the cache misses. */
-  connect: () => Promise<Space>;
-  kind: ResourceKind;
-  scope: string;
+/**
+ * The names saved under `key`, or what `load` finds. The one place the cache
+ * rules live: a list younger than FRESH_MS is used as it is, and when `load`
+ * fails for any reason a list younger than STALE_MS stands in. Never throws
+ * for a failed load or a cache it can't write.
+ */
+export const cachedNames = async (input: {
+  key: string;
+  /** Runs only when the saved list is older than FRESH_MS. */
+  load: () => Promise<string[]>;
   now?: number;
 }): Promise<string[]> => {
   const now = input.now ?? Date.now();
-  const key = `${input.scope}:${input.kind}`;
+  const { key } = input;
   const cache = (await readCache(CACHE_FILE, CacheSchema)) ?? {};
   const hit = cache[key];
   if (hit && now - hit.at < FRESH_MS) {
     return hit.names;
   }
-  const found = await load(await input.connect(), input.kind);
-  await writeCache(CACHE_FILE, { ...cache, [key]: { at: now, names: found } });
+  let found: string[];
+  try {
+    found = await input.load();
+  } catch {
+    // Offline, a revoked session or an API error: the last list, if recent.
+    return hit && now - hit.at < STALE_MS ? hit.names : [];
+  }
+  try {
+    await writeCache(CACHE_FILE, {
+      ...cache,
+      [key]: { at: now, names: found },
+    });
+  } catch {
+    // A read-only home or a full disk: the names still answer this Tab press.
+  }
   return found;
 };
+
+/** A resource kind's names in one project, under `<scope>:<kind>`. */
+export const resourceNames = (input: {
+  /** The Space API, made only when the cache misses. */
+  connect: () => Promise<Space>;
+  kind: ResourceKind;
+  scope: string;
+  now?: number;
+}): Promise<string[]> =>
+  cachedNames({
+    key: `${input.scope}:${input.kind}`,
+    load: async () => load(await input.connect(), input.kind),
+    now: input.now,
+  });

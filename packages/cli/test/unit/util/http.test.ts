@@ -1,6 +1,10 @@
 import { afterAll, describe, expect, spyOn, test } from "bun:test";
 
-import { NetworkError, request } from "../../../src/util/http";
+import {
+  NetworkError,
+  request,
+  setRequestTimeout,
+} from "../../../src/util/http";
 
 const seenByTarget: { token: string | null; body: string }[] = [];
 
@@ -26,6 +30,11 @@ const gateway = Bun.serve({
     }
     if (pathname === "/redirect-nowhere") {
       return new Response(null, { status: 302 });
+    }
+    if (pathname === "/never") {
+      // Answers long after any test: only the client's timeout ends it.
+      await Bun.sleep(10 * 60_000);
+      return new Response("late");
     }
     if (pathname === "/stall") {
       await Bun.sleep(5000);
@@ -98,6 +107,18 @@ describe("request", () => {
       expect(timeout).toHaveBeenCalledWith(30_000);
     } finally {
       timeout.mockRestore();
+    }
+  });
+
+  test("a shorter timeout for the run ends a request that never answers", async () => {
+    setRequestTimeout(200);
+    try {
+      const started = performance.now();
+      const error = await failureOf(`${base}/never`);
+      expect(error).toBeInstanceOf(NetworkError);
+      expect(performance.now() - started).toBeLessThan(2000);
+    } finally {
+      setRequestTimeout(30_000);
     }
   });
 
