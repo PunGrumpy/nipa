@@ -57,13 +57,11 @@ Pick the page for what you want to do:
 
 ## Contributing
 
-nipa is a TypeScript monorepo that runs on [Bun](https://bun.sh), with the CLI in `packages/cli`. Install the dependencies, then run the checks that CI runs:
+nipa is a TypeScript monorepo that runs on [Bun](https://bun.sh), with the CLI in `packages/cli`. Install the dependencies, then run the checks before you push:
 
 ```sh
 bun install
-bun run test
-bun run check
-bun run typecheck
+bun run verify
 ```
 
 The tests run against a fake Keystone, so you don't need an account. [Add a command to nipa](https://github.com/PunGrumpy/nipa/blob/main/docs/add-a-command.md) and [Release nipa](https://github.com/PunGrumpy/nipa/blob/main/docs/releasing.md) cover the rest, including [Conventional Commits](https://www.conventionalcommits.org) and changesets.

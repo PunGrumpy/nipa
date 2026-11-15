@@ -15,6 +15,7 @@
     "build:release": "turbo run build:release",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "verify": "bun run check && bun run typecheck && bun run --cwd packages/cli check:package && bun run test && bun run --cwd apps/web build",
     "bench": "bun scripts/bench.ts",
     "check": "ultracite check",
     "fix": "ultracite fix",
