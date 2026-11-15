@@ -286,6 +286,58 @@ describe("help and usage", () => {
     expect(stderr).toContain("Did you mean `nipa login`?");
   });
 
+  test.each([
+    [["logs", "web-1"], "Did you mean `nipa server logs`?", "nipa login"],
+    [["machine-type"], "Did you mean `nipa flavor`?", "nipa --help"],
+    [["vm", "ls"], "Run `nipa --help` to see the commands.", "Did you mean"],
+    [
+      ["server", "inpect", "web-1"],
+      "Did you mean `nipa server inspect`?",
+      "Use ls,",
+    ],
+    [["server", "nope"], "Use ls, search, inspect,", "Did you mean"],
+    [["server", "ls", "--jsno"], "Did you mean `--json`?", "--help"],
+    [["server", "ls", "--zzz"], "Run `nipa server ls --help`", "Did you mean"],
+  ])("a typo %j prints %s and not %s", async (words, shown, gone) => {
+    const { code, stderr, stdout } = await run(words);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(stderr).toContain(shown);
+    expect(stderr).not.toContain(gone);
+  });
+
+  test("a suggestion is in the error document's data, and never in next", async () => {
+    const { code, stderr } = await run(["server", "inpect", "web-1", "--json"]);
+    expect(code).toBe(2);
+    const error = JSON.parse(stderr);
+    expect(error).toMatchObject({
+      data: { suggestion: "nipa server inspect" },
+      hint: "Did you mean `nipa server inspect`?",
+      reason: "unknown_command",
+    });
+    expect(error.next).toBeUndefined();
+    const option = await run(["server", "ls", "--jsno", "--json"]);
+    expect(JSON.parse(option.stderr)).toMatchObject({
+      data: { suggestion: "--json" },
+      reason: "unknown_option",
+    });
+  });
+
+  test("a help request keeps the help verb in every suggestion", async () => {
+    const results = await Promise.all(
+      [
+        ["help", "server", "inpect"],
+        ["server", "inpect", "--help"],
+      ].map((words) => run(words))
+    );
+    for (const { code, stderr } of results) {
+      expect(code).toBe(2);
+      expect(stderr).toContain("Did you mean `nipa help server inspect`?");
+    }
+    const logs = await run(["logs", "--help"]);
+    expect(logs.stderr).toContain("Did you mean `nipa help server logs`?");
+  });
+
   test("a typo in a help request suggests reading help, never running the command", async () => {
     const results = await Promise.all(
       [
@@ -302,8 +354,9 @@ describe("help and usage", () => {
       expect(stderr).not.toContain("`nipa logout`");
     }
     const nope = await run(["help", "nope"]);
-    expect(nope.stderr).toContain("Did you mean `nipa help open`?");
-    expect(nope.stderr).not.toContain("`nipa open`");
+    // `nope` is two edits from `open`, too far for a word of four letters.
+    expect(nope.stderr).toContain("Run `nipa --help` to see the commands.");
+    expect(nope.stderr).not.toContain("Did you mean");
     const far = await run(["help", "xylophone"]);
     expect(far.stderr).toContain("Run `nipa --help` to see the commands.");
   });
@@ -785,15 +838,53 @@ describe("a failed --json command that names a resource", () => {
     await seedSession(dir, keystone.url);
   });
 
-  test("no match: not_found, with the list command in next", async () => {
+  test("no match: not_found, with server search and the list command in next", async () => {
     const result = await run(["server", "inspect", "nope", "--json"]);
     expect(result.code).toBe(1);
     expect(failure(result)).toEqual({
       message: 'no server named or with ID "nope" in Alpha',
-      next: [{ argv: ["nipa", "server", "ls"], command: "nipa server ls" }],
+      next: [
+        {
+          argv: ["nipa", "server", "search", "nope"],
+          command: "nipa server search nope",
+        },
+        { argv: ["nipa", "server", "ls"], command: "nipa server ls" },
+      ],
       reason: "not_found",
       status: "error",
     });
+  });
+
+  test("a volume that isn't found has only the list command in next", async () => {
+    const result = await run([
+      "investigate",
+      "nope",
+      "--kind",
+      "volume",
+      "--json",
+    ]);
+    expect(result.code).toBe(1);
+    expect(failure(result).next).toEqual([
+      { argv: ["nipa", "volume", "ls"], command: "nipa volume ls" },
+    ]);
+  });
+
+  test("a name that differs by case is suggested in data, and never in next", async () => {
+    const result = await run(["server", "inspect", "Web-1", "--json"]);
+    expect(result.code).toBe(1);
+    const error = failure(result);
+    expect(error.data).toEqual({ suggestion: "web-1" });
+    expect(error.next).toEqual([
+      {
+        argv: ["nipa", "server", "search", "Web-1"],
+        command: "nipa server search Web-1",
+      },
+      { argv: ["nipa", "server", "ls"], command: "nipa server ls" },
+    ]);
+    const human = await run(["server", "inspect", "Web-1"]);
+    expect(human.stderr).toContain(
+      "> Did you mean `web-1`? Run `nipa server search Web-1` to look in every project, or `nipa server ls` to see the servers in this one.\n"
+    );
   });
 
   test("a remote name can't drive the terminal through the document", async () => {
@@ -825,6 +916,10 @@ describe("a failed --json command that names a resource", () => {
       "--json",
     ]);
     expect(failure(result).next).toEqual([
+      {
+        argv: ["nipa", "-P", "staging", "server", "search", "nope"],
+        command: "nipa -P staging server search nope",
+      },
       {
         argv: ["nipa", "-P", "staging", "server", "ls"],
         command: "nipa -P staging server ls",
@@ -938,7 +1033,10 @@ describe("a failed --json command that names a resource", () => {
     expect(code).toBe(1);
     expect(stdout).toBe("");
     expect(stderr).toContain('Error: no server named or with ID "nope"');
-    expect(stderr).toContain("> Run `nipa server ls` to see your servers.");
+    expect(stderr).toContain(
+      "> Run `nipa server search nope` to look in every project, or `nipa server ls` to see the servers in this one."
+    );
+    expect(stderr).not.toContain("to see your servers");
     expect(stderr).not.toContain('"reason"');
   });
 
@@ -1345,6 +1443,18 @@ describe("with a session", () => {
     expect(auth.sessions.prod.project.name).toBe("Beta");
   });
 
+  test("switch by a name in the wrong case suggests the project", async () => {
+    const { code, stderr } = await run(["switch", "beta"]);
+    expect(code).toBe(1);
+    expect(stderr).toContain('no project named or with ID "beta"');
+    expect(stderr).toContain("Did you mean `Beta`? Your projects: Alpha, Beta");
+    const json = await run(["-p", "beta", "server", "ls", "--json"]);
+    expect(JSON.parse(json.stderr)).toMatchObject({
+      data: { suggestion: "Beta" },
+      reason: "not_found",
+    });
+  });
+
   test("switch without a project and without a terminal lists the projects", async () => {
     const { code, stderr } = await run(["switch"]);
     expect(code).toBe(2);
@@ -1412,6 +1522,106 @@ describe("passthroughs on a profile without a Space API URL", () => {
     expect(code).toBe(126);
     expect(stderr).toContain("can't run badshebang");
     expect(stderr).not.toContain("    at ");
+  });
+});
+
+describe("project ls", () => {
+  const ALPHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("a pipe gets a header and a tab-separated row per project, ID first", async () => {
+    const { code, stderr, stdout } = await run(["project", "ls"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(`ID\tName\n${ALPHA}\tAlpha\n${BETA_ID}\tBeta\n`);
+    expect(stderr).toMatch(/> 2 projects in prod \[\d+(?:ms|s)\]/u);
+    expect(stderr).not.toMatch(/Name\s+ID/u);
+    const aliases = await run(["projects", "list"]);
+    expect(aliases.stdout).toBe(stdout);
+    const bare = await run(["project"]);
+    expect(bare.stdout).toBe(stdout);
+  });
+
+  test("a terminal gets the table on stderr and nothing on stdout", async () => {
+    const { code, stderr, stdout } = await runOnTerminals({
+      args: ["project", "ls"],
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/Name\s+ID\n/u);
+    expect(stderr).toMatch(new RegExp(`Alpha\\s+${ALPHA}  \\(current\\)`, "u"));
+    expect(stderr).toMatch(new RegExp(`Beta\\s+${BETA_ID}\\n`, "u"));
+    expect(stderr).not.toContain("(saved)");
+    expect(stderr).not.toContain("(this folder)");
+  });
+
+  test("a row with no marker has no escape sequence after its ID", async () => {
+    const { stderr } = await runOnTerminals({
+      args: ["project", "ls"],
+      env: { ...testEnv(dir), ...colorEnv({ FORCE_COLOR: "1" }) },
+      terminals: ["stdout", "stderr"],
+    });
+    expect(stderr).toContain("\u001B[");
+    expect(stderr).toContain(`${BETA_ID}\n`);
+  });
+
+  test("--json lists every project, and exactly one is current", async () => {
+    const { code, stderr, stdout } = await run(["project", "ls", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toMatchObject({
+      link: null,
+      profile: "prod",
+      project: { id: ALPHA, name: "Alpha" },
+      projects: [
+        { current: true, id: ALPHA, name: "Alpha" },
+        { current: false, id: BETA_ID, name: "Beta" },
+      ],
+    });
+  });
+
+  test("in a folder linked to Beta, Beta is current and Alpha is saved", async () => {
+    const work = inDir("projects-work");
+    await mkdir(work, { recursive: true });
+    await runIn(work, ["link", "Beta"]);
+    const json = await runIn(work, ["project", "ls", "--json"]);
+    const parsed = JSON.parse(json.stdout);
+    expect(parsed.project).toMatchObject({ id: ALPHA, name: "Alpha" });
+    expect(parsed.link.project).toMatchObject({ id: BETA_ID, name: "Beta" });
+    expect(parsed.projects).toEqual([
+      { current: false, id: ALPHA, name: "Alpha" },
+      { current: true, id: BETA_ID, name: "Beta" },
+    ]);
+    const who = await runIn(work, ["whoami", "--json"]);
+    const whoami = JSON.parse(who.stdout);
+    expect(parsed.project).toEqual(whoami.project);
+    expect(parsed.link).toEqual(whoami.link);
+    const terminal = await runOnTerminals({
+      args: ["project", "ls"],
+      cwd: work,
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(terminal.stderr).toContain(`${BETA_ID}  (current)`);
+    expect(terminal.stderr).toContain(`${ALPHA}  (saved)`);
+    expect(terminal.stderr).not.toContain("(this folder)");
+    await runIn(work, ["unlink"]);
+  });
+
+  test("without a session and without a terminal, --json writes the login error and nothing else", async () => {
+    await freshDir();
+    const result = await run(["project", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      reason: "login_required",
+      status: "action_required",
+    });
+    await seedSession(dir, keystone.url);
   });
 });
 
@@ -1801,11 +2011,14 @@ describe("server inspect", () => {
     }
   });
 
-  test("an unknown server points to server ls", async () => {
+  test("an unknown server points to server search and server ls", async () => {
     const { code, stderr, stdout } = await run(["server", "inspect", "nope"]);
     expect(code).toBe(1);
     expect(stderr).toContain('no server named or with ID "nope" in Alpha');
-    expect(stderr).toContain("Run `nipa server ls` to see your servers.");
+    expect(stderr).toContain(
+      "Run `nipa server search nope` to look in every project, or `nipa server ls` to see the servers in this one."
+    );
+    expect(stderr).not.toContain("to see your servers");
     expect(stdout).toBe("");
   });
 
@@ -2519,6 +2732,8 @@ describe("--project on a command that never reads a project", () => {
 
   const refused: [string, string[]][] = [
     ["nipa whoami", ["whoami"]],
+    ["nipa project", ["project"]],
+    ["nipa project ls", ["project", "ls"]],
     ["nipa completion", ["completion", "bash"]],
     ["nipa doctor", ["doctor"]],
     ["nipa switch", ["switch", "Beta"]],
@@ -2668,7 +2883,7 @@ describe("the commands nipa suggests keep -P and -p", () => {
   test("-P reaches the human hint too, and -P with -p keeps both", async () => {
     const profile = await run(["-P", "staging", "server", "inspect", "nope"]);
     expect(profile.stderr).toContain(
-      "> Run `nipa -P staging server ls` to see your servers.\n"
+      "> Run `nipa -P staging server search nope` to look in every project, or `nipa -P staging server ls` to see the servers in this one.\n"
     );
     const both = await run([
       "-P",
@@ -2732,10 +2947,14 @@ describe("the commands nipa suggests keep -P and -p", () => {
   test("a run without -P or -p prints the commands as they were", async () => {
     const inspect = await run(["server", "inspect", "nope"]);
     expect(inspect.stderr).toContain(
-      "> Run `nipa server ls` to see your servers.\n"
+      "> Run `nipa server search nope` to look in every project, or `nipa server ls` to see the servers in this one.\n"
     );
     const json = await run(["server", "inspect", "nope", "--json"]);
     expect(document(json).next).toEqual([
+      {
+        argv: ["nipa", "server", "search", "nope"],
+        command: "nipa server search nope",
+      },
       { argv: ["nipa", "server", "ls"], command: "nipa server ls" },
     ]);
   });
@@ -4342,6 +4561,10 @@ describe("investigate", () => {
     const kinded = await run(["investigate", "nope", "--kind", "volume"]);
     expect(kinded.stderr).toContain(
       'Error: no volume named or with ID "nope" in Alpha\n> Run `nipa volume ls` to see your volumes.\n'
+    );
+    const server = await run(["investigate", "Web-1", "--kind", "server"]);
+    expect(server.stderr).toContain(
+      'Error: no server named or with ID "Web-1" in Alpha\n> Did you mean `web-1`? Run `nipa server search Web-1` to look in every project, or `nipa server ls` to see the servers in this one.\n'
     );
   });
 

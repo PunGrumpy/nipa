@@ -266,4 +266,19 @@ describe("pickProject with a wanted project", () => {
       reason: "not_found",
     });
   });
+
+  test("a name that differs only by case suggests the project", () => {
+    expect(failure("beta")).toMatchObject({
+      data: { suggestion: "Beta" },
+      exitCode: 1,
+      hint: "Did you mean `Beta`? Your projects: Alpha, Beta, Beta",
+      message: 'no project named or with ID "beta"',
+      reason: "not_found",
+    });
+  });
+
+  test("a name near no project suggests none", () => {
+    expect(failure("Nope")?.data).toBeUndefined();
+    expect(failure("Nope")?.hint).not.toContain("Did you mean");
+  });
 });

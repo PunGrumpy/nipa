@@ -35,7 +35,8 @@ import {
   inspectLoadBalancer,
   listLoadBalancers,
 } from "./load-balancer";
-import { listNetworks } from "./network";
+import { listNetworks, listPorts } from "./network";
+import { projectsDocument } from "./projects";
 import { listQuotas } from "./quota";
 import { sortQuotas } from "./quota-format";
 import {
@@ -70,7 +71,7 @@ export interface ToolContext {
   readonly cloud: (project?: string) => Promise<Cloud>;
   /** The saved session, whatever the folder links to or `-p` says. */
   readonly savedSession: () => Promise<SignedIn>;
-  /** The run's `-p`, which narrows a search to one project. */
+  /** The run's `-p` as typed. It narrows a search to one project, and `list_projects` marks it current. */
   readonly project: string | undefined;
 }
 
@@ -174,6 +175,17 @@ const whoami = defineTool({
       region: active.profile.region,
       user: session.user,
     };
+  },
+});
+
+const listProjectsTool = defineTool({
+  description:
+    "List the projects this account can use, with their IDs. `current` marks the project the other tools read when you give no project, and `project` is the saved one. It takes no project, because the list belongs to the profile. Call it to get a `project` value.",
+  input: noInput,
+  name: "list_projects",
+  run: async (ctx) => {
+    const { active, session } = await ctx.savedSession();
+    return projectsDocument(active, session, ctx.project);
   },
 });
 
@@ -563,6 +575,7 @@ const investigateTool = defineTool({
 /** Every tool the server offers, in the order the assistant sees them. */
 export const TOOLS: readonly RegisteredTool[] = [
   whoami,
+  listProjectsTool,
   listServersTool,
   inspectServer,
   serverConsoleLog,

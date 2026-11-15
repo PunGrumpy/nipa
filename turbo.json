@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": ["tsconfig.base.json"],
   "tasks": {
     "transit": {
       "dependsOn": ["^transit"]

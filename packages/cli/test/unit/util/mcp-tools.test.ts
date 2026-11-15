@@ -24,6 +24,7 @@ const READ_ONLY_TOOLS = [
   "list_kubernetes_clusters",
   "list_load_balancers",
   "list_networks",
+  "list_projects",
   "list_quotas",
   "list_security_groups",
   "list_servers",
@@ -91,10 +92,12 @@ describe("the tool registry", () => {
     }
   });
 
-  test("every tool but whoami can read another project", () => {
+  test("every tool but whoami and list_projects can read another project", () => {
     for (const { input, name } of TOOLS) {
       const fields = Object.keys(input.shape);
-      expect(fields.includes("project"), name).toBe(name !== "whoami");
+      expect(fields.includes("project"), name).toBe(
+        name !== "whoami" && name !== "list_projects"
+      );
     }
   });
 

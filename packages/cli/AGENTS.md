@@ -76,17 +76,16 @@ Run one file while you work:
 
 ```bash
 cd packages/cli
-bun test test/unit/util/session.test.ts
+bun run test test/unit/util/session.test.ts
 ```
 
-Run what continuous integration (CI) runs, from the repository root:
+Run the checks before you push, from the repository root:
 
 ```bash
-bun run check
-bun run typecheck
-bun run test
-bun run --cwd packages/cli check:package
+bun run verify
 ```
+
+It runs `bun run check`, `bun run typecheck`, `bun run --cwd packages/cli check:package`, `bun run test` and the build of the site in `apps/web`, in that order. Continuous integration (CI) runs the same checks, then builds the compiled binary and the npm package and runs `--version` on both, which `verify` does not.
 
 ## Local CLI
 

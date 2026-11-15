@@ -2,6 +2,7 @@ import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
 import { listServers } from "../../util/compute";
 import type { Project } from "../../util/keystone";
+import { currentProjectId } from "../../util/projects";
 import { runScope } from "../../util/scope";
 import {
   isFailed,
@@ -86,7 +87,7 @@ const searchAll = async (
   const projects = await listedProjects(active, session);
   // What a bare command here would use: the folder's link when it names this
   // profile, else the saved project. Only read, so the link never narrows.
-  const current = active.link?.link.project.id ?? session.project.id;
+  const current = currentProjectId(active, session);
   if (projects.length === 0) {
     throw new CliError("your account has no projects you can use");
   }
