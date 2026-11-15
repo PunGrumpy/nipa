@@ -6,13 +6,14 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 25 commands. Without a command, it prints help.
+nipa has 26 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
 | `nipa login [options]` | Asks for your email and password, then for a one-time password (OTP) code when your account uses multi-factor authentication (MFA). Saves a token scoped to a project. With `--remember`, saves your password in the OS keychain, so later logins ask only for an OTP code |
 | `nipa logout` | Revokes the current profile's token, deletes its session, and deletes a password that `--remember` saved |
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
+| `nipa project ls [--json]` | Lists the projects your session can use in the current profile, by name, with their IDs. It reads the saved session, so a linked folder or `-p` doesn't change the list. The project the saved session uses is marked `(current)`, and one that this folder links to is marked `(this folder)`. In a pipe, it prints a header and one tab-separated line per project with its ID and name. Run `nipa project ls \| tail -n +2 \| cut -f1` for the IDs. `nipa project`, `nipa projects` and `nipa project list` do the same |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code. In a linked folder, it changes the saved project, and the folder keeps its own |
 | `nipa link [project]` | Links this folder to the profile and a project, by name or ID, in `.nipa/project.json`. Commands in this folder and the folders below it use them |
 | `nipa unlink` | Deletes the closest `.nipa/project.json`, at or above this folder |
@@ -59,7 +60,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server search`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls`, `investigate` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `project ls`, `server ls`, `server search`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls`, `investigate` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -81,7 +82,7 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | Option | Variable | What it does |
 | --- | --- | --- |
 | `-P, --profile <name>` | `NIPA_PROFILE` | Uses this profile instead of the current one |
-| `-p, --project <project>` |  | Uses this project, by name or ID, for this run only, and beats a folder's link. `login` is the one command that saves it: there it names the project to scope the token to and save, instead of the last one. A name costs one request to list your projects, and a 32-character ID costs none. It fails when no project has the name or ID, and when two have the name, with their IDs. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up. `completion`, `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so they exit with code 2 and `--project doesn't apply to nipa switch` instead of ignoring it. `switch` and `link` take the project as an argument |
+| `-p, --project <project>` |  | Uses this project, by name or ID, for this run only, and beats a folder's link. `login` is the one command that saves it: there it names the project to scope the token to and save, instead of the last one. A name costs one request to list your projects, and a 32-character ID costs none. It fails when no project has the name or ID, and when two have the name, with their IDs. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up. `completion`, `whoami`, `doctor`, `project`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so they exit with code 2 and `--project doesn't apply to nipa switch` instead of ignoring it. `switch` and `link` take the project as an argument |
 | `-d, --debug` | `NIPA_DEBUG=1` | Logs each HTTP request: method, URL, status and time. Never headers or bodies |
 | `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on for the messages nipa writes to a pipe, but help stays plain in a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
 | `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
@@ -161,6 +162,20 @@ nipa exits with these codes:
 `project` is the saved session's project. In a linked folder, `link` has the link file's path in `file`, and the `project` that commands there use.
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
+
+`nipa project ls --json` prints the profile, the saved session's project, the folder's link and the projects the session can use, ordered by name. `current` is `true` for the saved session's project, the one `nipa switch` changes, and for no other. `link` is `null` outside a linked folder:
+
+```json
+{
+  "link": null,
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "projects": [
+    { "current": false, "id": "9abc…", "name": "Beta" },
+    { "current": true, "id": "5678…", "name": "my-project" }
+  ]
+}
+```
 
 `nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the server's OpenStack status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` for an internal IP or `floating` for an external one. `kubernetes` is `null` for a server you made. For a Kubernetes node, it has the Magnum cluster's `clusterId`, the node's `role`, such as `master`, and the Kubernetes `version` of its image, such as `1.34.9`. `role` and `version` are `null` when the server doesn't have them:
 

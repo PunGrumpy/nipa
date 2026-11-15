@@ -22,6 +22,7 @@ import { network } from "./network";
 import { open } from "./open";
 import { os } from "./os";
 import { profile } from "./profile";
+import { project } from "./project";
 import { quota } from "./quota";
 import { server } from "./server";
 import { sg } from "./sg";
@@ -54,7 +55,7 @@ export const program: Program = {
   hidden: [complete],
   sections: [
     {
-      commands: [login, logout, whoami, switchProject, link, unlink],
+      commands: [login, logout, whoami, project, switchProject, link, unlink],
       title: "Session",
     },
     {

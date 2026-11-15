@@ -1411,6 +1411,102 @@ describe("passthroughs on a profile without a Space API URL", () => {
   });
 });
 
+describe("project ls", () => {
+  const ALPHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  beforeAll(async () => {
+    await freshDir();
+    await seedSession(dir, keystone.url);
+  });
+
+  test("a pipe gets a header and a tab-separated row per project, ID first", async () => {
+    const { code, stderr, stdout } = await run(["project", "ls"]);
+    expect(code).toBe(0);
+    expect(stdout).toBe(`ID\tName\n${ALPHA}\tAlpha\n${BETA_ID}\tBeta\n`);
+    expect(stderr).toMatch(/> 2 projects in prod \[\d+(?:ms|s)\]/u);
+    expect(stderr).not.toMatch(/Name\s+ID/u);
+    const aliases = await run(["projects", "list"]);
+    expect(aliases.stdout).toBe(stdout);
+    const bare = await run(["project"]);
+    expect(bare.stdout).toBe(stdout);
+  });
+
+  test("a terminal gets the table on stderr and nothing on stdout", async () => {
+    const { code, stderr, stdout } = await runOnTerminals({
+      args: ["project", "ls"],
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(code).toBe(0);
+    expect(stdout).toBe("");
+    expect(stderr).toMatch(/Name\s+ID\n/u);
+    expect(stderr).toMatch(new RegExp(`Alpha\\s+${ALPHA}  \\(current\\)`, "u"));
+    expect(stderr).toMatch(new RegExp(`Beta\\s+${BETA_ID}\\n`, "u"));
+  });
+
+  test("--json lists every project, and exactly one is current", async () => {
+    const { code, stderr, stdout } = await run(["project", "ls", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toMatchObject({
+      link: null,
+      profile: "prod",
+      project: { id: ALPHA, name: "Alpha" },
+      projects: [
+        { current: true, id: ALPHA, name: "Alpha" },
+        { current: false, id: BETA_ID, name: "Beta" },
+      ],
+    });
+  });
+
+  test("a linked folder or --project doesn't change the list, and the link is marked", async () => {
+    const work = inDir("projects-work");
+    await mkdir(work, { recursive: true });
+    await runIn(work, ["link", "Beta"]);
+    const json = await runIn(work, ["project", "ls", "--json"]);
+    const parsed = JSON.parse(json.stdout);
+    expect(parsed.link.project).toMatchObject({ id: BETA_ID, name: "Beta" });
+    expect(
+      parsed.projects.filter((p: { current: boolean }) => p.current)
+    ).toEqual([{ current: true, id: ALPHA, name: "Alpha" }]);
+    const terminal = await runOnTerminals({
+      args: ["project", "ls"],
+      cwd: work,
+      env: testEnv(dir),
+      terminals: ["stdout", "stderr"],
+    });
+    expect(terminal.stderr).toContain(`${BETA_ID}  (this folder)`);
+    expect(terminal.stderr).toContain(`${ALPHA}  (current)`);
+    await runIn(work, ["unlink"]);
+  });
+
+  test("-p is refused, with and without the subcommand", async () => {
+    const results = await Promise.all(
+      [
+        ["-p", "Beta", "project", "ls"],
+        ["-p", "Beta", "project"],
+        ["project", "ls", "--project", "Beta"],
+      ].map((args) => run(args))
+    );
+    for (const { code, stderr, stdout } of results) {
+      expect(code).toBe(2);
+      expect(stdout).toBe("");
+      expect(stderr).toContain("--project");
+    }
+  });
+
+  test("without a session and without a terminal, --json writes the login error and nothing else", async () => {
+    await freshDir();
+    const result = await run(["project", "ls", "--json"]);
+    expect(result.code).toBe(1);
+    expect(failure(result)).toMatchObject({
+      reason: "login_required",
+      status: "action_required",
+    });
+    await seedSession(dir, keystone.url);
+  });
+});
+
 describe("server ls", () => {
   beforeAll(async () => {
     await freshDir();
