@@ -4344,8 +4344,8 @@ describe("investigate", () => {
     expect(code).toBe(0);
     expect(stdout).toContain("Usage: nipa investigate <resource> [options]");
     expect(stdout).toContain("--kind <server|lb|db|volume|k8s>");
-    expect(stdout).toContain("$ nipa investigate web-1\n");
-    expect(stdout).toContain("$ nipa why orders --kind db\n");
+    expect(stdout).toContain("      nipa investigate web-1\n");
+    expect(stdout).toContain("      nipa why orders --kind db\n");
   });
 });
 

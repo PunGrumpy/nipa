@@ -134,9 +134,11 @@ describe("the main page", () => {
   });
 
   test("every row of the real table sits beside its name", () => {
-    for (const command of visibleCommands(spec)) {
+    const commands = visibleCommands(spec);
+    const width = Math.max(...commands.map((command) => command.name.length));
+    for (const command of commands) {
       expect(main).toContain(
-        `    ${command.name.padEnd(10)}   ${command.summary}\n`
+        `    ${command.name.padEnd(width)}   ${command.summary}\n`
       );
     }
   });

@@ -31,6 +31,5 @@ export const investigateCommand = defineCommand({
     jsonFlag,
   ],
   name: "investigate",
-  summary:
-    "Find out why a server, load balancer, database, volume or cluster is broken",
+  summary: "Find out why a server or other resource is broken",
 });
