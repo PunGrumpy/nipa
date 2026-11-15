@@ -1,5 +1,7 @@
 // Resource names for tab completion, from the Space API. A Tab press asks
-// again within seconds, so nipa keeps each list for a minute.
+// again within seconds, so nipa keeps each list for a minute. When a new list
+// can't be loaded, a list up to a day old beats none: the command that runs
+// still looks the name up live.
 
 import { z } from "zod";
 
@@ -17,6 +19,7 @@ import { readCache, writeCache } from "./store";
 
 const CACHE_FILE = "names.json";
 const FRESH_MS = 60_000;
+const STALE_MS = 24 * 60 * 60_000;
 
 const NamedSchema = z.object({ name: z.string() });
 
@@ -91,7 +94,13 @@ export const resourceNames = async (input: {
   if (hit && now - hit.at < FRESH_MS) {
     return hit.names;
   }
-  const found = await load(await input.connect(), input.kind);
+  let found: string[];
+  try {
+    found = await load(await input.connect(), input.kind);
+  } catch {
+    // Offline, a revoked session or an API error: the last list, if recent.
+    return hit && now - hit.at < STALE_MS ? hit.names : [];
+  }
   await writeCache(CACHE_FILE, { ...cache, [key]: { at: now, names: found } });
   return found;
 };

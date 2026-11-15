@@ -50,4 +50,43 @@ describe("resourceNames", () => {
     await get("prod:p1", 60_000);
     expect(asked).toHaveLength(3);
   });
+
+  test("offers the last list when a new one can't be loaded, for a day", async () => {
+    const { space } = flavorSpace();
+    const get = (scope: string, now: number, works: boolean) =>
+      resourceNames({
+        connect: () =>
+          works
+            ? Promise.resolve(space)
+            : Promise.reject(new Error("can't reach the Space API")),
+        kind: "flavors",
+        now,
+        scope,
+      });
+    expect(await get("prod:stale", 0, true)).toEqual(["a", "b"]);
+    expect(await get("prod:stale", 5 * 60_000, false)).toEqual(["a", "b"]);
+    expect(await get("prod:stale", 25 * 60 * 60_000, false)).toEqual([]);
+    expect(await get("prod:never", 0, false)).toEqual([]);
+  });
+
+  test("a new list replaces the old one and its age", async () => {
+    let listed = [{ name: "old" }];
+    const space = fakeSpace({
+      get: (_route, schema) =>
+        Promise.resolve(schema.parse({ machine_types: listed })),
+    });
+    const get = (now: number, works = true) =>
+      resourceNames({
+        connect: () =>
+          works ? Promise.resolve(space) : Promise.reject(new Error("down")),
+        kind: "flavors",
+        now,
+        scope: "prod:replaced",
+      });
+    expect(await get(0)).toEqual(["old"]);
+    listed = [{ name: "new" }];
+    expect(await get(2 * 60_000)).toEqual(["new"]);
+    // More than a day after the first list, but not after the second.
+    expect(await get(24 * 60 * 60_000 + 60_000, false)).toEqual(["new"]);
+  });
 });
