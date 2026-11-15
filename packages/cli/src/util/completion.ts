@@ -77,7 +77,7 @@ const programPassthroughs = (program: ProgramSpec): string[] =>
 
 /** bash's call; `nipa_scope` is `_nipa`'s, filled by `_nipa_scope`. */
 const dynamic = (kind: DynamicKind): string =>
-  `nipa "\${nipa_scope[@]}" __complete ${kind}`;
+  `nipa \${nipa_scope[@]+"\${nipa_scope[@]}"} __complete ${kind}`;
 
 const allFlags = (spec: LeafSpec): FlagSpec[] => [
   ...spec.flags,
@@ -153,7 +153,7 @@ const bashTarget = (target: Target): string => {
       return '_nipa_offset "$((i + 1))"';
     }
     case "openstack": {
-      return `_nipa_reply_lines < <(nipa "\${nipa_scope[@]}" __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)`;
+      return `_nipa_reply_lines < <(nipa \${nipa_scope[@]+"\${nipa_scope[@]}"} __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)`;
     }
     default: {
       const _exhaustive: never = target;

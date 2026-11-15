@@ -757,6 +757,21 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
     ]);
   });
 
+  // bash before 4.4, as on macOS, calls an empty array unbound under set -u.
+  test("bash with set -u and no options typed", async () => {
+    const ran = await ranWith(() =>
+      runProcess(
+        [
+          "bash",
+          "-c",
+          `set -u; source '${path.join(stub, "completion.bash")}'; COMP_WORDS=(nipa server inspect ''); COMP_CWORD=3; _nipa`,
+        ],
+        testEnv(stub)
+      )
+    );
+    expect(ran).toEqual(["__complete", "servers"]);
+  });
+
   test("zsh", async () => {
     const line = ["nipa", "-P", "staging", "-p", '"My Project"'];
     expect(await zshRun(...line, "server", "inspect", "")).toEqual(SCOPED);
