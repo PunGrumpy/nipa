@@ -32,14 +32,23 @@ export const currentProjectId = (
 
 /**
  * The profile's projects with the one commands here use marked `current`. The
- * order is the one `listProjects` returns, by name.
+ * order is the one `listProjects` returns, by name. `runProject` is the run's
+ * `-p` as typed, which `nipa mcp` has and the command refuses: a listed ID or,
+ * failing that, a listed name wins over the link and the saved project, and
+ * one that matches nothing leaves them to decide.
  */
 export const projectsDocument = async (
   active: ActiveProfile,
-  session: Session
+  session: Session,
+  runProject?: string
 ): Promise<ProjectsDocument> => {
   const projects = await listedProjects(active, session);
-  const current = currentProjectId(active, session);
+  const asked =
+    runProject === undefined
+      ? undefined
+      : (projects.find((project) => project.id === runProject) ??
+        projects.find((project) => project.name === runProject));
+  const current = asked?.id ?? currentProjectId(active, session);
   return {
     link: active.link
       ? { file: active.link.file, project: active.link.link.project }

@@ -68,10 +68,13 @@ export const startMcp = (input: {
   args?: readonly string[];
   /** The program and script to run. The default is the source, on Bun. */
   command?: readonly string[];
+  /** The folder to start in. The default is the test's own. */
+  cwd?: string;
   env: Record<string, string>;
 }): McpProcess => {
   const command = input.command ?? ["bun", ENTRY];
   const proc = Bun.spawn([...command, ...(input.args ?? []), "mcp"], {
+    cwd: input.cwd,
     env: input.env,
     stderr: "pipe",
     stdin: "pipe",

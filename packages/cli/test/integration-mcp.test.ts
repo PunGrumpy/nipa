@@ -19,7 +19,7 @@ import { TOOLS } from "../src/util/mcp-tools";
 import { ENTRY, runProcess, seedSession, testEnv } from "./helpers";
 import { startMcp } from "./mcp-client";
 import type { Json, Params } from "./mcp-client";
-import { startFakeKeystone } from "./mocks/keystone";
+import { ALPHA_ID, BETA_ID, startFakeKeystone } from "./mocks/keystone";
 import type { FakeKeystone } from "./mocks/keystone";
 import { FAKE_VOLUMES } from "./mocks/space";
 
@@ -41,6 +41,31 @@ const cli = async (args: readonly string[]) => {
   expect(code).toBe(0);
   return z.record(z.string(), z.json()).parse(withoutTimes(JSON.parse(stdout)));
 };
+
+/** The saved project and the projects of a `list_projects` answer. */
+const marked = (document: Json) =>
+  z
+    .object({
+      project: z.object({ id: z.string() }),
+      projects: z.array(
+        z.object({ current: z.boolean(), id: z.string(), name: z.string() })
+      ),
+    })
+    .parse(document);
+
+/** What `list_projects` answers to a server started with `args`, in `cwd`. */
+const listProjects = async (args: readonly string[], cwd?: string) => {
+  const mcp = startMcp({ args, cwd, env: env() });
+  await mcp.initialize();
+  const { document } = await mcp.call("list_projects");
+  await mcp.finish();
+  return document;
+};
+
+const currentIds = (document: Json): string[] =>
+  marked(document)
+    .projects.filter((p) => p.current)
+    .map((p) => p.id);
 
 beforeAll(() => {
   keystone = startFakeKeystone({ gateway: true });
@@ -265,6 +290,35 @@ describe("nipa mcp", () => {
     expect(code).toBe(1);
     expect(stderr).toContain('no profile named "nope"');
     expect(named.stdoutLines).toEqual([]);
+  });
+
+  test("list_projects marks the project the run reads as current, and keeps the saved one apart", async () => {
+    const before = await savedFiles();
+    // No -p in an unlinked folder: the saved project.
+    const plain = await listProjects([]);
+    expect(marked(plain).project.id).toBe(ALPHA_ID);
+    expect(currentIds(plain)).toEqual([ALPHA_ID]);
+    // -p by name and by ID: that project, while `project` stays the saved one.
+    const named = await listProjects(["-p", "Beta"]);
+    expect(marked(named).project.id).toBe(ALPHA_ID);
+    expect(currentIds(named)).toEqual([BETA_ID]);
+    expect(currentIds(await listProjects(["-p", BETA_ID]))).toEqual([BETA_ID]);
+    // A -p that no listed project has leaves the saved project current.
+    expect(currentIds(await listProjects(["-p", "Nowhere"]))).toEqual([
+      ALPHA_ID,
+    ]);
+    expect(await savedFiles()).toEqual(before);
+  });
+
+  test("list_projects in a folder linked to Beta marks Beta, and -p still beats the link", async () => {
+    const work = await mkdtemp(path.join(dir, "linked-"));
+    const link = await runProcess(["bun", ENTRY, "link", "Beta"], env(), work);
+    expect(link.code).toBe(0);
+    const answerWith = (args: readonly string[]) => listProjects(args, work);
+    const linked = await answerWith([]);
+    expect(marked(linked).project.id).toBe(ALPHA_ID);
+    expect(currentIds(linked)).toEqual([BETA_ID]);
+    expect(currentIds(await answerWith(["-p", "Alpha"]))).toEqual([ALPHA_ID]);
   });
 
   test("a failed lookup is an error result with the message and next commands", async () => {
