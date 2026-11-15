@@ -277,6 +277,26 @@ const helpPath = (input: {
 };
 
 /**
+ * True when a --version before the command prints the version. Help wins
+ * over it, before the command or after it: `nipa -v whoami --help` shows the
+ * page. The words after a passthrough command belong to its program, so
+ * `nipa -v os --help` prints the version.
+ */
+const printsFrontVersion = ({
+  front,
+  table,
+}: {
+  front: ReturnType<typeof takeGlobals>;
+  table: ReadonlyMap<string, Command>;
+}): boolean => {
+  if (!front.globals.version || front.globals.help) {
+    return false;
+  }
+  const [word, ...after] = front.rest;
+  return table.get(word ?? "")?.kind === "passthrough" || !asksForHelp(after);
+};
+
+/**
  * Runs the command argv names. Throws CliError for usage errors, which
  * src/index.ts prints with exit code 2, and lets handler errors through.
  * Sets the JSON mode of ui.ts, which src/index.ts reads to print a failure.
@@ -295,7 +315,7 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   const front = takeGlobals({ unknown: "reject", words: input.argv });
   setRunScope(scopeOf({ globals: front.globals, program: spec }));
   // Help wins over the version, so `nipa --version --help` shows the page.
-  if (front.globals.version && !front.globals.help) {
+  if (printsFrontVersion({ front, table })) {
     return print(input.version);
   }
   const [word, ...after] = front.rest;

@@ -510,7 +510,32 @@ describe("help and version, on the real table", () => {
     expect(await text(["server", "stop", "x", "-v", "-h"])).toBe(
       await text(["help", "server", "stop"])
     );
+    // A --version before the command gives way to a --help after it.
+    expect(await text(["-v", "whoami", "--help"])).toBe(
+      await text(["help", "whoami"])
+    );
+    expect(await text(["--version", "server", "stop", "--help"])).toBe(
+      await text(["help", "server", "stop"])
+    );
+    expect(await text(["-v", "help", "--help"])).toBe(
+      await text(["help", "--help"])
+    );
+    expect(await text(["-v", "server", "-yh"])).toBe(
+      await text(["server", "-yh"])
+    );
   });
+  test("a version before a command still prints it when no help follows", async () => {
+    expect(await text(["-v", "whoami"])).toBe("9.9.9");
+    expect(await text(["-v", "server", "stop", "web"])).toBe("9.9.9");
+  });
+  test.each([[["-v", "os", "--help"]], [["-v", "exec", "x", "--help"]]])(
+    "a version before a passthrough command wins over a --help after it: %j",
+    async (argv) => {
+      expect(await go(argv)).toMatchObject({ kind: "print", text: "9.9.9" });
+      expect(seen).toEqual([]);
+      expect(lastGlobals).toBeNull();
+    }
+  );
   test.each([
     [["whoami", "--version"]],
     [["whoami", "-v"]],

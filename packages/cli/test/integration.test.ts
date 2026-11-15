@@ -196,6 +196,13 @@ describe("help and usage", () => {
     expect(page.stdout).toContain("Usage: nipa server stop <server>");
   });
 
+  test("--help after a command wins over a --version before it", async () => {
+    const page = await run(["-v", "whoami", "--help"]);
+    expect(page.code).toBe(0);
+    expect(page.stdout).toContain("Usage: nipa whoami");
+    expect(page.stdout).not.toContain(pkg.version);
+  });
+
   test("--version after a command prints only the version and runs nothing", async () => {
     const before = keystone.requests.length;
     const results = await Promise.all([
