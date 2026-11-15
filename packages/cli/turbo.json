@@ -10,6 +10,9 @@
     },
     "build:release": {
       "outputs": ["dist/nipa-*", "dist/SHA256SUMS"]
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/cli-reference.md"]
     }
   }
 }
