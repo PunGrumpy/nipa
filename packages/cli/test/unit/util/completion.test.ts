@@ -684,6 +684,9 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
     );
 
   const SCOPED = ["-P", "staging", "-p", "My Project", "__complete", "servers"];
+  const JOINED = ["--project=My Project", "__complete", "projects"];
+  const AFTER = ["-p", "Beta", "__complete", "servers"];
+  const OPENSTACK = ["-p", "Beta", "__complete", "openstack", "--"];
 
   beforeAll(async () => {
     stub = await mkdtemp(path.join(tmpdir(), "nipa-completion-scope-"));
@@ -723,13 +726,19 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
     expect(
       await bashRun("nipa", "--profile", "=", "staging", "switch", "")
     ).toEqual(["--profile=staging", "__complete", "projects"]);
+    expect(
+      await bashRun("nipa", "--project", "=", '"My Project"', "switch", "")
+    ).toEqual(JOINED);
+    expect(
+      await bashRun("nipa", '--project="My Project"', "switch", "")
+    ).toEqual(JOINED);
     expect(await bashRun("nipa", "server", "inspect", "")).toEqual([
       "__complete",
       "servers",
     ]);
     expect(
       await bashRun("nipa", "server", "inspect", "-p", "Beta", "")
-    ).toEqual(["-p", "Beta", "__complete", "servers"]);
+    ).toEqual(AFTER);
     // The profile typed picks whose projects -p offers.
     expect(await bashRun("nipa", "-P", "staging", "-p", "")).toEqual([
       "-P",
@@ -748,13 +757,7 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
       "server",
       ""
     );
-    expect(os.slice(0, 5)).toEqual([
-      "-p",
-      "Beta",
-      "__complete",
-      "openstack",
-      "--",
-    ]);
+    expect(os.slice(0, 5)).toEqual(OPENSTACK);
   });
 
   // bash before 4.4, as on macOS, calls an empty array unbound under set -u.
@@ -784,6 +787,24 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
       "__complete",
       "servers",
     ]);
+    expect(await zshRun("nipa", "server", "inspect", "-p", "Beta", "")).toEqual(
+      AFTER
+    );
+    expect(
+      await zshRun("nipa", '--project="My Project"', "switch", "")
+    ).toEqual(JOINED);
+    // After os, -p is openstack's.
+    const os = await zshRun(
+      "nipa",
+      "-p",
+      "Beta",
+      "os",
+      "-p",
+      "X",
+      "server",
+      ""
+    );
+    expect(os.slice(0, 5)).toEqual(OPENSTACK);
   });
 
   test.if(has("fish"))("fish", async () => {
@@ -799,6 +820,13 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
       "__complete",
       "servers",
     ]);
+    expect(await fishRun("nipa server inspect -p Beta ")).toEqual(AFTER);
+    expect(await fishRun('nipa --project="My Project" switch ')).toEqual(
+      JOINED
+    );
+    // After os, -p is openstack's.
+    const os = await fishRun("nipa -p Beta os -p X server ");
+    expect(os.slice(0, 5)).toEqual(OPENSTACK);
   });
 
   test.if(has("pwsh"))(
@@ -816,6 +844,10 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
         "__complete",
         "servers",
       ]);
+      expect(await pwshRun("nipa server inspect -p Beta ")).toEqual(AFTER);
+      expect(await pwshRun('nipa --project="My Project" switch ')).toEqual(
+        JOINED
+      );
       // The value of a joined option reaches nipa without its quotes.
       const servers = ["--project=My Project", "__complete", "servers"];
       expect(
@@ -824,6 +856,9 @@ printf '%s\\n' "$@" > "$HOME/nipa-args"
       expect(
         await pwshRun("nipa --project='My Project' server inspect ")
       ).toEqual(servers);
+      // After os, -p is openstack's.
+      const os = await pwshRun("nipa -p Beta os -p X server ");
+      expect(os.slice(0, 5)).toEqual(OPENSTACK);
     },
     PWSH_TIMEOUT_MS
   );
