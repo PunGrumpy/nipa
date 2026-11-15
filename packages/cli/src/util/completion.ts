@@ -31,8 +31,6 @@ export type CompleteKind = (typeof COMPLETE_KINDS)[number];
 
 type DynamicKind = Exclude<CompleteKind, "openstack">;
 
-const dynamic = (kind: DynamicKind): string => `nipa __complete ${kind}`;
-
 // A global option with a value takes the next word, so the scripts step over
 // both to find the command. After one, they offer its values.
 const VALUED_GLOBALS = GLOBAL_FLAGS.filter(
@@ -61,6 +59,25 @@ const passthroughNames = (specs: readonly CommandSpec[]): string[] =>
   specs
     .filter((spec) => spec.kind === "passthrough")
     .flatMap((spec) => namesOf(spec));
+
+// The global options that pick where names come from: the profile and the
+// project. Each script collects them from the words before the cursor and
+// runs `nipa <them> __complete <kind>`, so `nipa -p Beta server inspect <Tab>`
+// offers Beta's servers. Words after `--`, or after a passthrough command
+// such as `os`, are the other program's.
+const SCOPE_FLAGS = VALUED_GLOBALS.filter(
+  (flag) => globalValues(flag) !== undefined
+);
+const SCOPE_WORDS = SCOPE_FLAGS.flatMap(flagWords);
+/** `--profile=staging`: the spelling with its value in the same word. */
+const SCOPE_JOINED = SCOPE_FLAGS.map((flag) => `--${flag.long}=*`);
+
+const programPassthroughs = (program: ProgramSpec): string[] =>
+  passthroughNames([...visibleCommands(program), ...program.hidden]);
+
+/** bash's call; `nipa_scope` is `_nipa`'s, filled by `_nipa_scope`. */
+const dynamic = (kind: DynamicKind): string =>
+  `nipa "\${nipa_scope[@]}" __complete ${kind}`;
 
 const allFlags = (spec: LeafSpec): FlagSpec[] => [
   ...spec.flags,
@@ -136,7 +153,7 @@ const bashTarget = (target: Target): string => {
       return '_nipa_offset "$((i + 1))"';
     }
     case "openstack": {
-      return `_nipa_reply_lines < <(nipa __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)`;
+      return `_nipa_reply_lines < <(nipa "\${nipa_scope[@]}" __complete openstack -- "\${COMP_WORDS[@]:i+1:COMP_CWORD-i}" 2>/dev/null)`;
     }
     default: {
       const _exhaustive: never = target;
@@ -183,6 +200,7 @@ const bashArm = (spec: CommandSpec, depth: number): string => {
 
 const bash = (program: ProgramSpec): string => {
   const shown = visibleCommands(program);
+  const passthroughs = programPassthroughs(program);
   const commands = shown.map((c) => c.name).join(" ");
   const globals = GLOBAL_FLAGS.flatMap(flagWords).join(" ");
   const bashGlobalValues = VALUED_GLOBALS.flatMap((flag) => {
@@ -212,6 +230,60 @@ _nipa_reply_lines() {
   done
 }
 
+# A word as the shell passes it on: quotes and backslashes removed, nothing
+# expanded or run. COMP_WORDS keeps each word as it was typed.
+_nipa_unquote() {
+  local word=$1 quote="" c next i
+  REPLY=""
+  for ((i = 0; i < \${#word}; i++)); do
+    c=\${word:i:1}
+    next=\${word:i+1:1}
+    if [[ $quote == "'" ]]; then
+      if [[ $c == "'" ]]; then quote=""; else REPLY+=$c; fi
+    elif [[ $c == '\\' && -n $next && ( -z $quote || $next == '$' || $next == '\`' || $next == '"' || $next == '\\' ) ]]; then
+      REPLY+=$next
+      ((i += 1))
+    elif [[ $c == '"' ]]; then
+      if [[ -n $quote ]]; then quote=""; else quote='"'; fi
+    elif [[ $c == "'" && -z $quote ]]; then
+      quote="'"
+    else
+      REPLY+=$c
+    fi
+  done
+}
+
+# The profile and project options before the cursor, into _nipa's nipa_scope.
+# COMP_WORDBREAKS splits --profile=x into --profile, = and x.
+_nipa_scope() {
+  local j=1 command="" word REPLY
+  nipa_scope=()
+  while [[ $j -lt $COMP_CWORD ]]; do
+    word=\${COMP_WORDS[j]}
+    case $word in
+      --) return ;;
+      ${SCOPE_WORDS.join("|")})
+        if [[ \${COMP_WORDS[j + 1]} == = ]]; then
+          if [[ $((j + 2)) -lt $COMP_CWORD ]]; then _nipa_unquote "\${COMP_WORDS[j + 2]}"; nipa_scope+=("$word=$REPLY"); fi
+          ((j += 3))
+        else
+          if [[ $((j + 1)) -lt $COMP_CWORD ]]; then _nipa_unquote "\${COMP_WORDS[j + 1]}"; nipa_scope+=("$word" "$REPLY"); fi
+          ((j += 2))
+        fi
+        continue ;;
+      ${SCOPE_JOINED.join("|")})
+        _nipa_unquote "\${word#*=}"; nipa_scope+=("\${word%%=*}=$REPLY") ;;
+      -*) ;;
+      *)
+        if [[ -z $command ]]; then
+          command=$word
+          case $command in ${passthroughs.join("|")}) return ;; esac
+        fi ;;
+    esac
+    ((j += 1))
+  done
+}
+
 # _command_offset comes from the bash-completion package.
 _nipa_offset() {
   if declare -F _command_offset >/dev/null; then
@@ -224,10 +296,12 @@ _nipa_offset() {
 _nipa() {
   local cur=\${COMP_WORDS[COMP_CWORD]} prev=\${COMP_WORDS[COMP_CWORD-1]}
   COMPREPLY=()
+  local -a nipa_scope
+  _nipa_scope
   local i=1 command=""
   while [[ $i -lt $COMP_CWORD ]]; do
     case \${COMP_WORDS[i]} in
-      ${VALUED_WORDS.join("|")}) ((i += 2)) ;;
+      ${VALUED_WORDS.join("|")}) if [[ \${COMP_WORDS[i + 1]} == = ]]; then ((i += 3)); else ((i += 2)); fi ;;
       -*) ((i += 1)) ;;
       *) command=\${COMP_WORDS[i]}; break ;;
     esac
@@ -359,6 +433,7 @@ const zshBody = (spec: CommandSpec, pad: string): string => {
 
 const zsh = (program: ProgramSpec): string => {
   const shown = visibleCommands(program);
+  const passthroughs = programPassthroughs(program);
   const commands = shown
     .map((c) => `    '${c.name}:${zshQuote(c.summary)}'`)
     .join("\n");
@@ -384,20 +459,45 @@ const zsh = (program: ProgramSpec): string => {
 # Load it from ~/.zshrc, after compinit:  eval "$(nipa completion zsh)"
 # Or save it as _nipa in a directory on your $fpath.
 
+# The profile and project options before the cursor, into _nipa's nipa_scope,
+# with the quotes as typed removed.
+_nipa_scope() {
+  local j=2 command=""
+  nipa_scope=()
+  while (( j < CURRENT )); do
+    case $words[j] in
+      (--) return ;;
+      (${SCOPE_WORDS.join("|")})
+        if (( j + 1 < CURRENT )); then nipa_scope+=("$words[j]" "\${(Q)words[j + 1]}"); fi
+        (( j += 2 )); continue ;;
+      (${SCOPE_JOINED.join("|")}) nipa_scope+=("\${words[j]%%=*}=\${(Q)words[j]#*=}") ;;
+      (-*) ;;
+      (*)
+        if [[ -z $command ]]; then
+          command=$words[j]
+          case $command in (${passthroughs.join("|")}) return ;; esac
+        fi ;;
+    esac
+    (( j += 1 ))
+  done
+}
+
 _nipa_dynamic() {
   local -a values
-  values=(\${(f)"$(nipa __complete $1 2>/dev/null)"})
+  values=(\${(f)"$(nipa "\${(@)nipa_scope}" __complete $1 2>/dev/null)"})
   values=("\${(@)values//:/\\\\:}")
   _describe -t $1 $2 values
 }
 
 _nipa_openstack() {
   local -a values
-  values=(\${(f)"$(nipa __complete openstack -- "\${(@)words[2,CURRENT-1]}" "$PREFIX" 2>/dev/null)"})
+  values=(\${(f)"$(nipa "\${(@)nipa_scope}" __complete openstack -- "\${(@)words[2,CURRENT-1]}" "$PREFIX" 2>/dev/null)"})
   if (( $#values )); then compadd -a values; else _files; fi
 }
 
 _nipa() {
+  local -a nipa_scope
+  _nipa_scope
   local i=2 command=""
   while (( i < CURRENT )); do
     case $words[i] in
@@ -440,7 +540,7 @@ const fishQuote = (text: string): string =>
   `'${text.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
 
 const fishDynamic = (kind: DynamicKind): string =>
-  `'(${dynamic(kind)} 2>/dev/null)'`;
+  `'(nipa (__nipa_scope) __complete ${kind} 2>/dev/null)'`;
 
 const fishValue = (value: FlagValue): string => {
   switch (value.kind) {
@@ -551,8 +651,8 @@ const fishLines = (spec: CommandSpec, parent?: CommandSpec): string[] => {
 
 const fish = (program: ProgramSpec): string => {
   const shown = visibleCommands(program);
-  const all = [...shown, ...program.hidden];
-  const notPassthrough = `not __nipa_using ${passthroughNames(all).join(" ")}`;
+  const passthroughs = programPassthroughs(program);
+  const notPassthrough = `not __nipa_using ${passthroughs.join(" ")}`;
   const top = shown.map(
     (c) =>
       `complete -c nipa -n __nipa_needs_command -a ${c.name} -d ${fishQuote(c.summary)}`
@@ -594,10 +694,40 @@ function __nipa_complete_as
     complete -C "$line"
 end
 
+# The profile and project options before the cursor, one word per line.
+# commandline -o has already removed the quotes.
+function __nipa_scope
+    set -l tokens (commandline -opc)
+    set -l command
+    set -l i 2
+    while test $i -le (count $tokens)
+        switch $tokens[$i]
+            case --
+                return
+            case ${SCOPE_WORDS.join(" ")}
+                if test $i -lt (count $tokens)
+                    printf '%s\\n' $tokens[$i] $tokens[(math $i + 1)]
+                end
+                set i (math $i + 2)
+                continue
+            case ${SCOPE_JOINED.map((word) => `'${word}'`).join(" ")}
+                printf '%s\\n' $tokens[$i]
+            case '-*'
+                # Another option: nothing to keep.
+            case '*'
+                if not set -q command[1]
+                    set command $tokens[$i]
+                    contains -- $command ${passthroughs.join(" ")}; and return
+                end
+        end
+        set i (math $i + 1)
+    end
+end
+
 function __nipa_openstack
     set -l i (__nipa_command_index); or return
     set -l tokens (commandline -opc)
-    set -l values (nipa __complete openstack -- $tokens[(math $i + 1)..-1] (commandline -ct) 2>/dev/null)
+    set -l values (nipa (__nipa_scope) __complete openstack -- $tokens[(math $i + 1)..-1] (commandline -ct) 2>/dev/null)
     if set -q values[1]
         printf '%s\\n' $values
     else
@@ -726,6 +856,7 @@ const pwshBody = (spec: CommandSpec, pad: string): string => {
 
 const pwsh = (program: ProgramSpec): string => {
   const shown = visibleCommands(program);
+  const passthroughs = programPassthroughs(program);
   const commands = shown
     .map((c) => `    ${pwshQuote(c.name)} = ${pwshQuote(c.summary)}`)
     .join("\n");
@@ -756,15 +887,38 @@ ${commands}
       [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $tip)
     }
   }
-  function Dynamic([string]$kind) { @(nipa __complete $kind 2>$null) }
+  function Dynamic([string]$kind) { @(nipa @scope __complete $kind 2>$null) }
   function Openstack([int]$start) {
     $typed = @($words | Select-Object -Skip $start -First ($index - $start))
-    @(nipa __complete openstack -- @typed $wordToComplete 2>$null)
+    @(nipa @scope __complete openstack -- @typed $wordToComplete 2>$null)
+  }
+  # The profile and project options before the cursor. A quoted value is
+  # passed on without its quotes.
+  function Scope {
+    $command = $null
+    for ($j = 1; $j -lt $index; $j++) {
+      $word = $words[$j]
+      if ($word -ceq '--') { return }
+      if ($word -cin ${pwshList(SCOPE_WORDS)}) {
+        if ($j + 1 -lt $index) {
+          $word
+          $value = $commandAst.CommandElements[$j + 1]
+          if ($value -is [System.Management.Automation.Language.StringConstantExpressionAst]) { $value.Value } else { $value.ToString() }
+        }
+        $j += 1
+      }
+      elseif (${SCOPE_JOINED.map((word) => `$word -clike ${pwshQuote(word)}`).join(" -or ")}) { $word }
+      elseif ($word -notlike '-*' -and -not $command) {
+        $command = $word
+        if ($command -cin ${pwshList(passthroughs)}) { return }
+      }
+    }
   }
   $words = @($commandAst.CommandElements | ForEach-Object { $_.ToString() })
   # The word being completed is either the last element or a new, empty one.
   $index = if ($wordToComplete) { $words.Count - 1 } else { $words.Count }
   $prev = if ($index -ge 1) { $words[$index - 1] } else { '' }
+  $scope = @(Scope)
   $c = 1
   $command = $null
   while ($c -lt $index) {

@@ -344,8 +344,12 @@ describe("bash", () => {
       await bashComplete("nipa", "-P", "prod", "-p", "Beta", "sw")
     ).toEqual(["switch"]);
     expect(
-      await bashComplete("nipa", "-p", "Beta", "server", "stop", "web")
+      await bashComplete("nipa", "-p", "Alpha", "server", "stop", "web")
     ).toEqual(["web-2", "web-1"]);
+    // Beta has no servers, and the names come from the project typed.
+    expect(
+      await bashComplete("nipa", "-p", "Beta", "server", "stop", "web")
+    ).toEqual([]);
   });
 
   test("openstack commands after os and openstack", async () => {
@@ -463,8 +467,9 @@ describe.if(has("fish"))("fish", () => {
     expect(await fishComplete("nipa --project B")).toEqual(["Beta"]);
     expect(await fishComplete("nipa -p Beta sw")).toEqual(["switch"]);
     expect(await fishComplete("nipa -P prod -p Beta sw")).toEqual(["switch"]);
-    const names = await fishComplete("nipa -p Beta server inspect web");
+    const names = await fishComplete("nipa -p Alpha server inspect web");
     expect(names.toSorted()).toEqual(["web-1", "web-2"]);
+    expect(await fishComplete("nipa -p Beta server inspect web")).toEqual([]);
   });
 
   test("openstack commands after os", async () => {
@@ -599,7 +604,7 @@ esac
         "zsh",
         "-f",
         "-c",
-        `${stubs}; source '${path.join(hostile, "completion.zsh")}'; _nipa_dynamic servers server`,
+        `${stubs}; source '${path.join(hostile, "completion.zsh")}'; nipa_scope=(); _nipa_dynamic servers server`,
       ],
       testEnv(hostile)
     );
@@ -611,4 +616,192 @@ esac
       "it's",
     ]);
   });
+});
+
+describe("the names follow the -P and -p typed", () => {
+  let stub: string;
+
+  // Writes each argument on its own line, so a name with a space stays one.
+  const RECORDING_NIPA = `#!/bin/sh
+printf '%s\\n' "$@" > "$HOME/nipa-args"
+`;
+
+  const argsFile = () => path.join(stub, "nipa-args");
+
+  /** The arguments the script ran nipa with, after `complete` ran it. */
+  const ranWith = async (complete: () => Promise<object>) => {
+    await rm(argsFile(), { force: true });
+    await complete();
+    const text = await readFile(argsFile(), "utf-8");
+    return text.split("\n").slice(0, -1);
+  };
+
+  // Words as the shell holds them while completing: quotes as typed.
+  const bashRun = (...words: string[]) =>
+    ranWith(() => bashCompleteIn(stub, ...words));
+
+  // Stub _arguments to run the action of the positional argument it is given.
+  const zshRun = (...words: string[]) => {
+    const quoted = words.map((w) => `'${w}'`).join(" ");
+    const stubs = `compdef() { :; }; _describe() { :; }; _arguments() { local a; for a in "$@"; do if [[ $a == [0-9]*'{_nipa_dynamic '* ]]; then a=\${a#*\\{}; eval "\${a%\\}}"; fi; done; }`;
+    return ranWith(() =>
+      runProcess(
+        [
+          "zsh",
+          "-f",
+          "-c",
+          `${stubs}; source '${path.join(stub, "completion.zsh")}'; words=(${quoted}); CURRENT=${words.length}; PREFIX=''; _nipa`,
+        ],
+        testEnv(stub)
+      )
+    );
+  };
+
+  const fishRun = (line: string) =>
+    ranWith(() =>
+      runProcess(
+        [
+          "fish",
+          "--no-config",
+          "-c",
+          `source '${path.join(stub, "completion.fish")}'; complete -C '${line}'`,
+        ],
+        testEnv(stub)
+      )
+    );
+
+  const pwshRun = (line: string) =>
+    ranWith(() =>
+      runProcess(
+        [
+          "pwsh",
+          "-NoProfile",
+          "-Command",
+          `. '${path.join(stub, "completion.ps1")}'; (TabExpansion2 -inputScript '${line}' -cursorColumn ${line.length}).CompletionMatches | Out-Null`,
+        ],
+        testEnv(stub)
+      )
+    );
+
+  const SCOPED = ["-P", "staging", "-p", "My Project", "__complete", "servers"];
+
+  beforeAll(async () => {
+    stub = await mkdtemp(path.join(tmpdir(), "nipa-completion-scope-"));
+    const bin = path.join(stub, "bin");
+    await mkdir(bin);
+    await writeFile(path.join(bin, "nipa"), RECORDING_NIPA);
+    await chmod(path.join(bin, "nipa"), 0o755);
+    await Promise.all(
+      SHELLS.map(async (shell) => {
+        await writeFile(
+          path.join(stub, `completion.${shell === "pwsh" ? "ps1" : shell}`),
+          await readFile(script(shell), "utf-8")
+        );
+      })
+    );
+  });
+
+  afterAll(async () => {
+    await rm(stub, { force: true, recursive: true });
+  });
+
+  test("bash", async () => {
+    const line = ["nipa", "-P", "staging", "-p", '"My Project"'];
+    expect(await bashRun(...line, "server", "inspect", "")).toEqual(SCOPED);
+    expect(await bashRun("nipa", "-p", "My\\ Project", "switch", "")).toEqual([
+      "-p",
+      "My Project",
+      "__complete",
+      "projects",
+    ]);
+    expect(await bashRun("nipa", "--profile=staging", "switch", "")).toEqual([
+      "--profile=staging",
+      "__complete",
+      "projects",
+    ]);
+    // Readline splits --profile=staging at the = sign.
+    expect(
+      await bashRun("nipa", "--profile", "=", "staging", "switch", "")
+    ).toEqual(["--profile=staging", "__complete", "projects"]);
+    expect(await bashRun("nipa", "server", "inspect", "")).toEqual([
+      "__complete",
+      "servers",
+    ]);
+    expect(
+      await bashRun("nipa", "server", "inspect", "-p", "Beta", "")
+    ).toEqual(["-p", "Beta", "__complete", "servers"]);
+    // The profile typed picks whose projects -p offers.
+    expect(await bashRun("nipa", "-P", "staging", "-p", "")).toEqual([
+      "-P",
+      "staging",
+      "__complete",
+      "projects",
+    ]);
+    // After os, -p is openstack's.
+    const os = await bashRun(
+      "nipa",
+      "-p",
+      "Beta",
+      "os",
+      "-p",
+      "X",
+      "server",
+      ""
+    );
+    expect(os.slice(0, 5)).toEqual([
+      "-p",
+      "Beta",
+      "__complete",
+      "openstack",
+      "--",
+    ]);
+  });
+
+  test("zsh", async () => {
+    const line = ["nipa", "-P", "staging", "-p", '"My Project"'];
+    expect(await zshRun(...line, "server", "inspect", "")).toEqual(SCOPED);
+    expect(await zshRun("nipa", "--profile=staging", "switch", "")).toEqual([
+      "--profile=staging",
+      "__complete",
+      "projects",
+    ]);
+    expect(await zshRun("nipa", "server", "inspect", "")).toEqual([
+      "__complete",
+      "servers",
+    ]);
+  });
+
+  test.if(has("fish"))("fish", async () => {
+    expect(
+      await fishRun('nipa -P staging -p "My Project" server inspect ')
+    ).toEqual(SCOPED);
+    expect(await fishRun("nipa --profile=staging switch ")).toEqual([
+      "--profile=staging",
+      "__complete",
+      "projects",
+    ]);
+    expect(await fishRun("nipa server inspect ")).toEqual([
+      "__complete",
+      "servers",
+    ]);
+  });
+
+  test.if(has("pwsh"))(
+    "pwsh",
+    async () => {
+      expect(
+        await pwshRun('nipa -P staging -p "My Project" server inspect ')
+      ).toEqual(SCOPED);
+      expect(await pwshRun("nipa --profile=staging switch ")).toEqual([
+        "--profile=staging",
+        "__complete",
+        "projects",
+      ]);
+      expect(await pwshRun("nipa server inspect ")).toEqual([
+        "__complete",
+        "servers",
+      ]);
+    },
+    PWSH_TIMEOUT_MS
+  );
 });
