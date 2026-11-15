@@ -124,7 +124,7 @@ const unknownSubcommand = (group: Group, word: string): CliError =>
  * - `server`, `server --json`, `server --help`: the default subcommand,
  *   with every word. Help shows the group's page: the user named only the
  *   group.
- * - `server nope`: unknown, which run() reports unless help was asked for.
+ * - `server nope`: unknown, which run() reports.
  */
 const pickSubcommand = (group: Group, words: readonly string[]): Resolved => {
   const { rest } = takeGlobals({ unknown: "stop", words });
