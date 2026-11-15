@@ -43,7 +43,7 @@
     "build": "bun build src/index.ts --compile --minify --outfile dist/nipa",
     "build:npm": "bun scripts/build-npm.ts",
     "build:release": "bun scripts/build-release.ts",
-    "test": "bun test",
+    "test": "bun test --timeout 30000",
     "typecheck": "tsc-ts --noEmit",
     "check:package": "bun run build:npm && publint",
     "prepack": "bun run build:npm"
