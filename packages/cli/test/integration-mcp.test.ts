@@ -64,6 +64,16 @@ const expire = async () => {
   await writeFile(file, JSON.stringify(auth));
 };
 
+// What the fake Keystone saw since `from`: the project lists and the token
+// exchanges for a project, which cost a round trip each.
+const keystoneCalls = (from: number) => {
+  const seen = keystone.requests.slice(from);
+  return {
+    exchanges: seen.filter((r) => r === "POST /v3/auth/tokens").length,
+    lists: seen.filter((r) => r === "GET /v3/auth/projects").length,
+  };
+};
+
 const savedFiles = async () => [
   await readFile(path.join(dir, "config.json"), "utf-8"),
   await readFile(path.join(dir, "auth.json"), "utf-8"),
@@ -245,6 +255,94 @@ describe("nipa mcp", () => {
     expect(answer.document).toMatchObject({ project: { name: "Beta" } });
     await mcp.finish();
     expect(await savedFiles()).toEqual(before);
+  });
+
+  describe("a project's session", () => {
+    test("is reused for the next call, and replaced when the saved login changes", async () => {
+      const before = await savedFiles();
+      const mcp = startMcp({ env: env() });
+      await mcp.initialize();
+      const start = keystone.requests.length;
+      const first = await mcp.call("list_servers", { project: "Beta" });
+      const second = await mcp.call("list_servers", { project: "Beta" });
+      const third = await mcp.call("list_servers", { project: "Beta" });
+      for (const answer of [first, second, third]) {
+        expect(answer.isError).toBe(false);
+        expect(answer.document).toMatchObject({ project: { name: "Beta" } });
+      }
+      expect(keystoneCalls(start)).toEqual({ exchanges: 1, lists: 1 });
+
+      // Another project is a new entry (the saved project needs the list but
+      // no exchange), and the first one still holds.
+      const other = keystone.requests.length;
+      await mcp.call("list_servers", { project: "Alpha" });
+      await mcp.call("list_servers", { project: "Beta" });
+      expect(keystoneCalls(other)).toEqual({ exchanges: 0, lists: 1 });
+
+      // A `nipa login` in another terminal saves a new token: every entry goes.
+      await seedSession(dir, keystone.url);
+      const login = keystone.requests.length;
+      const renewed = await mcp.call("list_servers", { project: "Beta" });
+      expect(renewed.document).toMatchObject({ project: { name: "Beta" } });
+      expect(keystoneCalls(login).lists).toBe(1);
+      expect(keystoneCalls(login).exchanges).toBe(1);
+      const next = keystone.requests.length;
+      await mcp.call("list_servers", { project: "Beta" });
+      expect(keystoneCalls(next)).toEqual({ exchanges: 0, lists: 0 });
+      await mcp.finish();
+      // The tokens stay in memory, so the saved files are the login's own.
+      const after = await savedFiles();
+      expect(after[0]).toBe(before[0]);
+      expect(JSON.parse(after[1] ?? "").sessions.prod.project.name).toBe(
+        "Alpha"
+      );
+    });
+
+    test("is shared by calls that run at once", async () => {
+      const mcp = startMcp({ env: env() });
+      await mcp.initialize();
+      const start = keystone.requests.length;
+      const answers = await Promise.all(
+        [1, 2, 3].map(() => mcp.call("list_volumes", { project: "Beta" }))
+      );
+      for (const answer of answers) {
+        expect(answer.isError).toBe(false);
+      }
+      expect(keystoneCalls(start)).toEqual({ exchanges: 1, lists: 1 });
+      await mcp.finish();
+    });
+
+    test("is not kept for a project nipa can't find", async () => {
+      const mcp = startMcp({ env: env() });
+      await mcp.initialize();
+      const start = keystone.requests.length;
+      const first = await mcp.call("list_servers", { project: "Nowhere" });
+      const second = await mcp.call("list_servers", { project: "Nowhere" });
+      for (const answer of [first, second]) {
+        expect(answer.isError).toBe(true);
+        expect(answer.document).toMatchObject({ reason: "not_found" });
+      }
+      // Each call asked Keystone again: a failed lookup is never kept.
+      expect(keystoneCalls(start)).toEqual({ exchanges: 0, lists: 2 });
+      const answer = await mcp.call("list_servers", { project: "Beta" });
+      expect(answer.isError).toBe(false);
+      expect(answer.document).toMatchObject({ project: { name: "Beta" } });
+      await mcp.finish();
+    });
+
+    test("is not used after a logout, even for a project the server used before", async () => {
+      const mcp = startMcp({ env: env() });
+      await mcp.initialize();
+      const used = await mcp.call("list_servers", { project: "Beta" });
+      expect(used.isError).toBe(false);
+      await rm(path.join(dir, "auth.json"));
+      const start = keystone.requests.length;
+      const answer = await mcp.call("list_servers", { project: "Beta" });
+      expect(answer.isError).toBe(true);
+      expect(answer.document).toMatchObject({ reason: "login_required" });
+      expect(keystone.requests.slice(start)).toEqual([]);
+      await mcp.finish();
+    });
   });
 
   test("-p picks the project for the whole run, and -P the profile", async () => {
