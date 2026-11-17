@@ -52,12 +52,30 @@ const indexFlags = (flags: readonly FlagSpec[]): Index =>
 const useOneOf = (choices: readonly string[]) =>
   `Use one of: ${choices.join(", ")}.`;
 
+/**
+ * The error for a value outside a fixed set. One close to a choice is
+ * suggested, `fis` as `fish`, ahead of the list; a far one gets the list.
+ */
+const unknownChoice = (
+  label: string,
+  value: string,
+  choices: readonly string[]
+): CliError => {
+  const message = `unknown ${label} "${value}"`;
+  const near = closest(value, choices);
+  if (near === undefined) {
+    return usageError(message, useOneOf(choices));
+  }
+  return new CliError(message, {
+    data: { suggestion: near },
+    exitCode: 2,
+    hint: `Did you mean \`${near}\`? ${useOneOf(choices)}`,
+  });
+};
+
 const checked = (flag: FlagSpec, value: string): string => {
   if (flag.value.kind === "choice" && !flag.value.choices.includes(value)) {
-    throw usageError(
-      `unknown ${flag.long} "${value}"`,
-      useOneOf(flag.value.choices)
-    );
+    throw unknownChoice(flag.long, value, flag.value.choices);
   }
   return value;
 };
@@ -338,10 +356,7 @@ const tokenize = (input: {
 
 const checkArg = (arg: ArgSpec, word: string): string => {
   if (arg.value.kind === "choice" && !arg.value.choices.includes(word)) {
-    throw usageError(
-      `unknown ${arg.name} "${word}"`,
-      useOneOf(arg.value.choices)
-    );
+    throw unknownChoice(arg.name, word, arg.value.choices);
   }
   return word;
 };
