@@ -115,3 +115,53 @@ describe("an unknown option", () => {
     ).toBe("Run `nipa --help` to see the options.");
   });
 });
+
+describe("a value outside a fixed set", () => {
+  const spec = defineCommand({
+    args: [
+      {
+        arity: "one",
+        name: "shell",
+        value: { choices: ["bash", "zsh", "fish", "pwsh"], kind: "choice" },
+      },
+    ],
+    flags: [
+      {
+        description: "o",
+        long: "output",
+        value: { choices: ["table", "json", "yaml"], kind: "choice" },
+      },
+    ],
+    name: "ls",
+    summary: "ls",
+  });
+  const parse = (...words: string[]) =>
+    failure(() => parseLeaf({ path: [spec], spec, words }));
+
+  test("a close flag value is suggested, ahead of the list", () => {
+    const error = parse("fish", "--output", "jsno");
+    expect(error).toMatchObject({
+      data: { suggestion: "json" },
+      exitCode: 2,
+      hint: "Did you mean `json`? Use one of: table, json, yaml.",
+      message: 'unknown output "jsno"',
+    });
+  });
+  test("a close argument is suggested, ahead of the list", () => {
+    const error = parse("fis");
+    expect(error).toMatchObject({
+      data: { suggestion: "fish" },
+      exitCode: 2,
+      hint: "Did you mean `fish`? Use one of: bash, zsh, fish, pwsh.",
+      message: 'unknown shell "fis"',
+    });
+  });
+  test("a far value gets only the list", () => {
+    const error = parse("xyz");
+    expect(error.hint).toBe("Use one of: bash, zsh, fish, pwsh.");
+    expect(error.hint).not.toContain("Did you mean");
+    expect(error.data).toBeUndefined();
+    expect(error.exitCode).toBe(2);
+    expect(parse("fish", "--output", "xyz").data).toBeUndefined();
+  });
+});

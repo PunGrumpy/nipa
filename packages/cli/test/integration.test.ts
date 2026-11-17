@@ -323,6 +323,26 @@ describe("help and usage", () => {
     });
   });
 
+  test("a mistyped choice value suggests the closest one", async () => {
+    const { code, stderr, stdout } = await run(["completion", "fis"]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(stderr).toContain(
+      "Did you mean `fish`? Use one of: bash, zsh, fish, pwsh."
+    );
+    expect(stderr).not.toContain("> Use one of");
+    const json = await run(["env", "--shell", "fis", "--json"]);
+    expect(json.stdout).toBe("");
+    expect(JSON.parse(json.stderr)).toMatchObject({
+      data: { suggestion: "fish" },
+      message: 'unknown shell "fis"',
+      reason: "invalid_arguments",
+    });
+    const far = await run(["completion", "xyz"]);
+    expect(far.stderr).toContain("Use one of: bash, zsh, fish, pwsh.");
+    expect(far.stderr).not.toContain("Did you mean");
+  });
+
   test("a help request keeps the help verb in every suggestion", async () => {
     const results = await Promise.all(
       [
