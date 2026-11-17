@@ -115,3 +115,57 @@ describe("an unknown option", () => {
     ).toBe("Run `nipa --help` to see the options.");
   });
 });
+
+describe("an unknown choice", () => {
+  const shells = ["bash", "zsh", "fish", "pwsh"] as const;
+  const spec = defineCommand({
+    args: [
+      {
+        arity: "optional",
+        name: "shell",
+        value: { choices: shells, kind: "choice" },
+      },
+    ],
+    flags: [
+      {
+        description: "o",
+        long: "output",
+        value: { choices: ["table", "json"], kind: "choice" },
+      },
+    ],
+    name: "completion",
+    summary: "completion",
+  });
+  const parse = (...words: string[]) =>
+    failure(() => parseLeaf({ path: [spec], spec, words }));
+
+  test("a close argument is suggested, in the hint and in data", () => {
+    expect(parse("fihs")).toMatchObject({
+      data: { suggestion: "fish" },
+      exitCode: 2,
+      hint: "Did you mean `fish`? Use one of: bash, zsh, fish, pwsh.",
+      message: 'unknown shell "fihs"',
+      reason: "invalid_arguments",
+    });
+  });
+  test("a close option value is suggested, after a space or after =", () => {
+    const hint = "Did you mean `table`? Use one of: table, json.";
+    expect(parse("--output", "tabel")).toMatchObject({
+      data: { suggestion: "table" },
+      hint,
+      message: 'unknown output "tabel"',
+    });
+    expect(parse("--output=tabel").hint).toBe(hint);
+  });
+  test("a value far from every choice gets only the list", () => {
+    const error = parse("xyz");
+    expect(error.hint).toBe("Use one of: bash, zsh, fish, pwsh.");
+    expect(error.data).toBeUndefined();
+  });
+  test("a value as close to two choices gets only the list", () => {
+    // fsh is one edit from fish and one from zsh.
+    const error = parse("fsh");
+    expect(error.hint).toBe("Use one of: bash, zsh, fish, pwsh.");
+    expect(error.data).toBeUndefined();
+  });
+});

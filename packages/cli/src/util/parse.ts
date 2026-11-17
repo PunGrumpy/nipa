@@ -52,12 +52,35 @@ const indexFlags = (flags: readonly FlagSpec[]): Index =>
 const useOneOf = (choices: readonly string[]) =>
   `Use one of: ${choices.join(", ")}.`;
 
+/**
+ * The error for a value that isn't one of the choices. A close one is
+ * suggested, `fihs` as `fish`, and the list follows either way.
+ */
+const unknownChoice = (input: {
+  choices: readonly string[];
+  name: string;
+  word: string;
+}): CliError => {
+  const { choices, name, word } = input;
+  const near = closest(word, choices);
+  const message = `unknown ${name} "${word}"`;
+  if (near === undefined) {
+    return usageError(message, useOneOf(choices));
+  }
+  return new CliError(message, {
+    data: { suggestion: near },
+    exitCode: 2,
+    hint: `Did you mean \`${near}\`? ${useOneOf(choices)}`,
+  });
+};
+
 const checked = (flag: FlagSpec, value: string): string => {
   if (flag.value.kind === "choice" && !flag.value.choices.includes(value)) {
-    throw usageError(
-      `unknown ${flag.long} "${value}"`,
-      useOneOf(flag.value.choices)
-    );
+    throw unknownChoice({
+      choices: flag.value.choices,
+      name: flag.long,
+      word: value,
+    });
   }
   return value;
 };
@@ -338,10 +361,7 @@ const tokenize = (input: {
 
 const checkArg = (arg: ArgSpec, word: string): string => {
   if (arg.value.kind === "choice" && !arg.value.choices.includes(word)) {
-    throw usageError(
-      `unknown ${arg.name} "${word}"`,
-      useOneOf(arg.value.choices)
-    );
+    throw unknownChoice({ choices: arg.value.choices, name: arg.name, word });
   }
   return word;
 };
