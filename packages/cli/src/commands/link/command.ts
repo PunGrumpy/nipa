@@ -6,7 +6,7 @@ export const linkCommand = defineCommand({
     "Links this folder to a project, by name or ID, like the Vercel CLI's `vercel link`. nipa saves the profile and the project in .nipa/project.json, and every command in this folder and the folders below it uses them, without changing the project other folders use. Without a project, nipa lists your projects to pick from.",
   examples: [
     {
-      command: "nipa -P staging link Prototype",
+      command: "nipa --profile staging link Prototype",
       description: "Use staging's Prototype project in this folder",
     },
     {

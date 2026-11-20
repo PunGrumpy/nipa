@@ -45,7 +45,7 @@ export const searchSubcommand = defineCommand({
       description: "Find the server that has an address, in any project",
     },
     {
-      command: "nipa -p Beta server search web",
+      command: "nipa --project Beta server search web",
       description: "Search only the Beta project",
     },
     {
