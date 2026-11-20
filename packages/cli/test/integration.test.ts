@@ -4646,11 +4646,16 @@ describe("ip ls", () => {
 });
 
 // A browser that does nothing, so a test can run `open` on a terminal.
+const browserMarker = () => inDir("browser-opened");
+
 const installOpeners = async () => {
   await mkdir(inDir("bin"), { recursive: true });
   await Promise.all(
     ["open", "xdg-open"].map(async (name) => {
-      await writeFile(inDir("bin", name), "#!/bin/sh\nexit 0\n");
+      await writeFile(
+        inDir("bin", name),
+        `#!/bin/sh\n: > "${browserMarker()}"\nexit 0\n`
+      );
       await chmod(inDir("bin", name), 0o755);
     })
   );
@@ -4721,20 +4726,52 @@ describe("open", () => {
 
     test("-p names the project to switch to in the portal, and checks it exists", async () => {
       await installOpeners();
+      await rm(browserMarker(), { force: true });
       const piped = await run(["-p", "Beta", "open", "--url"]);
       expect(piped.code).toBe(0);
       expect(piped.stdout).toBe(`${keystone.url}/project\n`);
       expect(piped.stderr).toBe("> Using project Beta\n");
+      expect(await exists(browserMarker())).toBe(false);
       const terminal = await runOnTerminals({
         args: ["-p", "Beta", "open"],
         env: testEnv(dir),
-        terminals: ["stdout", "stderr"],
+        terminals: ["stdin", "stdout", "stderr"],
       });
       expect(terminal.code).toBe(0);
+      expect(terminal.stderr).toContain("Opening ");
       expect(terminal.stderr).toContain("Switch to Beta there");
       expect(terminal.stderr).not.toContain("Alpha");
+      expect(await exists(browserMarker())).toBe(true);
       const saved = await run(["open", "--url"]);
       expect(saved.stderr).toBe("");
+    });
+
+    test("CI prints the URL instead of opening a browser", async () => {
+      await installOpeners();
+      await rm(browserMarker(), { force: true });
+      const result = await runOnTerminals({
+        args: ["open"],
+        env: { ...testEnv(dir), CI: "1" },
+        terminals: ["stdin", "stdout", "stderr"],
+      });
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe(`${keystone.url}/project\n`);
+      expect(result.stderr).not.toContain("Opening");
+      expect(await exists(browserMarker())).toBe(false);
+    });
+
+    test("--non-interactive prints the URL instead of opening a browser", async () => {
+      await installOpeners();
+      await rm(browserMarker(), { force: true });
+      const result = await runOnTerminals({
+        args: ["--non-interactive", "open"],
+        env: testEnv(dir),
+        terminals: ["stdin", "stdout", "stderr"],
+      });
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe(`${keystone.url}/project\n`);
+      expect(result.stderr).not.toContain("Opening");
+      expect(await exists(browserMarker())).toBe(false);
     });
 
     test("-p with a project that doesn't exist fails before opening anything", async () => {

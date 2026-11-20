@@ -56,7 +56,7 @@ const resolveTarget = async (
 export const open = handle(openCommand, async ({ args, client, flags }) => {
   const target = await resolveTarget(client, args.resource, args.name);
   const url = `${spacePortalUrl(target.spaceUrl)}${target.path}`;
-  if (flags.url || !client.stdout.isTTY) {
+  if (flags.url || !client.stdout.isTTY || !client.prompts.interactive) {
     client.stdout.line(url);
     return 0;
   }
