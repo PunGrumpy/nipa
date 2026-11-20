@@ -8,13 +8,24 @@ import type { GlobalValues } from "./arg-common";
 import type { Client } from "./client";
 import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
-import { commandHelp, commandLine, mainHelp, usageLine } from "./help";
+import {
+  allHelpDocument,
+  commandHelp,
+  commandHelpDocument,
+  commandLine,
+  mainHelp,
+  mainHelpDocument,
+  usageLine,
+} from "./help";
+import type { AllHelpDocument, HelpDocument, MainHelpDocument } from "./help";
 import {
   asksForHelp,
   asksForJson,
   asksForVersion,
   asksOnlyForJsonVersion,
+  leadingOptions,
   takeGlobals,
+  withoutFrontJsonHelp,
 } from "./parse";
 import { profileAmong, projectAmong, setRunScope } from "./scope";
 import type { RunScope } from "./scope";
@@ -86,6 +97,35 @@ const scopeOf = (input: {
 };
 
 const print = (text: string): Outcome => ({ kind: "print", text });
+
+const page = (
+  value: AllHelpDocument | HelpDocument | MainHelpDocument
+): Outcome => print(JSON.stringify(value, null, 2));
+
+/**
+ * A help page, as text or, when `json` is set, as the document built from the
+ * same specs. No path is the main page, or with `all` every command's.
+ */
+const helpPage = (input: {
+  all?: boolean;
+  json: boolean;
+  path?: CommandPath;
+  program: ProgramSpec;
+  version: string;
+}): Outcome => {
+  const { all, json, path, program, version } = input;
+  if (path) {
+    return json ? page(commandHelpDocument(path)) : print(commandHelp(path));
+  }
+  if (!json) {
+    return print(mainHelp({ program, version }));
+  }
+  return page(
+    all
+      ? allHelpDocument({ program, version })
+      : mainHelpDocument({ program, version })
+  );
+};
 
 const ran = (input: {
   client: Client;
@@ -375,7 +415,12 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   }
   const spec = programSpec(input.program);
   const table = indexCommands(input.program);
-  const front = takeGlobals({ unknown: "reject", words: input.argv });
+  const withoutJson = withoutFrontJsonHelp(input.argv);
+  const frontJson = withoutJson !== undefined;
+  const front = takeGlobals({
+    unknown: "reject",
+    words: withoutJson ?? input.argv,
+  });
   setRunScope(scopeOf({ globals: front.globals, program: spec }));
   // Help wins over the version, so `nipa --version --help` shows the page.
   if (printsFrontVersion({ front, table })) {
@@ -383,7 +428,7 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   }
   const [word, ...after] = front.rest;
   if (word === undefined) {
-    return print(mainHelp({ program: spec, version: input.version }));
+    return helpPage({ json: frontJson, program: spec, version: input.version });
   }
   if (word === "help") {
     const path = helpPath({
@@ -392,11 +437,13 @@ export const run = async (input: RunInput): Promise<Outcome> => {
       table,
       words: after,
     });
-    return print(
-      path
-        ? commandHelp(path)
-        : mainHelp({ program: spec, version: input.version })
-    );
+    return helpPage({
+      all: leadingOptions(after).includes("--all"),
+      json: frontJson || asksForJson(after),
+      path,
+      program: spec,
+      version: input.version,
+    });
   }
   const command = table.get(word);
   if (!command) {
@@ -405,7 +452,12 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   if (command.kind === "passthrough") {
     // `nipa --help os` shows nipa's page. `nipa os --help` goes to openstack.
     if (front.globals.help) {
-      return print(commandHelp([command.spec]));
+      return helpPage({
+        json: frontJson,
+        path: [command.spec],
+        program: spec,
+        version: input.version,
+      });
     }
     // The words after a passthrough command belong to its program, and so
     // does a `--json` among them.
@@ -439,7 +491,12 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   }
   // Help wins over any other word after the command and over --version.
   if (front.globals.help || asksForHelp(after)) {
-    return print(commandHelp(resolved.path));
+    return helpPage({
+      json: frontJson || asksForJson(after),
+      path: resolved.path,
+      program: spec,
+      version: input.version,
+    });
   }
   // `nipa whoami --version` and `nipa server stop web extra -v` print the
   // version, whatever else is on the line, before the command's own
