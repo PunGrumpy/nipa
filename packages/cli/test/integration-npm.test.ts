@@ -111,7 +111,8 @@ describe.if(Bun.which("node") !== null)("the npm bundle on Node", () => {
       terminals: ["stdin", "stderr"],
     });
     expect(stderr).toContain("Keystone URL");
-    expect(stderr).toContain("Canceled");
+    expect(stderr).toContain("Canceled.");
+    expect(stderr).not.toContain("Error:");
     expect(code).toBe(130);
   });
 

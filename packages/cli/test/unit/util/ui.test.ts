@@ -7,10 +7,12 @@ import { nameCell } from "../../../src/commands/server/format";
 import type { Server } from "../../../src/util/compute";
 import { debug } from "../../../src/util/http";
 import {
+  canceled,
   createPrompts,
   log,
   note,
   printable,
+  printError,
   printFields,
   printTable,
   setAnimation,
@@ -150,6 +152,15 @@ describe("what reaches stderr", () => {
   test("writeStderr filters its line", () => {
     writeStderr(`name ${ESC}]0;x${BEL}${ESC}[2J‮ok`);
     expect(written).toEqual(["name ok\n"]);
+  });
+
+  test("a cancel prints without an error prefix", () => {
+    const error = canceled();
+    printError(error);
+    expect(error.exitCode).toBe(130);
+    expect(error.reason).toBe("canceled");
+    expect(written).toEqual(["Canceled.\n"]);
+    expect(written.join("")).not.toContain("Error:");
   });
 
   test("the spinner filters its message", async () => {

@@ -87,7 +87,7 @@ Prompt wording:
 - A destructive confirmation defaults to No, and `--yes` skips it
 - Ask for secrets through `client.prompts.secret`, which masks the input
 
-Ctrl-C inside a prompt throws `CliError("Canceled")` with exit code 130. Declining a destructive confirmation does the same.
+Ctrl-C inside a prompt and declining a destructive confirmation call `canceled()` from `src/util/ui.ts`: it exits 130 and prints `Canceled.` without `Error:`.
 
 ## Lists
 
@@ -133,7 +133,7 @@ With `--json`, a failure writes nothing to stdout and exactly one single-line JS
 ```
 
 - `status` is `action_required` for exit 2 and for `ambiguous_name`, `login_required` and `token_expired`: a person has to act before the command can run. Everything else is `error`
-- `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `timeout`, `api_error`, `invalid_config`, `internal_error` and `failed`. `timeout` appears today only in `failed[].reason` of `nipa server search --json`; a power wait that runs out still reports `failed`. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
+- `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `timeout`, `api_error`, `invalid_config`, `internal_error`, `canceled` and `failed`. `timeout` appears today only in `failed[].reason` of `nipa server search --json`; a power wait that runs out still reports `failed`. `canceled` appears when a person declines or stops a prompt. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
 - `data` holds facts a script needs, and appears only where a throw site sets it. `ambiguous_name` has `data.ids`, every ID the name matches. Read IDs from there, never from `hint`, which shows at most 5. A suggestion from guessing has `data.suggestion`, the bare option, name or command line, next to the hint that says `Did you mean`
 - `message` and `hint` are the human error's text. `hint` appears only when the error has one and no `next`, which says the same thing in the profile the run named
 - `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command, after `nipa server search <name>` for a server. A guess is never in `next`, because a script must not run it, and a name the person typed goes in as one word of an argv array, not as text to split. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
