@@ -9,7 +9,13 @@ import type { Client } from "./client";
 import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
 import { commandHelp, commandLine, mainHelp, usageLine } from "./help";
-import { asksForHelp, asksForJson, asksForVersion, takeGlobals } from "./parse";
+import {
+  asksForHelp,
+  asksForJson,
+  asksForVersion,
+  asksOnlyForJsonVersion,
+  takeGlobals,
+} from "./parse";
 import { profileAmong, projectAmong, setRunScope } from "./scope";
 import type { RunScope } from "./scope";
 import { namesOf, profileUseOf, projectUseOf } from "./spec";
@@ -323,6 +329,34 @@ const printsFrontVersion = ({
 };
 
 /**
+ * The error for a word that names no command. The profile and project typed
+ * after it still scope the error, so it reads like the line the user typed.
+ */
+const scopedUnknownCommand = (input: {
+  after: readonly string[];
+  front: ReturnType<typeof takeGlobals>;
+  spec: ProgramSpec;
+  word: string;
+}): CliError => {
+  const { after, front, spec, word } = input;
+  setRunScope(
+    scopeOf({
+      globals: {
+        ...front.globals,
+        profile: front.globals.profile ?? profileAmong(after),
+        project: front.globals.project ?? projectAmong(after),
+      },
+      program: spec,
+    })
+  );
+  return unknownCommand({
+    help: front.globals.help === true || asksForHelp(after),
+    program: spec,
+    word,
+  });
+};
+
+/**
  * Runs the command argv names. Throws CliError for usage errors, which
  * src/index.ts prints with exit code 2, and lets handler errors through.
  * Sets the JSON mode of ui.ts, which src/index.ts reads to print a failure.
@@ -336,6 +370,9 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   // Before anything can fail, so a failure to read the line has a mode too.
   setJsonMode(asksForJson(input.argv));
   setRunScope(undefined);
+  if (asksOnlyForJsonVersion(input.argv)) {
+    return print(JSON.stringify({ version: input.version }));
+  }
   const spec = programSpec(input.program);
   const table = indexCommands(input.program);
   const front = takeGlobals({ unknown: "reject", words: input.argv });
@@ -363,21 +400,7 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   }
   const command = table.get(word);
   if (!command) {
-    setRunScope(
-      scopeOf({
-        globals: {
-          ...front.globals,
-          profile: front.globals.profile ?? profileAmong(after),
-          project: front.globals.project ?? projectAmong(after),
-        },
-        program: spec,
-      })
-    );
-    throw unknownCommand({
-      help: front.globals.help === true || asksForHelp(after),
-      program: spec,
-      word,
-    });
+    throw scopedUnknownCommand({ after, front, spec, word });
   }
   if (command.kind === "passthrough") {
     // `nipa --help os` shows nipa's page. `nipa os --help` goes to openstack.
@@ -422,7 +445,11 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   // version, whatever else is on the line, before the command's own
   // argument checks, a client or a request.
   if (asksForVersion(after)) {
-    return print(input.version);
+    return print(
+      asksForJson(after)
+        ? JSON.stringify({ version: input.version })
+        : input.version
+    );
   }
   const prepared = resolved.leaf.prepare({
     path: resolved.path,

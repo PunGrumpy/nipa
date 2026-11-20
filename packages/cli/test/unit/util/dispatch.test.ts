@@ -572,6 +572,29 @@ describe("help and version, on the real table", () => {
       expect(lastGlobals).toBeNull();
     }
   );
+  test.each([
+    [["--version", "--json"]],
+    [["--json", "-v"]],
+    [["whoami", "--json", "--version"]],
+    [["server", "ls", "-v", "--json"]],
+  ])("the version with --json prints it as JSON: %j", async (argv) => {
+    const printed = await text(argv);
+    expect(JSON.parse(printed)).toEqual({ version: "9.9.9" });
+    expect(printed).not.toContain("\n");
+    expect(lastGlobals).toBeNull();
+  });
+  test("a --version --json that help follows is not the JSON version", async () => {
+    expect(await usage(["--version", "--json", "--help"])).toMatchObject({
+      code: 2,
+      message: 'unknown option "--json"',
+    });
+  });
+  test("a passthrough command hands --json to its program, after the version", async () => {
+    expect(await go(["-v", "os", "--json"])).toMatchObject({
+      kind: "print",
+      text: "9.9.9",
+    });
+  });
   test("a -v after -- is a word of the command, not the version", async () => {
     expect(
       await usage(["server", "stop", "web", "--", "-v"], realProgram)

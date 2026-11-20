@@ -4,6 +4,7 @@ import { defineCommand } from "../../../src/util/command";
 import {
   asksForHelp,
   asksForVersion,
+  asksOnlyForJsonVersion,
   parseLeaf,
   takeGlobals,
 } from "../../../src/util/parse";
@@ -58,6 +59,25 @@ const failure = (run: () => void): CliError => {
   }
   throw new Error("no error");
 };
+
+describe("asksOnlyForJsonVersion", () => {
+  test.each([[["--version", "--json"]], [["--json", "-v"]]])(
+    "%j asks only for the version as JSON",
+    (words) => {
+      expect(asksOnlyForJsonVersion(words)).toBe(true);
+    }
+  );
+
+  test.each([
+    [["--version"]],
+    [["--json"]],
+    [[]],
+    [["--version", "--json", "server"]],
+    [["--json", "--help", "-v"]],
+  ])("%j does not", (words) => {
+    expect(asksOnlyForJsonVersion(words)).toBe(false);
+  });
+});
 
 describe("an unknown option", () => {
   const spec = defineCommand({
