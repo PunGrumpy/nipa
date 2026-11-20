@@ -1,5 +1,5 @@
 import type { Quota } from "./quota";
-import { gigabytes, plural, red, yellow } from "./ui";
+import { gigabytes, oneLine, plural, red, yellow } from "./ui";
 import type { Paint } from "./ui";
 
 interface GroupLabels {
@@ -233,8 +233,8 @@ export const summarize = (quotas: readonly Quota[]): string | null => {
  */
 export const pipeLine = (quota: Quota): string =>
   [
-    `${quota.group}/${quota.name}`,
+    oneLine(`${quota.group}/${quota.name}`),
     quota.used,
     quota.limit ?? "unlimited",
-    quota.unit ?? "-",
+    oneLine(quota.unit ?? "-"),
   ].join("\t");
