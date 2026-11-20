@@ -6,6 +6,8 @@ This page shows how to let an AI assistant that you already use, such as Claude 
 
 You add `nipa mcp` to the assistant once. The assistant starts it when it needs it. The command runs a [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server on stdin and stdout, which is how these assistants talk to a local tool.
 
+An assistant that needs a command's options can run `nipa <command> --help --json`, such as `nipa server stop --help --json`, which prints them as JSON. `nipa help --all --json` prints every command.
+
 ## Before you start
 
 You need nipa installed and a session, because the assistant can't log in for you:

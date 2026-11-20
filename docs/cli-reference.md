@@ -93,6 +93,36 @@ nipa picks the project in this order: `--project`, then the folder's link, then 
 
 nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`. `--project` beats the link.
 
+## Help as JSON
+
+A script or an AI assistant can read help as one JSON document, indented by 2, on stdout. It comes from the same data as the help pages, so the two list the same options in the same order:
+
+```sh
+nipa server stop --help --json
+nipa help server stop --json
+nipa --help --json
+nipa help --all --json
+```
+
+`nipa <command> --help --json` and `nipa help <command> --json` print one command. `nipa --help --json` and `nipa help --json` print the main page, and `nipa help --all --json` prints every command and subcommand. `--json` works before or after `--help`. Without `--help`, `--json` before a command is still an unknown option. After `os`, `tf` and `exec`, `--json` belongs to their program.
+
+A command's document has these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `path` | The words that name it, such as `["nipa", "server", "stop"]` |
+| `usage` | The usage line, such as `nipa server stop <server> [options]` |
+| `summary`, `description` | The one-line summary, and the longer paragraph when there is one |
+| `aliases` | Other names it answers to |
+| `kind` | `command`, `group` or `passthrough` |
+| `default` | A group's subcommand that runs when you give only the group's name |
+| `subcommands` | A group's subcommands, each with `name` and `summary`, else `[]` |
+| `arguments` | Each argument's `name`, `required`, `variadic` and, for a fixed set of values, `choices` |
+| `options` | Each option's `name` (without the dashes), `short`, `type` (`boolean` or `string`), `valueHint`, `choices` and `description` |
+| `examples` | Each example's `command` and `description` |
+
+The main page's document has `path`, `usage`, `summary`, `version`, `subcommands` for every listed command, `globalOptions` and `examples`. The document of `help --all` has `version`, `globalOptions` and `commands`, which holds one document per command and, after each group, one per subcommand. nipa may add fields. It doesn't rename or remove them.
+
 ## Other environment variables
 
 These variables change where nipa keeps files and when it checks for updates. The npm package also follows Node.js's own variables for its compiled-code cache:

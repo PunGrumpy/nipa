@@ -181,6 +181,7 @@ Treat these as contracts. Change them only with a migration, tests, and a change
 - Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), the variables an AI coding agent sets, such as `CLAUDECODE` (no prompts), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
 - The files in the config directory and their JSON shape
 - `--json` field names and meanings. Add fields freely, but don't rename or remove them
+- The help document's field names under `--help --json`. Add fields freely, but don't rename or remove them
 - The error document under `--json`: one line on stderr with `status`, `reason`, `message`, and `hint` and `next` when they apply, an empty stdout, and the `reason` codes. Add codes and fields freely, but don't rename or remove them
 - The bare values that piped stdout prints, and a tab-separated table's header and column order
 - The completion scripts that `nipa completion <shell>` prints
@@ -203,5 +204,6 @@ The help pages come from the specs in each `command.ts`:
 - Titles are Title Case with a colon, and bold magenta on a terminal. An example is its description, then its command two columns further in with no `$`, cyan on a terminal. A page has no "run --help" trailer
 - Put the summary directly under the usage line, and the description paragraph after it
 - A suggestion in an error for a help request, `nipa help logot` or `nipa logot --help`, is to read help: ``Did you mean `nipa help logout`?``. A command the person asked about but did not ask to run is never one they can paste and run
-- `nipa help` skips the options before the first name, known or not, so `help --json server` and `help --bogus server` name the server page. A word after an unknown option is read as a name. Options after the names end the path, and a `--` ends the options
+- `nipa help` skips the options before the first name, known or not, so `help -y server` and `help --bogus server` name the server page. `--json` is the exception, see below. A word after an unknown option is read as a name. Options after the names end the path, and a `--` ends the options
+- `--help --json` prints a command's help as one JSON document, indented by 2, from the same specs as the human page: `nipa server stop --help --json`, `nipa help server stop --json`, and `nipa --help --json` for the main page, with `--json` before or after `--help`. `nipa help --all --json` prints every command and subcommand. `commandHelpDocument`, `mainHelpDocument` and `allHelpDocument` in `src/util/help.ts` build them, reusing the rows' flags and order, so the page and the document can't disagree. `--json` before a command is still an unknown option unless the line also asks for help. Words after a passthrough command belong to its program
 - Extra words after a command with no subcommands, or after a subcommand, are not names: `help whoami nope` and `help server ls nope` print the page and exit 0, as `whoami nope --help` does
