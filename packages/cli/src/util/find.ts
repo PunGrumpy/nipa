@@ -152,6 +152,13 @@ const copyable = (word: string): boolean =>
   word !== "" && !word.startsWith("-") && !/[\n\r`]/u.test(word);
 
 /**
+ * The word for a resource in a command nipa prints: what the person typed,
+ * quoted for a shell, or the ID when that text can't sit in a hint.
+ */
+export const refWord = (typed: string, id: string): string =>
+  copyable(typed) ? shellQuote(typed) : id;
+
+/**
  * The error for a `ref` that names no item of `kind`. `names` are the names
  * of the items in the project: a close one is suggested, in the hint and in
  * `data.suggestion`, never in `next`, because a script must not run a guess.

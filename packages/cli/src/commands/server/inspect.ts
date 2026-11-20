@@ -5,7 +5,7 @@ import {
   listServerActions,
 } from "../../util/compute";
 import type { Server, ServerAction, ServerState } from "../../util/compute";
-import { findServer } from "../../util/find";
+import { findServer, refWord } from "../../util/find";
 import { statusCell } from "../../util/status";
 import {
   bold,
@@ -167,7 +167,7 @@ export const inspect = handle(
       // The reference the person typed, so an ID stays an ID when the name
       // is ambiguous.
       log(
-        `Run \`nipa server history ${args.server}\` to see what failed, and \`nipa server logs ${args.server}\` for its console log.`
+        `Run \`nipa server history ${refWord(args.server, server.id)}\` to see what failed, and \`nipa server logs ${refWord(args.server, server.id)}\` for its console log.`
       );
     }
     if (!client.stdout.isTTY) {

@@ -9,9 +9,10 @@ import {
   VOLUMES,
   findResource,
   findServer,
+  refWord,
 } from "../../../src/util/find";
 import type { Findable } from "../../../src/util/find";
-import { setRunScope } from "../../../src/util/scope";
+import { setRunScope, shellQuote } from "../../../src/util/scope";
 import { CliError } from "../../../src/util/ui";
 import { fakeSpace } from "../../helpers";
 
@@ -78,6 +79,24 @@ const ambiguity = async (given: ReturnType<typeof spaceOf>) => {
   }
   throw new Error("expected an ambiguity error");
 };
+
+describe("refWord", () => {
+  test("keeps a plain name bare and quotes a name with a space", () => {
+    expect(refWord("web-1", "id-1")).toBe("web-1");
+    expect(refWord("web 1", "id-1")).toBe("'web 1'");
+  });
+
+  test("quotes a name with an apostrophe for the shell", () => {
+    expect(refWord("it's", "id-1")).toBe(shellQuote("it's"));
+  });
+
+  test.each(["a`b", "a\nb", "", "-x"])(
+    "uses the ID when %j can't sit in a hint",
+    (name) => {
+      expect(refWord(name, "id-1")).toBe("id-1");
+    }
+  );
+});
 
 describe("findServer", () => {
   test("by name, or by ID when two share a name", async () => {
