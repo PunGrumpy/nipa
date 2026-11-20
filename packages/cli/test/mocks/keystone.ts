@@ -83,6 +83,7 @@ export interface FakeKeystone {
   aborted: string[];
   /** Space API routes to fail, as "GET /api/v4/instances/{id}" to a status. */
   faults: Faults;
+  setRevokeFailure: (fails: boolean) => void;
   stop: () => void;
 }
 
@@ -180,6 +181,7 @@ export const startFakeKeystone = (
   const aborted: string[] = [];
   const statuses = fakeStatuses();
   const faults: Faults = new Map();
+  let revokeFails = false;
 
   const issue = (
     user: typeof FAKE_USER,
@@ -259,6 +261,9 @@ export const startFakeKeystone = (
 
   const authTokens = async (req: Request): Promise<Response> => {
     if (req.method === "DELETE") {
+      if (revokeFails) {
+        return new Response(null, { status: 500 });
+      }
       const subject = req.headers.get("X-Subject-Token") ?? "";
       return tokens.delete(subject)
         ? new Response(null, { status: 204 })
@@ -403,6 +408,9 @@ export const startFakeKeystone = (
     faults,
     peakInFlight: () => peak,
     requests,
+    setRevokeFailure: (fails) => {
+      revokeFails = fails;
+    },
     stop: () => {
       stopped.abort();
       server.stop(true);
