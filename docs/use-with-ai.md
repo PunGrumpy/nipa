@@ -101,7 +101,7 @@ Every tool reads. Nothing the assistant can call starts, stops, restarts, create
 
 The assistant can't log in, switch your project, run `openstack` or `terraform`, or read your password or token. nipa never puts them in a tool's answer.
 
-To act on what the assistant finds, such as starting a stopped server, you run the command yourself, for example `nipa server start web-1`.
+To act on what the assistant finds, such as starting a stopped server, you run the command yourself, for example `nipa server start web-1`. When an assistant runs nipa in a shell instead, nipa never prompts: it detects the assistant from the variables its harness sets, such as `CLAUDECODE`, and a command that needs an answer fails and names the flag to pass.
 
 ## What the assistant sees
 

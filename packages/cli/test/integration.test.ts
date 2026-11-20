@@ -1481,6 +1481,18 @@ describe("with a session", () => {
     expect(stderr).toContain("Alpha, Beta");
   });
 
+  test("switch without a project fails for an agent on a terminal and never asks", async () => {
+    const { code, stderr } = await runOnTerminals({
+      args: ["switch"],
+      env: { ...testEnv(dir), CLAUDECODE: "1" },
+      terminals: ["stdin", "stderr"],
+    });
+    expect(code).toBe(2);
+    expect(stderr).toContain("tell nipa which project to use");
+    expect(stderr).toContain("Run `nipa switch <project>`");
+    expect(stderr).not.toContain("Switch to:");
+  });
+
   test("files are private", async () => {
     const info = await stat(path.join(dir, "auth.json"));
     expect(info.mode.toString(8).slice(-3)).toBe("600");

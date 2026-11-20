@@ -85,7 +85,7 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | `-p, --project <project>` |  | Uses this project, by name or ID, for this run only, and beats a folder's link. `login` is the one command that saves it: there it names the project to scope the token to and save, instead of the last one. A name costs one request to list your projects, and a 32-character ID costs none. It fails when no project has the name or ID, and when two have the name, with their IDs. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up. `completion`, `whoami`, `doctor`, `project`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so they exit with code 2 and `--project doesn't apply to nipa switch` instead of ignoring it. `switch` and `link` take the project as an argument |
 | `-d, --debug` | `NIPA_DEBUG=1` | Logs each HTTP request: method, URL, status and time. Never headers or bodies |
 | `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on for the messages nipa writes to a pipe, but help stays plain in a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
-| `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
+| `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json`, a `CI` value and the variables an AI coding agent sets do the same |
 | `-h, --help` |  | Prints help. It wins over `--version` when both are on the line |
 | `-v, --version` |  | Prints only the version, after a command too and before the command checks its other arguments: `nipa server stop web -y -v` and `nipa server stop -v` print the version and stop nothing. After `os`, `tf` and `exec`, `-v` belongs to their program |
 
@@ -105,6 +105,7 @@ These variables change where nipa keeps files and when it checks for updates. Th
 | `NIPA_NO_UPDATE_CHECK` | Turns off the update check when set to any value |
 | `NO_UPDATE_NOTIFIER` | Turns off the update check when set to any value |
 | `CI` | Turns off prompts, spinners and the update check when set to any value |
+| `CLAUDECODE`, `CURSOR_AGENT`, `AI_AGENT` and the other variables an AI coding agent sets for the commands it runs | Turn off prompts, spinners and the update check, as `CI` does, so a command that needs an answer fails and names the flag to pass. To get a prompt anyway, unset the variable for one run: `env -u CLAUDECODE nipa login` |
 | `NODE_COMPILE_CACHE` | The npm package keeps the code Node.js compiled for it in this directory. The default is `node-compile-cache` in the temporary directory. The nipa binary has no such cache |
 | `NODE_DISABLE_COMPILE_CACHE` | Turns that cache off when set to any value |
 

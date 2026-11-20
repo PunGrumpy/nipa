@@ -73,7 +73,7 @@ Read-only commands skip steps 4 to 6 and print their result.
 
 Prompt only when all of these hold:
 
-- `client.prompts.interactive` is true. It is false when any of these holds: `--non-interactive`, `--json` before `--` in the leaf's words (passthrough commands excluded), a nonempty `CI`, or a stdin or stderr that isn't a terminal. `src/util/ui.ts` resolves it once per run in `createPrompts`
+- `client.prompts.interactive` is true. It is false when any of these holds: `--non-interactive`, `--json` before `--` in the leaf's words (passthrough commands excluded), a nonempty `CI`, a variable an AI coding agent sets, such as `CLAUDECODE` (`src/util/agent.ts` has the list), or a stdin or stderr that isn't a terminal. `src/util/ui.ts` resolves it once per run in `createPrompts`
 - nipa can't infer the value
 - no argument or flag supplied it
 
@@ -177,7 +177,7 @@ Treat these as contracts. Change them only with a migration, tests, and a change
 
 - Command names, aliases, flags and their short forms. The global flags are `--profile`, `--project`, `--debug`, `--no-color`, `--non-interactive`, `--help` and `--version`
 - Exit codes: 0 for success, 1 for a failure, 2 for a wrong command line, 127 when `os`, `tf` or `exec` can't find the program, 130 for Ctrl-C or a declined confirmation, and the child's code for passthrough commands
-- Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
+- Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), the variables an AI coding agent sets, such as `CLAUDECODE` (no prompts), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
 - The files in the config directory and their JSON shape
 - `--json` field names and meanings. Add fields freely, but don't rename or remove them
 - The error document under `--json`: one line on stderr with `status`, `reason`, `message`, and `hint` and `next` when they apply, an empty stdout, and the `reason` codes. Add codes and fields freely, but don't rename or remove them

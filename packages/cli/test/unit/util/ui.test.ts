@@ -329,6 +329,8 @@ describe("when nipa can prompt", () => {
     ["--json", { json: true }, false],
     ["CI is set", { env: { CI: "1" } }, false],
     ["CI is empty", { env: { CI: "" } }, true],
+    ["an AI agent's variable is set", { env: { CURSOR_AGENT: "1" } }, false],
+    ["an AI agent's variable is empty", { env: { CURSOR_AGENT: "" } }, true],
     ["NO_COLOR is set", { env: { NO_COLOR: "1" } }, true],
   ])("%s", (_name, over, expected) => {
     expect(canPrompt(over)).toBe(expected);
