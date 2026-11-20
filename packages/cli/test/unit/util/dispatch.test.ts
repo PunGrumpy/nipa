@@ -831,8 +831,12 @@ describe("help and version, on the real table", () => {
       "Usage: nipa server [ls|search|inspect|history|logs|start|stop|restart]"
     );
     expect(server).toContain("stop <server> [options]");
-    expect(server).toContain("-n, --tail <n>");
-    expect(server).toContain("--timeout <duration>");
+    expect(server).not.toContain("--tail <n>");
+    expect(server).not.toContain("--timeout <duration>");
+    const stop = await text(["help", "server", "stop"]);
+    expect(stop).toContain("--timeout <duration>");
+    const logs = await text(["help", "server", "logs"]);
+    expect(logs).toContain("-n, --tail <n>");
     expect(await text(["server", "--help"])).toBe(server);
     expect(await text(["help", "servers"])).toBe(server);
     const rm = await text(["profile", "rm", "--help"]);

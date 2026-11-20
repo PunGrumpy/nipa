@@ -190,24 +190,60 @@ describe("a command page", () => {
     }
   });
 
-  test("a group lists each subcommand's flag once, sorted by long name", () => {
+  test("a group lists only the options its default subcommand accepts", () => {
     const server = plain(commandHelp([commandNamed("server")]));
     const options = server.slice(
       server.indexOf("  Options:"),
       server.indexOf("Global Options:")
     );
-    const longs = [
-      ...options.matchAll(/^ {4}(?:-\w, | {4})--(?<long>[a-z-]+)/gmu),
-    ].map((m) => m.groups?.long);
-    expect(longs).toEqual(["json", "no-wait", "tail", "timeout", "yes"]);
+    expect(options).toContain("--json");
+    for (const flag of ["--timeout", "--tail", "--no-wait", "--yes"]) {
+      expect(options).not.toContain(flag);
+    }
+  });
+
+  test("every group's page lists only options its default subcommand has", () => {
+    const groups = [...visibleCommands(spec), ...spec.hidden].filter(
+      (command) => command.kind === "group"
+    );
+    expect(groups.length).toBeGreaterThan(1);
+    for (const group of groups) {
+      if (group.kind !== "group") {
+        continue;
+      }
+      const fallback = group.subcommands.find(
+        (sub) => sub.name === group.default
+      );
+      expect(fallback).toBeDefined();
+      const page = plain(commandHelp([group]));
+      const start = page.indexOf("  Options:");
+      const options =
+        start === -1 ? "" : page.slice(start, page.indexOf("Global Options:"));
+      const longs = [
+        ...options.matchAll(/^ {4}(?:-\w, | {4})--(?<long>[a-z-]+)/gmu),
+      ].map((m) => m.groups?.long);
+      const accepted = fallback?.flags.map((flag) => flag.long) ?? [];
+      for (const long of longs) {
+        expect(accepted).toContain(long ?? "");
+      }
+    }
+  });
+
+  test("a subcommand's page lists its own options", () => {
+    const page = PAGES.find(([name]) => name === "nipa server stop")?.[1];
+    expect(page).toContain("--timeout <duration>");
+    expect(page).toContain("--no-wait");
+    expect(page).toContain("--yes");
   });
 
   test("a wrapped description sits two columns in from its label's text", () => {
-    const server = plain(commandHelp([commandNamed("server")])).split("\n");
-    const at = server.indexOf("        --no-wait");
+    const stop = (
+      PAGES.find(([name]) => name === "nipa server stop")?.[1] ?? ""
+    ).split("\n");
+    const at = stop.indexOf("        --no-wait");
     expect(at).toBeGreaterThan(0);
     // The label's text starts at column 8, so the description starts at 10.
-    expect(server[at + 1]).toMatch(/^ {10}\S/u);
+    expect(stop[at + 1]).toMatch(/^ {10}\S/u);
   });
 
   test.each(PAGES)(
