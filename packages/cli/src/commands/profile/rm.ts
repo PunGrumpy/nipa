@@ -9,7 +9,14 @@ import {
   loadSession,
   saveConfig,
 } from "../../util/store";
-import { bold, CliError, log, success, usageError } from "../../util/ui";
+import {
+  bold,
+  canceled,
+  CliError,
+  log,
+  success,
+  usageError,
+} from "../../util/ui";
 import { rmSubcommand } from "./command";
 
 // The parser already rejected a missing <name>: `args.name` is a string.
@@ -37,7 +44,7 @@ export const rm = handle(rmSubcommand, async ({ args, client, flags }) => {
       message: `Remove profile ${name} and log out of it?`,
     });
     if (!sure) {
-      throw new CliError("Canceled", { exitCode: 130 });
+      throw canceled();
     }
   }
   const session = await loadSession(name);

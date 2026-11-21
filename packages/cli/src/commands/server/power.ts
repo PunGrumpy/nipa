@@ -7,6 +7,7 @@ import { findServer } from "../../util/find";
 import { statusLabel } from "../../util/status";
 import {
   bold,
+  canceled,
   CliError,
   log,
   note,
@@ -89,7 +90,7 @@ const confirm = async (input: {
     message: `${verb} server ${nameCell(server).text} in ${input.projectName}?`,
   });
   if (!sure) {
-    throw new CliError("Canceled", { exitCode: 130 });
+    throw canceled();
   }
 };
 

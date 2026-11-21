@@ -29,6 +29,7 @@ export type Reason =
   | "api_error"
   | "invalid_config"
   | "internal_error"
+  | "canceled"
   | "failed";
 
 const DEBUG_HINT = "Run it again with --debug to see each request.";

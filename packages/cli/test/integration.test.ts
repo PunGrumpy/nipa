@@ -647,6 +647,8 @@ describe("what a terminal changes", () => {
         ["--no-color", ...args]
       );
       expect(stderr).toContain(message);
+      expect(stderr).toContain("Canceled.");
+      expect(stderr).not.toContain("Error:");
       // The prompt still moves the cursor, which is not color.
       expect(colorCodes(stderr)).toEqual([]);
       expect(code).toBe(130);

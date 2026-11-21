@@ -57,6 +57,10 @@ export class CliError extends Error {
   }
 }
 
+/** The person said no or pressed Ctrl-C. Exit code 130, and no error to read. */
+export const canceled = (): CliError =>
+  new CliError("Canceled", { exitCode: 130, reason: "canceled" });
+
 /** Exit code 2: the command line was wrong. The hint says how to write it. */
 export const usageError = (
   message: string,
@@ -289,6 +293,10 @@ export const note = (message: string): void => {
 };
 
 export const printError = (error: CliError): void => {
+  if (error.reason === "canceled") {
+    writeStderr("Canceled.");
+    return;
+  }
   writeStderr(`${bold(red("Error:"))} ${error.message}`);
   if (error.hint) {
     writeStderr(`${dim(">")} ${inRun(error.hint)}`);
@@ -346,7 +354,7 @@ const prompt = async <T>(ask: () => Promise<T>): Promise<T> => {
     return await ask();
   } catch (error) {
     if (error instanceof Error && error.name === "ExitPromptError") {
-      throw new CliError("Canceled", { exitCode: 130 });
+      throw canceled();
     }
     throw error;
   }
