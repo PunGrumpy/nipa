@@ -8,12 +8,30 @@ import type { GlobalValues } from "./arg-common";
 import type { Client } from "./client";
 import { programSpec } from "./command";
 import type { Command, Group, Leaf, Program } from "./command";
-import { commandHelp, commandLine, mainHelp, usageLine } from "./help";
-import { asksForHelp, asksForJson, asksForVersion, takeGlobals } from "./parse";
+import {
+  allHelpDocument,
+  commandHelp,
+  commandHelpDocument,
+  commandLine,
+  mainHelp,
+  mainHelpDocument,
+  usageLine,
+} from "./help";
+import type { AllHelpDocument, HelpDocument, MainHelpDocument } from "./help";
+import {
+  asksForHelp,
+  asksForJson,
+  asksForVersion,
+  asksOnlyForJsonVersion,
+  leadingOptions,
+  takeGlobals,
+  withoutFrontJsonHelp,
+} from "./parse";
 import { profileAmong, projectAmong, setRunScope } from "./scope";
 import type { RunScope } from "./scope";
 import { namesOf, profileUseOf, projectUseOf } from "./spec";
 import type { CommandPath, ProgramSpec } from "./spec";
+import { closestBy } from "./suggest";
 import { CliError, setJsonMode, usageError } from "./ui";
 
 /** What a run ended with. src/index.ts prints, sets the exit code and shows the update notice. */
@@ -80,6 +98,35 @@ const scopeOf = (input: {
 
 const print = (text: string): Outcome => ({ kind: "print", text });
 
+const page = (
+  value: AllHelpDocument | HelpDocument | MainHelpDocument
+): Outcome => print(JSON.stringify(value, null, 2));
+
+/**
+ * A help page, as text or, when `json` is set, as the document built from the
+ * same specs. No path is the main page, or with `all` every command's.
+ */
+const helpPage = (input: {
+  all?: boolean;
+  json: boolean;
+  path?: CommandPath;
+  program: ProgramSpec;
+  version: string;
+}): Outcome => {
+  const { all, json, path, program, version } = input;
+  if (path) {
+    return json ? page(commandHelpDocument(path)) : print(commandHelp(path));
+  }
+  if (!json) {
+    return print(mainHelp({ program, version }));
+  }
+  return page(
+    all
+      ? allHelpDocument({ program, version })
+      : mainHelpDocument({ program, version })
+  );
+};
+
 const ran = (input: {
   client: Client;
   exitCode: number;
@@ -106,13 +153,33 @@ const orList = (words: readonly string[]): string => {
   return rest.length === 0 ? last : `${rest.join(", ")} or ${last}`;
 };
 
-/** Derived from the spec, so it matches today's "Use ls." and "Use ls, add, use or rm." */
-const unknownSubcommand = (group: Group, word: string): CliError =>
-  usageError(
-    `unknown subcommand "${group.spec.name} ${word}"`,
-    `Use ${orList(group.spec.subcommands.map((sub) => sub.name))}.`,
-    "unknown_command"
-  );
+/**
+ * The hint lists every subcommand, unless one is close to the word: then it
+ * suggests that one. A person who asked for help is told to read its help.
+ */
+const unknownSubcommand = (input: {
+  group: Group;
+  help: boolean;
+  word: string;
+}): CliError => {
+  const { group, word } = input;
+  const message = `unknown subcommand "${group.spec.name} ${word}"`;
+  const near = closestBy(word, group.spec.subcommands, namesOf);
+  if (!near) {
+    return usageError(
+      message,
+      `Use ${orList(group.spec.subcommands.map((sub) => sub.name))}.`,
+      "unknown_command"
+    );
+  }
+  const line = `nipa ${input.help ? "help " : ""}${group.spec.name} ${near.name}`;
+  return new CliError(message, {
+    data: { suggestion: line },
+    exitCode: 2,
+    hint: `Did you mean \`${line}\`?`,
+    reason: "unknown_command",
+  });
+};
 
 /**
  * Finds a group's subcommand: the first word after the group's name that
@@ -144,21 +211,30 @@ const pickSubcommand = (group: Group, words: readonly string[]): Resolved => {
   };
 };
 
-const editDistance = (a: string, b: string): number => {
-  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i += 1) {
-    const current = [i];
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      current[j] = Math.min(
-        (previous[j] ?? 0) + 1,
-        (current[j - 1] ?? 0) + 1,
-        (previous[j - 1] ?? 0) + cost
-      );
-    }
-    previous = current;
+/**
+ * The command a mistyped word most likely means, by name or alias, as its
+ * name. When no command is close, the one group with a subcommand of exactly
+ * that name or alias: `logs` is `server logs`. A subcommand several groups
+ * share, such as `inspect`, names none of them.
+ */
+const suggestCommand = (
+  program: ProgramSpec,
+  word: string
+): string | undefined => {
+  const commands = program.sections.flatMap((s) => s.commands);
+  const near = closestBy(word, commands, namesOf);
+  if (near) {
+    return near.name;
   }
-  return previous[b.length] ?? 0;
+  const owners = commands.flatMap((command) =>
+    command.kind === "group"
+      ? command.subcommands
+          .filter((sub) => namesOf(sub).includes(word))
+          .map((sub) => `${command.name} ${sub.name}`)
+      : []
+  );
+  const [only] = owners;
+  return owners.length === 1 ? only : undefined;
 };
 
 /**
@@ -172,19 +248,15 @@ const unknownCommand = (input: {
   program: ProgramSpec;
   word: string;
 }): CliError => {
-  const [closest] = input.program.sections
-    .flatMap((s) => s.commands)
-    .map((c) => ({ name: c.name, score: editDistance(input.word, c.name) }))
-    .toSorted((a, b) => a.score - b.score);
-  const verb = input.help ? "help " : "";
-  const hint =
-    // A short word is near every short command, so `5` or `-v` suggests nothing.
-    closest && closest.score <= Math.min(2, Math.floor(input.word.length / 2))
-      ? `Did you mean \`nipa ${verb}${closest.name}\`?`
-      : "Run `nipa --help` to see the commands.";
+  const near = suggestCommand(input.program, input.word);
+  const line = near && `nipa ${input.help ? "help " : ""}${near}`;
   return new CliError(`unknown command "${input.word}"`, {
+    data: line === undefined ? undefined : { suggestion: line },
     exitCode: 2,
-    hint,
+    hint:
+      line === undefined
+        ? "Run `nipa --help` to see the commands."
+        : `Did you mean \`${line}\`?`,
     reason: "unknown_command",
   });
 };
@@ -271,7 +343,7 @@ const helpPath = (input: {
   }
   const leaf = command.subcommands.get(second);
   if (!leaf) {
-    throw unknownSubcommand(command, second);
+    throw unknownSubcommand({ group: command, help: true, word: second });
   }
   return [command.spec, leaf.spec];
 };
@@ -297,6 +369,34 @@ const printsFrontVersion = ({
 };
 
 /**
+ * The error for a word that names no command. The profile and project typed
+ * after it still scope the error, so it reads like the line the user typed.
+ */
+const scopedUnknownCommand = (input: {
+  after: readonly string[];
+  front: ReturnType<typeof takeGlobals>;
+  spec: ProgramSpec;
+  word: string;
+}): CliError => {
+  const { after, front, spec, word } = input;
+  setRunScope(
+    scopeOf({
+      globals: {
+        ...front.globals,
+        profile: front.globals.profile ?? profileAmong(after),
+        project: front.globals.project ?? projectAmong(after),
+      },
+      program: spec,
+    })
+  );
+  return unknownCommand({
+    help: front.globals.help === true || asksForHelp(after),
+    program: spec,
+    word,
+  });
+};
+
+/**
  * Runs the command argv names. Throws CliError for usage errors, which
  * src/index.ts prints with exit code 2, and lets handler errors through.
  * Sets the JSON mode of ui.ts, which src/index.ts reads to print a failure.
@@ -310,9 +410,17 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   // Before anything can fail, so a failure to read the line has a mode too.
   setJsonMode(asksForJson(input.argv));
   setRunScope(undefined);
+  if (asksOnlyForJsonVersion(input.argv)) {
+    return print(JSON.stringify({ version: input.version }));
+  }
   const spec = programSpec(input.program);
   const table = indexCommands(input.program);
-  const front = takeGlobals({ unknown: "reject", words: input.argv });
+  const withoutJson = withoutFrontJsonHelp(input.argv);
+  const frontJson = withoutJson !== undefined;
+  const front = takeGlobals({
+    unknown: "reject",
+    words: withoutJson ?? input.argv,
+  });
   setRunScope(scopeOf({ globals: front.globals, program: spec }));
   // Help wins over the version, so `nipa --version --help` shows the page.
   if (printsFrontVersion({ front, table })) {
@@ -320,7 +428,7 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   }
   const [word, ...after] = front.rest;
   if (word === undefined) {
-    return print(mainHelp({ program: spec, version: input.version }));
+    return helpPage({ json: frontJson, program: spec, version: input.version });
   }
   if (word === "help") {
     const path = helpPath({
@@ -329,34 +437,27 @@ export const run = async (input: RunInput): Promise<Outcome> => {
       table,
       words: after,
     });
-    return print(
-      path
-        ? commandHelp(path)
-        : mainHelp({ program: spec, version: input.version })
-    );
+    return helpPage({
+      all: leadingOptions(after).includes("--all"),
+      json: frontJson || asksForJson(after),
+      path,
+      program: spec,
+      version: input.version,
+    });
   }
   const command = table.get(word);
   if (!command) {
-    setRunScope(
-      scopeOf({
-        globals: {
-          ...front.globals,
-          profile: front.globals.profile ?? profileAmong(after),
-          project: front.globals.project ?? projectAmong(after),
-        },
-        program: spec,
-      })
-    );
-    throw unknownCommand({
-      help: front.globals.help === true || asksForHelp(after),
-      program: spec,
-      word,
-    });
+    throw scopedUnknownCommand({ after, front, spec, word });
   }
   if (command.kind === "passthrough") {
     // `nipa --help os` shows nipa's page. `nipa os --help` goes to openstack.
     if (front.globals.help) {
-      return print(commandHelp([command.spec]));
+      return helpPage({
+        json: frontJson,
+        path: [command.spec],
+        program: spec,
+        version: input.version,
+      });
     }
     // The words after a passthrough command belong to its program, and so
     // does a `--json` among them.
@@ -382,17 +483,30 @@ export const run = async (input: RunInput): Promise<Outcome> => {
   // A word that names no subcommand fails even with --help: a page for
   // `nipa server nope --help` would be some other command's.
   if (resolved.kind === "unknown") {
-    throw unknownSubcommand(resolved.group, resolved.word);
+    throw unknownSubcommand({
+      group: resolved.group,
+      help: front.globals.help === true || asksForHelp(after),
+      word: resolved.word,
+    });
   }
   // Help wins over any other word after the command and over --version.
   if (front.globals.help || asksForHelp(after)) {
-    return print(commandHelp(resolved.path));
+    return helpPage({
+      json: frontJson || asksForJson(after),
+      path: resolved.path,
+      program: spec,
+      version: input.version,
+    });
   }
   // `nipa whoami --version` and `nipa server stop web extra -v` print the
   // version, whatever else is on the line, before the command's own
   // argument checks, a client or a request.
   if (asksForVersion(after)) {
-    return print(input.version);
+    return print(
+      asksForJson(after)
+        ? JSON.stringify({ version: input.version })
+        : input.version
+    );
   }
   const prepared = resolved.leaf.prepare({
     path: resolved.path,

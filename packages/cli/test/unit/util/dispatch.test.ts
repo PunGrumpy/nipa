@@ -214,6 +214,18 @@ const usage = async (argv: string[], program: Program = spy) => {
   throw new Error(`no error for ${argv.join(" ")}`);
 };
 
+const failureOf = async (argv: string[]): Promise<CliError> => {
+  try {
+    await go(argv, realProgram);
+  } catch (error) {
+    if (error instanceof CliError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error(`no error for ${argv.join(" ")}`);
+};
+
 const reasonOf = async (argv: string[]) => {
   try {
     await go(argv);
@@ -497,7 +509,6 @@ describe("help and version, on the real table", () => {
   test("main help", async () => {
     expect(await text([])).toBe(await text(["--help"]));
     expect(await text(["help"])).toBe(await text(["--help"]));
-    expect(await text(["help", "--json"])).toBe(await text(["--help"]));
   });
   test("help wins over the version at every depth", async () => {
     const main = await text(["--help"]);
@@ -560,6 +571,28 @@ describe("help and version, on the real table", () => {
       expect(lastGlobals).toBeNull();
     }
   );
+  test.each([
+    [["--version", "--json"]],
+    [["--json", "-v"]],
+    [["whoami", "--json", "--version"]],
+    [["server", "ls", "-v", "--json"]],
+  ])("the version with --json prints it as JSON: %j", async (argv) => {
+    const printed = await text(argv);
+    expect(JSON.parse(printed)).toEqual({ version: "9.9.9" });
+    expect(printed).not.toContain("\n");
+    expect(lastGlobals).toBeNull();
+  });
+  test("a --version --json that help follows is the JSON help, not the JSON version", async () => {
+    const printed = JSON.parse(await text(["--version", "--json", "--help"]));
+    expect(printed.path).toEqual(["nipa"]);
+    expect(printed.version).toBe("9.9.9");
+  });
+  test("a passthrough command hands --json to its program, after the version", async () => {
+    expect(await go(["-v", "os", "--json"])).toMatchObject({
+      kind: "print",
+      text: "9.9.9",
+    });
+  });
   test("a -v after -- is a word of the command, not the version", async () => {
     expect(
       await usage(["server", "stop", "web", "--", "-v"], realProgram)
@@ -584,9 +617,68 @@ describe("help and version, on the real table", () => {
   ])("a typo %j suggests %s", async (argv, hint) => {
     expect(await usage(argv, realProgram)).toMatchObject({ code: 2, hint });
   });
+  test.each([
+    // A word near no command, but the name of one group's subcommand.
+    [["logs", "web-1"], "Did you mean `nipa server logs`?", "nipa login"],
+    // A word that is the name of subcommands in several groups names none.
+    [["inspect", "web-1"], "Run `nipa --help` to see the commands.", "Did you"],
+    [["vm", "ls"], "Run `nipa --help` to see the commands.", "Did you"],
+    [["sever", "ls"], "Did you mean `nipa server`?", "Run `nipa --help`"],
+    // An alias counts, and the suggestion is the canonical name.
+    [["machine-type"], "Did you mean `nipa flavor`?", "Run `nipa --help`"],
+    [["machine-typez"], "Did you mean `nipa flavor`?", "Run `nipa --help`"],
+    [["Server"], "Did you mean `nipa server`?", "Run `nipa --help`"],
+  ])("an unknown command %j hints %s", async (argv, hint, gone) => {
+    const failure = await failureOf(argv);
+    expect(failure).toMatchObject({ exitCode: 2, hint });
+    expect(failure.hint).not.toContain(gone);
+    expect(failure.reason).toBe("unknown_command");
+    const suggestion = /`(?<line>nipa [^`]+)`\?$/u.exec(hint)?.groups?.line;
+    expect(failure.data?.suggestion).toBe(
+      hint.startsWith("Did you mean") ? suggestion : undefined
+    );
+  });
+  test.each([
+    [["server", "inpect", "web-1"], "nipa server inspect"],
+    [["servers", "lgos"], "nipa server logs"],
+    [["server", "Ls"], "nipa server ls"],
+    [["server", "restrat"], "nipa server restart"],
+  ])("an unknown subcommand %j suggests %s", async (argv, line) => {
+    const failure = await failureOf(argv);
+    expect(failure).toMatchObject({
+      data: { suggestion: line },
+      exitCode: 2,
+      hint: `Did you mean \`${line}\`?`,
+      reason: "unknown_command",
+    });
+    expect(failure.hint).not.toContain("Use ls");
+  });
+  test("an unknown subcommand near none lists them all", async () => {
+    const failure = await failureOf(["server", "nope"]);
+    expect(failure.hint).toBe(
+      "Use ls, search, inspect, history, logs, start, stop or restart."
+    );
+    expect(failure.data).toBeUndefined();
+  });
+  test.each([
+    [["help", "server", "inpect"], "nipa help server inspect"],
+    [["server", "inpect", "--help"], "nipa help server inspect"],
+    [["--help", "server", "inpect"], "nipa help server inspect"],
+    [["logs", "--help"], "nipa help server logs"],
+    [["help", "logs"], "nipa help server logs"],
+    [["help", "logot"], "nipa help logout"],
+  ])("a help request %j suggests reading help: %s", async (argv, line) => {
+    const failure = await failureOf(argv);
+    expect(failure.hint).toBe(`Did you mean \`${line}\`?`);
+    expect(failure.data?.suggestion).toBe(line);
+  });
   test("a typo in a help request never suggests running a command", async () => {
+    // `nope` is two edits from `open`, too far for a word of four letters.
     expect(await usage(["help", "nope"], realProgram)).toMatchObject({
-      hint: "Did you mean `nipa help open`?",
+      hint: "Run `nipa --help` to see the commands.",
+    });
+    expect(await usage(["help", "logot"], realProgram)).toMatchObject({
+      hint: "Did you mean `nipa help logout`?",
     });
     expect(await usage(["help", "xylophone"], realProgram)).toMatchObject({
       hint: "Run `nipa --help` to see the commands.",
@@ -594,13 +686,15 @@ describe("help and version, on the real table", () => {
     expect(await usage(["xylophone", "--help"], realProgram)).toMatchObject({
       hint: "Run `nipa --help` to see the commands.",
     });
-    // An unknown subcommand lists the names; it suggests no command at all.
+    // A subcommand too reads as help, and an unknown one near none lists the names.
     const sub = await usage(["help", "server", "stap"], realProgram);
-    expect(sub.hint).not.toContain("`");
+    expect(sub.hint).toBe("Did you mean `nipa help server stop`?");
+    const far = await usage(["help", "server", "xylophone"], realProgram);
+    expect(far.hint).not.toContain("`");
   });
   test.each([
     [
-      ["help", "--json", "server"],
+      ["help", "-y", "server"],
       ["help", "server"],
     ],
     [
@@ -624,18 +718,18 @@ describe("help and version, on the real table", () => {
       ["help", "server"],
     ],
     [
-      ["help", "-p", "x", "--json", "server", "ls"],
+      ["help", "-p", "x", "-y", "server", "ls"],
       ["help", "server", "ls"],
     ],
     [
-      ["help", "--json", "--bogus", "-y", "whoami"],
+      ["help", "--bogus", "-y", "whoami"],
       ["help", "whoami"],
     ],
     [
-      ["help", "server", "--json", "ls"],
+      ["help", "server", "-y", "ls"],
       ["help", "server"],
     ],
-    [["help", "--json"], []],
+    [["help", "-y"], []],
     [["help", "--bogus"], []],
     [["help", "--"], []],
   ])(
@@ -646,10 +740,88 @@ describe("help and version, on the real table", () => {
   );
   test.each([
     [["help", "help"]],
-    [["help", "--json", "help"]],
+    [["help", "-y", "help"]],
     [["help", "help", "server"]],
   ])("help has no page of its own: %j is the main page", async (argv) => {
     expect(await text(argv)).toBe(await text([]));
+  });
+  test.each([
+    [
+      ["server", "stop", "--help", "--json"],
+      ["nipa", "server", "stop"],
+    ],
+    [
+      ["help", "server", "stop", "--json"],
+      ["nipa", "server", "stop"],
+    ],
+    [
+      ["server", "--json", "--help"],
+      ["nipa", "server"],
+    ],
+    [
+      ["--help", "--json", "server", "stop"],
+      ["nipa", "server", "stop"],
+    ],
+    [
+      ["--json", "--help", "server", "ls"],
+      ["nipa", "server", "ls"],
+    ],
+    [
+      ["-h", "--json", "whoami"],
+      ["nipa", "whoami"],
+    ],
+    [
+      ["--help", "--json", "os"],
+      ["nipa", "os"],
+    ],
+    [
+      ["help", "--json", "server"],
+      ["nipa", "server"],
+    ],
+    [["--help", "--json"], ["nipa"]],
+    [["--json", "--help"], ["nipa"]],
+    [["-h", "--json"], ["nipa"]],
+    [["help", "--json"], ["nipa"]],
+    [["help", "help", "--json"], ["nipa"]],
+  ])("%j prints the help document of %j as JSON", async (argv, path) => {
+    const printed = await text(argv);
+    expect(printed).toBe(JSON.stringify(JSON.parse(printed), null, 2));
+    expect(JSON.parse(printed).path).toEqual(path);
+  });
+  test("help --all --json prints every command", async () => {
+    const printed = JSON.parse(await text(["help", "--all", "--json"]));
+    expect(printed.version).toBe("9.9.9");
+    expect(printed.commands.length).toBeGreaterThan(30);
+    expect(JSON.parse(await text(["help", "--json", "--all"]))).toEqual(
+      printed
+    );
+  });
+  test("help --all without --json is still the main page", async () => {
+    expect(await text(["help", "--all"])).toBe(await text(["--help"]));
+  });
+  test("the words after a passthrough command are its program's, a --json too", async () => {
+    expect(await go(["os", "--help", "--json"])).toMatchObject({
+      kind: "ran",
+    });
+  });
+  test("human help is unchanged without --json", async () => {
+    const printed = await text(["server", "stop", "--help"]);
+    expect(printed.startsWith("\n")).toBe(true);
+    expect(printed).toContain("Usage: nipa server stop <server> [options]");
+  });
+  test("a --json before the command still fails unless help asks", async () => {
+    const failure = await failureOf(["--json", "server", "ls"]);
+    expect(failure).toMatchObject({
+      exitCode: 2,
+      message: 'unknown option "--json"',
+      reason: "unknown_option",
+    });
+  });
+  test("a typo in a JSON help request is the same error", async () => {
+    expect(await usage(["help", "nope", "--json"], realProgram)).toMatchObject({
+      code: 2,
+      message: 'unknown command "nope"',
+    });
   });
   test("extra words after a leaf are ignored by help, in both forms", async () => {
     expect(await text(["help", "whoami", "nope"])).toBe(
@@ -758,8 +930,12 @@ describe("help and version, on the real table", () => {
       "Usage: nipa server [ls|search|inspect|history|logs|start|stop|restart]"
     );
     expect(server).toContain("stop <server> [options]");
-    expect(server).toContain("-n, --tail <n>");
-    expect(server).toContain("--timeout <duration>");
+    expect(server).not.toContain("--tail <n>");
+    expect(server).not.toContain("--timeout <duration>");
+    const stop = await text(["help", "server", "stop"]);
+    expect(stop).toContain("--timeout <duration>");
+    const logs = await text(["help", "server", "logs"]);
+    expect(logs).toContain("-n, --tail <n>");
     expect(await text(["server", "--help"])).toBe(server);
     expect(await text(["help", "servers"])).toBe(server);
     const rm = await text(["profile", "rm", "--help"]);

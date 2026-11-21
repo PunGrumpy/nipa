@@ -73,7 +73,7 @@ Read-only commands skip steps 4 to 6 and print their result.
 
 Prompt only when all of these hold:
 
-- `client.prompts.interactive` is true. It is false when any of these holds: `--non-interactive`, `--json` before `--` in the leaf's words (passthrough commands excluded), a nonempty `CI`, or a stdin or stderr that isn't a terminal. `src/util/ui.ts` resolves it once per run in `createPrompts`
+- `client.prompts.interactive` is true. It is false when any of these holds: `--non-interactive`, `--json` before `--` in the leaf's words (passthrough commands excluded), a nonempty `CI`, a variable an AI coding agent sets, such as `CLAUDECODE` (`src/util/agent.ts` has the list), or a stdin or stderr that isn't a terminal. `src/util/ui.ts` resolves it once per run in `createPrompts`
 - nipa can't infer the value
 - no argument or flag supplied it
 
@@ -87,7 +87,7 @@ Prompt wording:
 - A destructive confirmation defaults to No, and `--yes` skips it
 - Ask for secrets through `client.prompts.secret`, which masks the input
 
-Ctrl-C inside a prompt throws `CliError("Canceled")` with exit code 130. Declining a destructive confirmation does the same.
+Ctrl-C inside a prompt and declining a destructive confirmation call `canceled()` from `src/util/ui.ts`: it exits 130 and prints `Canceled.` without `Error:`.
 
 ## Lists
 
@@ -113,8 +113,9 @@ Rules:
 
 - The message is a lowercase fragment without a final period. It names the object, quoting values the person typed: `no profile named "staging"`
 - The hint is a full sentence that ends with a period. It names the exact command, flag or file to fix it, in backticks. One exception: a name that matches several items lists up to 5 of them, one per line, with what tells them apart, and then how to get the rest
+- A hint that lists the person's projects or profiles shows at most 5 through `someNames` in `src/util/ui.ts`, then how many more and the command that lists them all
 - Use `usageError(message, hint)` when the command line was wrong. It exits with 2
-- Suggest the closest command when a word is unknown, as the dispatcher does: ``Did you mean `nipa server`?``
+- Suggest the closest command, subcommand, option, resource name or project name when a word is unknown, as the dispatcher does: ``Did you mean `nipa server`?``. Use `closest` in `src/util/suggest.ts`, never a rule of your own: it suggests a candidate only when it is the single best match and it is close (the same word in another case, else 1 edit for a word of 4 letters or fewer, 2 for 5 to 8, 3 for longer, and none by distance for a word of 1 or 2), and a tie suggests nothing. A wrong suggestion costs more than none. A command counts by its name and its aliases and is suggested by its name. A server that isn't found points to `nipa server search <name>` before `nipa server ls`, because the likeliest miss is a server in another project
 - For a server-side or network failure, the hint points to `--debug` or to the Keystone URL
 - Never print a stack trace, a raw response body, or an upstream error object. `src/index.ts` rethrows anything that isn't a known error, so wrap new error types there. Under `--json` it writes an `internal_error` document instead, with the message `Unexpected error in nipa. This is a bug.` and exit 1
 - Give an error a `reason` when a script could act on it. Without one, exit 2 is `invalid_arguments` and anything else is `failed`
@@ -133,10 +134,10 @@ With `--json`, a failure writes nothing to stdout and exactly one single-line JS
 ```
 
 - `status` is `action_required` for exit 2 and for `ambiguous_name`, `login_required` and `token_expired`: a person has to act before the command can run. Everything else is `error`
-- `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `timeout`, `api_error`, `invalid_config`, `internal_error` and `failed`. `timeout` appears today only in `failed[].reason` of `nipa server search --json`; a power wait that runs out still reports `failed`. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
-- `data` holds facts a script needs, and appears only where a throw site sets it. `ambiguous_name` has `data.ids`, every ID the name matches. Read IDs from there, never from `hint`, which shows at most 5
+- `reason` is a stable snake_case code from the `Reason` union in `src/util/errors.ts`: `invalid_arguments`, `unknown_option`, `unknown_command`, `login_required`, `token_expired`, `not_found`, `ambiguous_name`, `network_error`, `timeout`, `api_error`, `invalid_config`, `internal_error`, `canceled` and `failed`. `timeout` appears today only in `failed[].reason` of `nipa server search --json`; a power wait that runs out still reports `failed`. `canceled` appears when a person declines or stops a prompt. A reason is a contract: add one, never rename or reuse it, and never match the `message`, whose wording changes with the copy
+- `data` holds facts a script needs, and appears only where a throw site sets it. `ambiguous_name` has `data.ids`, every ID the name matches. Read IDs from there, never from `hint`, which shows at most 5. A suggestion from guessing has `data.suggestion`, the bare option, name or command line, next to the hint that says `Did you mean`
 - `message` and `hint` are the human error's text. `hint` appears only when the error has one and no `next`, which says the same thing in the profile the run named
-- `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
+- `next` lists recovery commands as `{ command, argv }`, and appears only where a throw site sets `next` on its `CliError`: a missing or expired session, which names `nipa login`, and a name that matches nothing, which names the list command, after `nipa server search <name>` for a server. A guess is never in `next`, because a script must not run it, and a name the person typed goes in as one word of an argv array, not as text to split. Never derive `next` from hint text, because the backticks in a hint also hold `--yes` and config keys, and an agent must not add `--yes` on its own
 - The document is a single line of `JSON.stringify` output written through `writeStderr`, which drops anything a terminal would act on, and it bypasses the styling helpers
 - A suggested command runs in the profile and project the run named, because a bare command would use the saved ones. `src/util/scope.ts` adds `-P` and `-p` after `nipa` in `next` and in every backticked `nipa …` command that a hint, a `note` or a `log` line prints, so a throw site writes the plain command and a new hint needs nothing. In `next`, `argv` gets the names as single words (`["nipa", "-p", "My Project", "server", "ls"]`), and only the printed `command` is shell-quoted. `login` never gets `-p`, because there it saves the project, and neither do the commands that set `usesProject: false`. A command that sets `usesProfile: false` (`profile`) gets neither option. Text that isn't a nipa command, such as `--yes`, is left alone
 - `whoami --json` is the one exception to "a failure writes nothing to stdout": logged out, it prints its `{ "loggedIn": false, "profile": ... }` document to stdout, leaves stderr empty and returns 1, as `doctor --json` does for failing checks
@@ -177,9 +178,10 @@ Treat these as contracts. Change them only with a migration, tests, and a change
 
 - Command names, aliases, flags and their short forms. The global flags are `--profile`, `--project`, `--debug`, `--no-color`, `--non-interactive`, `--help` and `--version`
 - Exit codes: 0 for success, 1 for a failure, 2 for a wrong command line, 127 when `os`, `tf` or `exec` can't find the program, 130 for Ctrl-C or a declined confirmation, and the child's code for passthrough commands
-- Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
+- Environment variables: `NIPA_PROFILE`, `NIPA_DEBUG`, `NIPA_CONFIG_DIR`, `NO_COLOR`, `FORCE_COLOR`, `CI` (no prompts, no update check), the variables an AI coding agent sets, such as `CLAUDECODE` (no prompts), `NIPA_NO_UPDATE_CHECK`, `NO_UPDATE_NOTIFIER`, and the `OS_*` variables that `env`, `os`, `tf` and `exec` set
 - The files in the config directory and their JSON shape
 - `--json` field names and meanings. Add fields freely, but don't rename or remove them
+- The help document's field names under `--help --json`. Add fields freely, but don't rename or remove them
 - The error document under `--json`: one line on stderr with `status`, `reason`, `message`, and `hint` and `next` when they apply, an empty stdout, and the `reason` codes. Add codes and fields freely, but don't rename or remove them
 - The bare values that piped stdout prints, and a tab-separated table's header and column order
 - The completion scripts that `nipa completion <shell>` prints
@@ -194,7 +196,7 @@ The help pages come from the specs in each `command.ts`:
 - A `description` is full sentences. It says what the command does and anything surprising, such as `exec` removing stale `OS_*` variables
 - Examples are real commands that run as written. Prefer a common workflow over a list of every flag
 - `--help` exits 0. A group run without a subcommand runs its `default`
-- `--help` beats `--version` wherever both appear. `--version` after a command prints only the version and exits 0 before the command's own argument checks, a client or a request, even when the line is missing an argument or has an unknown option, except after `os`, `tf` and `exec`, whose words belong to their program
+- `--help` beats `--version` wherever both appear. `--version` after a command prints only the version and exits 0 before the command's own argument checks, a client or a request, even when the line is missing an argument or has an unknown option, except after `os`, `tf` and `exec`, whose words belong to their program. With `--json`, it prints `{ "version": "…" }` on one line
 - A path that names no command or subcommand fails with exit 2 and the usual unknown-command error, whether it comes from `nipa nope --help`, `nipa server nope --help` or `nipa help server nope`. Help never shows another command's page for a typo. `nipa help` alone is the main page
 - Every page fits 80 columns. A table puts a description beside its label when both fit, and wraps it under the label, two columns in from where the label's text starts, when they don't. Never cut a label or a description. A line longer than 80 is a command that can't break, such as an example
 - The main page lists a command by its name and summary, never its subcommands or arguments, so a new subcommand can't widen it. A group's page keeps each subcommand's arguments beside its name
@@ -202,5 +204,6 @@ The help pages come from the specs in each `command.ts`:
 - Titles are Title Case with a colon, and bold magenta on a terminal. An example is its description, then its command two columns further in with no `$`, cyan on a terminal. A page has no "run --help" trailer
 - Put the summary directly under the usage line, and the description paragraph after it
 - A suggestion in an error for a help request, `nipa help logot` or `nipa logot --help`, is to read help: ``Did you mean `nipa help logout`?``. A command the person asked about but did not ask to run is never one they can paste and run
-- `nipa help` skips the options before the first name, known or not, so `help --json server` and `help --bogus server` name the server page. A word after an unknown option is read as a name. Options after the names end the path, and a `--` ends the options
+- `nipa help` skips the options before the first name, known or not, so `help -y server` and `help --bogus server` name the server page. `--json` is the exception, see below. A word after an unknown option is read as a name. Options after the names end the path, and a `--` ends the options
+- `--help --json` prints a command's help as one JSON document, indented by 2, from the same specs as the human page: `nipa server stop --help --json`, `nipa help server stop --json`, and `nipa --help --json` for the main page, with `--json` before or after `--help`. `nipa help --all --json` prints every command and subcommand. `commandHelpDocument`, `mainHelpDocument` and `allHelpDocument` in `src/util/help.ts` build them, reusing the rows' flags and order, so the page and the document can't disagree. `--json` before a command is still an unknown option unless the line also asks for help. Words after a passthrough command belong to its program
 - Extra words after a command with no subcommands, or after a subcommand, are not names: `help whoami nope` and `help server ls nope` print the page and exit 0, as `whoami nope --help` does

@@ -6,7 +6,7 @@
 import { ApiError } from "./api";
 import { isDebug, NetworkError } from "./http";
 import { KeystoneError } from "./keystone";
-import { runScope, scopedText, suggest } from "./scope";
+import { runScope, scopedText, suggest, suggestWords } from "./scope";
 import type { RunScope } from "./scope";
 import { StoreError } from "./store";
 import { CliError, writeStderr } from "./ui";
@@ -29,6 +29,7 @@ export type Reason =
   | "api_error"
   | "invalid_config"
   | "internal_error"
+  | "canceled"
   | "failed";
 
 const DEBUG_HINT = "Run it again with --debug to see each request.";
@@ -91,6 +92,9 @@ const blockedBeforeAnyEffect = (error: CliError): boolean =>
   error.reason === "login_required" ||
   error.reason === "token_expired";
 
+const isWords = (next: string | readonly string[]): next is readonly string[] =>
+  Array.isArray(next);
+
 /**
  * The machine-readable form of an error. Optional fields appear only when
  * they apply. A hint and a `next` command run in the profile and project the
@@ -113,7 +117,9 @@ export const jsonErrorDocument = (
     document.data = error.data;
   }
   if (error.next && error.next.length > 0) {
-    document.next = error.next.map((next) => suggest(next, scope));
+    document.next = error.next.map((next) =>
+      isWords(next) ? suggestWords(next, scope) : suggest(next, scope)
+    );
   }
   return document;
 };

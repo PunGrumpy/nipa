@@ -3,6 +3,7 @@
 // the Vercel CLI's output manager. Results go through the client's stdout,
 // and questions through the client's prompts.
 
+import { agentVariable } from "./agent";
 import type { Reason } from "./errors";
 import { inRun } from "./scope";
 import { theme } from "./theme";
@@ -10,9 +11,14 @@ import { theme } from "./theme";
 // Everything these paint goes to stderr, so stderr decides the colors.
 export const { bold, cyan, dim, gray, green, red, yellow } = theme.stderr;
 
-/** What a script reads from a failure. `ids`: the items a name matches. */
+/**
+ * What a script reads from a failure. `ids`: the items a name matches.
+ * `suggestion`: nipa's guess at what was meant, a word or a command line.
+ * It is a guess, so a script reads it and never runs it.
+ */
 export interface ErrorData {
-  readonly ids: readonly string[];
+  readonly ids?: readonly string[];
+  readonly suggestion?: string;
 }
 
 export class CliError extends Error {
@@ -22,8 +28,12 @@ export class CliError extends Error {
   readonly exitCode: number;
   /** The stable code a script reads in place of the message. */
   readonly reason: Reason;
-  /** Recovery commands, whole and static, such as `nipa login -P staging`. */
-  readonly next?: readonly string[];
+  /**
+   * Recovery commands: a whole, static one such as `nipa login -P staging`,
+   * or its words when one of them is a name the person typed, which may hold
+   * a space or a quote.
+   */
+  readonly next?: readonly (string | readonly string[])[];
 
   constructor(
     message: string,
@@ -32,7 +42,7 @@ export class CliError extends Error {
       data?: ErrorData;
       exitCode?: number;
       reason?: Reason;
-      next?: readonly string[];
+      next?: readonly (string | readonly string[])[];
     } = {}
   ) {
     super(message);
@@ -47,6 +57,10 @@ export class CliError extends Error {
     this.next = options.next;
   }
 }
+
+/** The person said no or pressed Ctrl-C. Exit code 130, and no error to read. */
+export const canceled = (): CliError =>
+  new CliError("Canceled", { exitCode: 130, reason: "canceled" });
 
 /** Exit code 2: the command line was wrong. The hint says how to write it. */
 export const usageError = (
@@ -94,6 +108,20 @@ export const andList = (words: readonly string[]): string => {
   const rest = words.slice(0, -1);
   return rest.length === 0 ? last : `${rest.join(", ")} and ${last}`;
 };
+
+const LISTED = 5;
+
+/**
+ * Names for a hint: all of them up to 5, else the first 5, how many are
+ * left, and the command that lists them all.
+ */
+export const someNames = (
+  names: readonly string[],
+  lsCommand: string
+): string =>
+  names.length <= LISTED
+    ? names.join(", ")
+    : `${names.slice(0, LISTED).join(", ")} and ${names.length - LISTED} more (run \`${lsCommand}\` to see them all)`;
 
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
@@ -280,6 +308,10 @@ export const note = (message: string): void => {
 };
 
 export const printError = (error: CliError): void => {
+  if (error.reason === "canceled") {
+    writeStderr("Canceled.");
+    return;
+  }
   writeStderr(`${bold(red("Error:"))} ${error.message}`);
   if (error.hint) {
     writeStderr(`${dim(">")} ${inRun(error.hint)}`);
@@ -337,7 +369,7 @@ const prompt = async <T>(ask: () => Promise<T>): Promise<T> => {
     return await ask();
   } catch (error) {
     if (error instanceof Error && error.name === "ExitPromptError") {
-      throw new CliError("Canceled", { exitCode: 130 });
+      throw canceled();
     }
     throw error;
   }
@@ -372,7 +404,8 @@ interface ConfirmPrompt {
 export interface Prompts {
   /**
    * True when stdin and stderr are terminals and nothing said not to ask:
-   * not `--non-interactive`, not `--json`, and no CI variable. Ask only then.
+   * not `--non-interactive`, not `--json`, no CI variable and no AI agent's
+   * variable. Ask only then.
    * Otherwise a command fails with a hint naming the flag or argument to pass.
    */
   readonly interactive: boolean;
@@ -419,7 +452,11 @@ export const createPrompts = (streams: {
   json: boolean;
 }): Prompts => {
   const context = { input: streams.stdin, output: streams.stderr };
-  const refused = streams.nonInteractive || streams.json || !!streams.env.CI;
+  const refused =
+    streams.nonInteractive ||
+    streams.json ||
+    !!streams.env.CI ||
+    agentVariable(streams.env) !== undefined;
   const interactive =
     !refused && streams.stdin.isTTY === true && streams.stderr.isTTY === true;
   return {

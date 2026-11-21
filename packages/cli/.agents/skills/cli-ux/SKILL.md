@@ -78,4 +78,4 @@ A change isn't done until:
 - errors say what failed and how to fix it, and exit with the right code
 - the copy review covered every string the command prints, not only the edited line
 - tests assert the new output and reject the old one
-- `bun run check`, `bun run typecheck` and `bun run test` pass from the repository root
+- `bun run verify` passes from the repository root

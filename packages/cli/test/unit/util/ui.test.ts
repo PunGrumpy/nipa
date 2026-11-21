@@ -7,14 +7,17 @@ import { nameCell } from "../../../src/commands/server/format";
 import type { Server } from "../../../src/util/compute";
 import { debug } from "../../../src/util/http";
 import {
+  canceled,
   createPrompts,
   log,
   note,
   printable,
+  printError,
   printFields,
   printTable,
   setAnimation,
   setJsonMode,
+  someNames,
   success,
   tabSeparated,
   withSpinner,
@@ -64,6 +67,25 @@ describe("printable", () => {
     expect(printable(`${ESC}[8mhidden${ESC}[0m ${ESC}[38;5;9mred`)).toBe(
       "hidden red"
     );
+  });
+});
+
+describe("someNames", () => {
+  test("keeps short lists unchanged", () => {
+    expect(someNames(["a", "b"], "nipa project ls")).toBe("a, b");
+    expect(someNames(["a", "b", "c", "d", "e"], "nipa project ls")).toBe(
+      "a, b, c, d, e"
+    );
+  });
+
+  test("caps long lists and names the list command", () => {
+    expect(
+      someNames(["a", "b", "c", "d", "e", "f", "g"], "nipa project ls")
+    ).toBe("a, b, c, d, e and 2 more (run `nipa project ls` to see them all)");
+  });
+
+  test("an empty list stays empty", () => {
+    expect(someNames([], "nipa project ls")).toBe("");
   });
 });
 
@@ -150,6 +172,15 @@ describe("what reaches stderr", () => {
   test("writeStderr filters its line", () => {
     writeStderr(`name ${ESC}]0;x${BEL}${ESC}[2J‮ok`);
     expect(written).toEqual(["name ok\n"]);
+  });
+
+  test("a cancel prints without an error prefix", () => {
+    const error = canceled();
+    printError(error);
+    expect(error.exitCode).toBe(130);
+    expect(error.reason).toBe("canceled");
+    expect(written).toEqual(["Canceled.\n"]);
+    expect(written.join("")).not.toContain("Error:");
   });
 
   test("the spinner filters its message", async () => {
@@ -329,6 +360,8 @@ describe("when nipa can prompt", () => {
     ["--json", { json: true }, false],
     ["CI is set", { env: { CI: "1" } }, false],
     ["CI is empty", { env: { CI: "" } }, true],
+    ["an AI agent's variable is set", { env: { CURSOR_AGENT: "1" } }, false],
+    ["an AI agent's variable is empty", { env: { CURSOR_AGENT: "" } }, true],
     ["NO_COLOR is set", { env: { NO_COLOR: "1" } }, true],
   ])("%s", (_name, over, expected) => {
     expect(canPrompt(over)).toBe(expected);

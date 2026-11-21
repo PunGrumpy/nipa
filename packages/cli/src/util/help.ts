@@ -6,7 +6,7 @@
 // label is never cut.
 
 import { GLOBAL_FLAGS } from "./arg-common";
-import { flagPlaceholder, subjectOf } from "./spec";
+import { flagPlaceholder, subjectOf, visibleCommands } from "./spec";
 import type {
   ArgSpec,
   CommandPath,
@@ -157,8 +157,9 @@ export const usageLine = (path: CommandPath): string => {
 };
 
 /**
- * A leaf's own flags. A group's page lists its subcommands' flags, each
- * once, so `server ls --json` and `server inspect --json` show one `--json`.
+ * A leaf's own flags. A group's page lists the flags of the subcommand that
+ * runs when the group's name comes alone, so it never shows an option the bare
+ * group rejects. Each subcommand's own page lists its own flags.
  */
 const pageFlags = (spec: CommandSpec): readonly FlagSpec[] => {
   switch (spec.kind) {
@@ -166,9 +167,8 @@ const pageFlags = (spec: CommandSpec): readonly FlagSpec[] => {
       return spec.flags;
     }
     case "group": {
-      const all = spec.subcommands.flatMap((sub) => sub.flags);
-      return all.filter(
-        (flag, index) => all.findIndex((f) => f.long === flag.long) === index
+      return (
+        spec.subcommands.find((sub) => sub.name === spec.default)?.flags ?? []
       );
     }
     case "passthrough": {
@@ -182,21 +182,22 @@ const pageFlags = (spec: CommandSpec): readonly FlagSpec[] => {
 };
 
 /** Options read in alphabetical order of their long names, on every page. */
+const sortedFlags = (flags: readonly FlagSpec[]): readonly FlagSpec[] =>
+  flags.toSorted((a, b) => {
+    if (a.long === b.long) {
+      return 0;
+    }
+    return a.long < b.long ? -1 : 1;
+  });
+
 const flagRows = (flags: readonly FlagSpec[]): readonly Row[] =>
-  flags
-    .toSorted((a, b) => {
-      if (a.long === b.long) {
-        return 0;
-      }
-      return a.long < b.long ? -1 : 1;
-    })
-    .map((flag): Row => {
-      const short = flag.short ? `-${flag.short}, ` : "    ";
-      return [
-        `${short}--${flag.long}${flagPlaceholder(flag.value)}`,
-        flag.description,
-      ];
-    });
+  sortedFlags(flags).map((flag): Row => {
+    const short = flag.short ? `-${flag.short}, ` : "    ";
+    return [
+      `${short}--${flag.long}${flagPlaceholder(flag.value)}`,
+      flag.description,
+    ];
+  });
 
 /** A subcommand's row keeps its arguments: the page names one command's children. */
 const subcommandRow = (spec: CommandSpec): Row => {
@@ -225,6 +226,8 @@ const examples = (list: readonly Example[]): string =>
 const usageHeading = (path: string): string =>
   `${MARGIN}${heading("Usage")} ${path}`;
 
+const MAIN_USAGE = "nipa [options] <command>";
+
 const globalRows = flagRows(GLOBAL_FLAGS);
 
 export const mainHelp = (input: {
@@ -245,7 +248,7 @@ export const mainHelp = (input: {
     "",
     wrap(program.summary, MARGIN),
     "",
-    usageHeading("nipa [options] <command>"),
+    usageHeading(MAIN_USAGE),
     "",
     ...groups,
     section("Global Options", table(globalRows, labelWidth(globalRows))),
@@ -284,3 +287,131 @@ export const commandHelp = (path: CommandPath): string => {
   }
   return parts.join("\n");
 };
+
+export interface HelpOption {
+  readonly choices?: readonly string[];
+  readonly description: string;
+  /** The long name, without dashes. */
+  readonly name: string;
+  readonly short?: string;
+  readonly type: "boolean" | "string";
+  /** `<duration>`, as the human page shows it. */
+  readonly valueHint?: string;
+}
+
+export interface HelpArgument {
+  readonly choices?: readonly string[];
+  readonly name: string;
+  readonly required: boolean;
+  readonly variadic: boolean;
+}
+
+interface HelpSubcommand {
+  readonly name: string;
+  readonly summary: string;
+}
+
+export interface HelpDocument {
+  readonly aliases: readonly string[];
+  readonly arguments: readonly HelpArgument[];
+  readonly default?: string;
+  readonly description?: string;
+  readonly examples: readonly Example[];
+  readonly kind: "command" | "group" | "passthrough";
+  readonly options: readonly HelpOption[];
+  readonly path: readonly string[];
+  readonly subcommands: readonly HelpSubcommand[];
+  readonly summary: string;
+  readonly usage: string;
+}
+
+export interface MainHelpDocument {
+  readonly examples: readonly Example[];
+  readonly globalOptions: readonly HelpOption[];
+  readonly path: readonly ["nipa"];
+  readonly subcommands: readonly HelpSubcommand[];
+  readonly summary: string;
+  readonly usage: string;
+  readonly version: string;
+}
+
+export interface AllHelpDocument {
+  readonly commands: readonly HelpDocument[];
+  readonly globalOptions: readonly HelpOption[];
+  readonly version: string;
+}
+
+const helpOption = (flag: FlagSpec): HelpOption => {
+  const hint = flagPlaceholder(flag.value).trim();
+  return {
+    ...(flag.value.kind === "choice" && { choices: [...flag.value.choices] }),
+    description: flag.description,
+    name: flag.long,
+    ...(flag.short && { short: flag.short }),
+    type: flag.value.kind === "none" ? "boolean" : "string",
+    ...(hint && { valueHint: hint }),
+  };
+};
+
+const helpOptions = (flags: readonly FlagSpec[]): readonly HelpOption[] =>
+  sortedFlags(flags).map(helpOption);
+
+const helpArgument = (arg: ArgSpec): HelpArgument => ({
+  ...(arg.value.kind === "choice" && { choices: [...arg.value.choices] }),
+  name: arg.name,
+  required: arg.arity === "one",
+  variadic: arg.arity === "rest",
+});
+
+const helpSubcommand = (spec: CommandSpec): HelpSubcommand => ({
+  name: spec.name,
+  summary: spec.summary,
+});
+
+/** The document for `nipa <command> --help --json`, from the same specs as `commandHelp`. */
+export const commandHelpDocument = (path: CommandPath): HelpDocument => {
+  const subject = subjectOf(path);
+  return {
+    aliases: [...(subject.aliases ?? [])],
+    arguments: subject.kind === "leaf" ? subject.args.map(helpArgument) : [],
+    ...(subject.kind === "group" && { default: subject.default }),
+    ...(subject.description && { description: subject.description }),
+    examples: [...(subject.examples ?? [])],
+    kind: subject.kind === "leaf" ? "command" : subject.kind,
+    options: helpOptions(pageFlags(subject)),
+    path: ["nipa", ...path.map((spec) => spec.name)],
+    subcommands:
+      subject.kind === "group" ? subject.subcommands.map(helpSubcommand) : [],
+    summary: subject.summary,
+    usage: usageLine(path),
+  };
+};
+
+/** The document for `nipa --help --json`. */
+export const mainHelpDocument = (input: {
+  program: ProgramSpec;
+  version: string;
+}): MainHelpDocument => ({
+  examples: [...input.program.examples],
+  globalOptions: helpOptions(GLOBAL_FLAGS),
+  path: ["nipa"],
+  subcommands: visibleCommands(input.program).map(helpSubcommand),
+  summary: input.program.summary,
+  usage: MAIN_USAGE,
+  version: input.version,
+});
+
+/** The document for `nipa help --all --json`: every listed command, each group followed by its subcommands. */
+export const allHelpDocument = (input: {
+  program: ProgramSpec;
+  version: string;
+}): AllHelpDocument => ({
+  commands: visibleCommands(input.program).flatMap((command) => [
+    commandHelpDocument([command]),
+    ...(command.kind === "group"
+      ? command.subcommands.map((sub) => commandHelpDocument([command, sub]))
+      : []),
+  ]),
+  globalOptions: helpOptions(GLOBAL_FLAGS),
+  version: input.version,
+});

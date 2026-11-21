@@ -104,9 +104,7 @@ Import the command in `src/commands/index.ts`, and add it to a section of the ma
 Add a test to `test/integration.test.ts` that runs the command against the fake Keystone, and add the API's routes to `test/mocks/space.ts`, the fake Space API that the fake Keystone serves under `/api`. Then run the checks that continuous integration (CI) runs, from the root of the repository:
 
 ```sh
-bun run test
-bun run check
-bun run typecheck
+bun run verify
 ```
 
 Every pull request that changes what users see needs a changeset, which [Release nipa](releasing.md) explains.

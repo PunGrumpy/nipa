@@ -1,6 +1,13 @@
 import { handle } from "../../util/command";
 import { loadConfig, saveConfig } from "../../util/store";
-import { bold, CliError, note, success, usageError } from "../../util/ui";
+import {
+  bold,
+  CliError,
+  note,
+  someNames,
+  success,
+  usageError,
+} from "../../util/ui";
 import { useSubcommand } from "./command";
 
 export const use = handle(useSubcommand, async ({ args, client }) => {
@@ -9,7 +16,10 @@ export const use = handle(useSubcommand, async ({ args, client }) => {
   let { name } = args;
   if (name === undefined) {
     if (!client.prompts.interactive) {
-      throw usageError("missing <name>", `Your profiles: ${names.join(", ")}`);
+      throw usageError(
+        "missing <name>",
+        `Your profiles: ${someNames(names, "nipa profile ls")}`
+      );
     }
     name = await client.prompts.choice({
       choices: names.map((n) => ({
@@ -22,7 +32,7 @@ export const use = handle(useSubcommand, async ({ args, client }) => {
   }
   if (!config.profiles[name]) {
     throw new CliError(`no profile named "${name}"`, {
-      hint: `Your profiles: ${names.join(", ")}`,
+      hint: `Your profiles: ${someNames(names, "nipa profile ls")}`,
     });
   }
   if (name === config.currentProfile) {

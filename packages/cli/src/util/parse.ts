@@ -11,7 +11,8 @@ import type {
   Input,
   LeafSpec,
 } from "./spec";
-import { usageError } from "./ui";
+import { closest } from "./suggest";
+import { CliError, usageError } from "./ui";
 
 type RawFlags = ReadonlyMap<string, string | true>;
 interface Front {
@@ -51,12 +52,30 @@ const indexFlags = (flags: readonly FlagSpec[]): Index =>
 const useOneOf = (choices: readonly string[]) =>
   `Use one of: ${choices.join(", ")}.`;
 
+/**
+ * The error for a value outside a fixed set. One close to a choice is
+ * suggested, `fis` as `fish`, ahead of the list; a far one gets the list.
+ */
+const unknownChoice = (
+  label: string,
+  value: string,
+  choices: readonly string[]
+): CliError => {
+  const message = `unknown ${label} "${value}"`;
+  const near = closest(value, choices);
+  if (near === undefined) {
+    return usageError(message, useOneOf(choices));
+  }
+  return new CliError(message, {
+    data: { suggestion: near },
+    exitCode: 2,
+    hint: `Did you mean \`${near}\`? ${useOneOf(choices)}`,
+  });
+};
+
 const checked = (flag: FlagSpec, value: string): string => {
   if (flag.value.kind === "choice" && !flag.value.choices.includes(value)) {
-    throw usageError(
-      `unknown ${flag.long} "${value}"`,
-      useOneOf(flag.value.choices)
-    );
+    throw unknownChoice(flag.long, value, flag.value.choices);
   }
   return value;
 };
@@ -75,6 +94,37 @@ const needed = (input: {
     );
   }
   return checked(flag, next);
+};
+
+/**
+ * The error for an option nobody defined. A long option close to one the
+ * command takes is suggested, `--jsno` as `--json`; a short one, or one near
+ * none, gets the hint that points at `--help`.
+ */
+const unknownOption = (input: {
+  flags: readonly FlagSpec[];
+  help: string;
+  word: string;
+}): CliError => {
+  const { word } = input;
+  const typed = word.startsWith("--") ? word.slice(2).split("=")[0] : undefined;
+  const near =
+    typed === undefined
+      ? undefined
+      : closest(
+          typed,
+          input.flags.map((flag) => flag.long)
+        );
+  const message = `unknown option "${word}"`;
+  if (near === undefined) {
+    return usageError(message, input.help, "unknown_option");
+  }
+  return new CliError(message, {
+    data: { suggestion: `--${near}` },
+    exitCode: 2,
+    hint: `Did you mean \`--${near}\`?`,
+    reason: "unknown_option",
+  });
 };
 
 const readOption = (input: {
@@ -182,11 +232,11 @@ const readGlobal = (input: {
     word,
   });
   if (!read && input.unknown === "reject") {
-    throw usageError(
-      `unknown option "${word}"`,
-      "Run `nipa --help` to see the options.",
-      "unknown_option"
-    );
+    throw unknownOption({
+      flags: GLOBAL_FLAGS,
+      help: "Run `nipa --help` to see the options.",
+      word,
+    });
   }
   return read;
 };
@@ -265,6 +315,43 @@ export const asksForJson = (words: readonly string[]): boolean => {
   return optionWords(words).some((word) => spellings.has(word));
 };
 
+/**
+ * True for a line that only asks for the version as JSON, in any order:
+ * `--version --json`, `--json -v`. `--json` is a leaf's flag, so the global
+ * options reject it everywhere else before a command.
+ */
+export const asksOnlyForJsonVersion = (words: readonly string[]): boolean =>
+  words.includes("--json") &&
+  words.some((word) => word === "--version" || word === "-v") &&
+  words.every((word) => ["--json", "--version", "-v"].includes(word));
+
+/** The options at the start of a line, up to the first word that isn't one or a `--`. */
+export const leadingOptions = (words: readonly string[]): readonly string[] => {
+  const end = words.findIndex(
+    (word) => word === "--" || word === "-" || !word.startsWith("-")
+  );
+  return end === -1 ? words : words.slice(0, end);
+};
+
+/**
+ * The line without its front `--json` words when it asks for help before the
+ * command, as `nipa --help --json` and `nipa --json -h` do, else undefined.
+ * `--json` is a leaf's flag, so the global options reject it before a command
+ * everywhere else.
+ */
+export const withoutFrontJsonHelp = (
+  words: readonly string[]
+): readonly string[] | undefined => {
+  const front = leadingOptions(words);
+  if (!front.includes("--json") || !asksForHelp(front)) {
+    return undefined;
+  }
+  return [
+    ...front.filter((word) => word !== "--json"),
+    ...words.slice(front.length),
+  ];
+};
+
 const tokenize = (input: {
   flags: readonly FlagSpec[];
   hints: Hints;
@@ -286,11 +373,11 @@ const tokenize = (input: {
     if (word.startsWith("-") && word !== "-") {
       const read = readOption({ hints, index, next: words[i + 1], word });
       if (!read) {
-        throw usageError(
-          `unknown option "${word}"`,
-          `Run \`${hints.command} --help\` to see the options.`,
-          "unknown_option"
-        );
+        throw unknownOption({
+          flags: [...flags, ...GLOBAL_FLAGS],
+          help: `Run \`${hints.command} --help\` to see the options.`,
+          word,
+        });
       }
       for (const { flag, value } of read.options) {
         (ownNames.has(flag.long) ? own : globals).set(flag.long, value);
@@ -306,10 +393,7 @@ const tokenize = (input: {
 
 const checkArg = (arg: ArgSpec, word: string): string => {
   if (arg.value.kind === "choice" && !arg.value.choices.includes(word)) {
-    throw usageError(
-      `unknown ${arg.name} "${word}"`,
-      useOneOf(arg.value.choices)
-    );
+    throw unknownChoice(arg.name, word, arg.value.choices);
   }
   return word;
 };

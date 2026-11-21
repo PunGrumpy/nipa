@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { program } from "../../../src/commands";
+import { programSpec } from "../../../src/util/command";
 import {
   DATABASES,
   LOAD_BALANCERS,
@@ -7,8 +9,10 @@ import {
   VOLUMES,
   findResource,
   findServer,
+  refWord,
 } from "../../../src/util/find";
 import type { Findable } from "../../../src/util/find";
+import { setRunScope, shellQuote } from "../../../src/util/scope";
 import { CliError } from "../../../src/util/ui";
 import { fakeSpace } from "../../helpers";
 
@@ -39,6 +43,21 @@ const space = spaceOf([
 
 const find = (ref: string) => findServer({ projectName: "Alpha", ref, space });
 
+const refused = async (
+  ref: string,
+  given: ReturnType<typeof spaceOf> = space
+): Promise<CliError> => {
+  try {
+    await findServer({ projectName: "Alpha", ref, space: given });
+  } catch (error) {
+    if (error instanceof CliError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error(`${ref} was found`);
+};
+
 const twins = (count: number) =>
   spaceOf(
     Array.from({ length: count }, (_, index) =>
@@ -60,6 +79,24 @@ const ambiguity = async (given: ReturnType<typeof spaceOf>) => {
   }
   throw new Error("expected an ambiguity error");
 };
+
+describe("refWord", () => {
+  test("keeps a plain name bare and quotes a name with a space", () => {
+    expect(refWord("web-1", "id-1")).toBe("web-1");
+    expect(refWord("web 1", "id-1")).toBe("'web 1'");
+  });
+
+  test("quotes a name with an apostrophe for the shell", () => {
+    expect(refWord("it's", "id-1")).toBe(shellQuote("it's"));
+  });
+
+  test.each(["a`b", "a\nb", "a\tb", "", "-x"])(
+    "uses the ID when %j can't sit in a hint",
+    (name) => {
+      expect(refWord(name, "id-1")).toBe("id-1");
+    }
+  );
+});
 
 describe("findServer", () => {
   test("by name, or by ID when two share a name", async () => {
@@ -205,14 +242,100 @@ describe("findServer", () => {
     });
   });
 
-  test("no match points to server ls", async () => {
-    const attempt = find("nope");
-    await expect(attempt).rejects.toThrow(
-      'no server named or with ID "nope" in Alpha'
+  test("no match points to server search first, then server ls", async () => {
+    const error = await refused("nope");
+    expect(error).toMatchObject({
+      hint: "Run `nipa server search nope` to look in every project, or `nipa server ls` to see the servers in this one.",
+      message: 'no server named or with ID "nope" in Alpha',
+      next: [["nipa", "server", "search", "nope"], "nipa server ls"],
+      reason: "not_found",
+    });
+    expect(error.data).toBeUndefined();
+    expect(error.hint).not.toContain("to see your servers");
+  });
+
+  test("a name close to one in the project is suggested, never put in next", async () => {
+    const error = await refused(
+      "Web-1",
+      spaceOf([instance("s1", "web-1"), instance("s2", "db-1")])
     );
+    expect(error).toMatchObject({
+      data: { suggestion: "web-1" },
+      hint: "Did you mean `web-1`? Run `nipa server search Web-1` to look in every project, or `nipa server ls` to see the servers in this one.",
+      next: [["nipa", "server", "search", "Web-1"], "nipa server ls"],
+      reason: "not_found",
+    });
+    expect(JSON.stringify(error.next)).not.toContain('"web-1"');
+  });
+
+  test("a name near two servers suggests none", async () => {
+    const error = await refused(
+      "web-2",
+      spaceOf([instance("s1", "web-1"), instance("s2", "web-3")])
+    );
+    expect(error.data).toBeUndefined();
+    expect(error.hint).not.toContain("Did you mean");
+  });
+
+  test("a name with a space is one word of the search command", async () => {
+    expect(await refused("my server")).toMatchObject({
+      hint: "Run `nipa server search 'my server'` to look in every project, or `nipa server ls` to see the servers in this one.",
+      next: [["nipa", "server", "search", "my server"], "nipa server ls"],
+    });
+  });
+
+  test("a name that can't be copied back gets no search command", async () => {
+    const errors = await Promise.all(
+      ["a`b", "a\nb", "-x"].map((ref) => refused(ref))
+    );
+    for (const error of errors) {
+      expect(error).toMatchObject({
+        hint: "Run `nipa server ls` to see your servers.",
+        next: ["nipa server ls"],
+      });
+    }
+  });
+
+  test("under -p the search would read one project, so it isn't suggested", async () => {
+    setRunScope({ program: programSpec(program), project: "Beta" });
+    try {
+      await expect(find("nope")).rejects.toMatchObject({
+        hint: "Run `nipa server ls` to see your servers.",
+        next: ["nipa server ls"],
+      });
+    } finally {
+      setRunScope(undefined);
+    }
+  });
+
+  test("a volume that isn't found has only the list command in next", async () => {
+    const kind: typeof VOLUMES = {
+      ...VOLUMES,
+      list: () =>
+        Promise.resolve([
+          {
+            attachments: [],
+            bootable: false,
+            createdAt: "2030-01-01T00:00:00Z",
+            id: "v1",
+            name: "backups",
+            sizeGb: 10,
+            status: "available",
+            type: null,
+            zone: "z",
+          },
+        ]),
+    };
+    const attempt = findResource({
+      kind,
+      projectName: "Alpha",
+      ref: "backup",
+      space,
+    });
     await expect(attempt).rejects.toMatchObject({
-      hint: "Run `nipa server ls` to see your servers.",
-      next: ["nipa server ls"],
+      data: { suggestion: "backups" },
+      hint: "Did you mean `backups`? Run `nipa volume ls` to see your volumes.",
+      next: ["nipa volume ls"],
       reason: "not_found",
     });
   });

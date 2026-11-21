@@ -40,11 +40,9 @@ Run focused tests first, then the full set from the repository root:
 
 ```bash
 cd packages/cli
-bun test test/integration.test.ts -t "server ls"
+bun run test test/integration.test.ts -t "server ls"
 cd ../..
-bun run check
-bun run typecheck
-bun run test
+bun run verify
 ```
 
 ## Stale-string sweeps

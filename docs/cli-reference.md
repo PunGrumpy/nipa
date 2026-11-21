@@ -6,13 +6,14 @@ This page lists the commands, options, environment variables, files, exit codes 
 
 ## Commands
 
-nipa has 25 commands. Without a command, it prints help.
+nipa has 27 commands. Without a command, it prints help.
 
 | Command | What it does |
 | --- | --- |
 | `nipa login [options]` | Asks for your email and password, then for a one-time password (OTP) code when your account uses multi-factor authentication (MFA). Saves a token scoped to a project. With `--remember`, saves your password in the OS keychain, so later logins ask only for an OTP code |
 | `nipa logout` | Revokes the current profile's token, deletes its session, and deletes a password that `--remember` saved |
 | `nipa whoami [--json]` | Shows your user, profile, project and when the session expires |
+| `nipa project ls [--json]` | Lists the projects your session can use in the current profile, by name, with their IDs. The list belongs to the profile: a linked folder changes it only by naming another profile, and `-p` exits with code `2` instead of being ignored. In a terminal, `(current)` marks the project that commands in this folder use, which is the folder's link or else the saved project, and `(saved)` marks the saved project when the folder uses another. In a pipe, it prints a header and one tab-separated line per project with its ID and name. Run `nipa project ls \| tail -n +2 \| cut -f1` for the IDs. `nipa project`, `nipa projects` and `nipa project list` do the same |
 | `nipa switch [project]` | Scopes the session to another project by name or ID, without a password or OTP code. In a linked folder, it changes the saved project, and the folder keeps its own |
 | `nipa link [project]` | Links this folder to the profile and a project, by name or ID, in `.nipa/project.json`. Commands in this folder and the folders below it use them |
 | `nipa unlink` | Deletes the closest `.nipa/project.json`, at or above this folder |
@@ -36,18 +37,18 @@ nipa has 25 commands. Without a command, it prints help.
 | `nipa lb inspect <lb> [--json]` | Shows one load balancer's status, health, virtual IP, external IP and flavor, then each listener, backend group and member with its status and health, by name or ID. It ends with one line that says what stops the load balancer from serving, such as `2 of 3 members are down`, or that every part is healthy. In a pipe, it prints the load balancer's ID |
 | `nipa ip ls [--json]` | Lists the external IPs in your project with their status, the internal IP each one forwards to, zone and name. An IP without an internal IP isn't attached to anything. In a pipe, it prints one address per line. `nipa ip`, `nipa ips` and `nipa ip list` do the same |
 | `nipa investigate <resource> [options]` | Finds the server, load balancer, database, volume or Kubernetes cluster with this name or ID and says what's wrong with it, from what the Space API shows: problems first, then warnings, then what passed. Each finding names the field and value it read, such as `status: ERROR`, and the commands that show more, such as `nipa server history web-1`. It checks a server's status, a task that hasn't finished an hour after the last action, its lock, its last failed action with who and when, console log lines that show a kernel panic, the out-of-memory killer, a cloud-init failure or a full disk, volumes that aren't in use, a missing address, and the compute quotas when a create failed. A load balancer gets the verdict `nipa lb inspect` ends with, a database the problems `nipa db inspect` names and logs in an error state, a volume its error states and attachments to servers that are gone, and a cluster its nodes and masters that aren't active. A quota at 90% or more is a warning for a resource that is being made or failed. A read that fails is a warning, not an error. When every check passes, it says no problem was found in what nipa can see, and it always names what nipa can't see, such as the hypervisor's logs. When the name fits more than one kind, it fails with a command for each, and `--kind` picks one. It exits with code `0` whatever it finds. In a pipe, it prints the resource's ID. `nipa why` is the same command |
-| `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one, so nipa names the project to switch to there. With `-p`, nipa checks that you can use that project and names it, instead of the saved one. In a pipe, or with `--url`, it prints only the URL and opens nothing |
+| `nipa open [resource] [name] [--url]` | Opens the Space portal of the profile in your browser. `resource` is `server`, `volume`, `network`, `sg`, `lb` or `db`, and opens that list. With a name or ID too, it opens that resource's page, or for a volume the volume list filtered to it, which needs a session. The portal opens the project you last used in it, because a URL can't pick one, so nipa names the project to switch to there. With `-p`, nipa checks that you can use that project and names it, instead of the saved one. In a pipe, with `--url`, or when nipa can't prompt, it prints only the URL and opens nothing |
 | `nipa quota ls [--json]` | Shows each quota of your project, such as servers, vCPUs, RAM and volumes, by group, with how much it uses, its limit and the percent used. A quota at 80% or more shows in yellow, and one at 100% shows in red, because the next create of that resource fails. A note under the table counts them. It exits with code `0` either way. In a pipe, it prints one tab-separated line per quota: its group and name, such as `compute/ram`, the amount used, the limit or `unlimited`, and the unit of both, such as `MB`, `GB` or `Bytes`, or `-` for a count. `nipa quota`, `nipa quotas`, `nipa quota list` and `nipa limits` do the same |
 | `nipa os <args...>` | Runs `openstack <args...>` with the session. `nipa openstack` is the same command |
 | `nipa tf <args...>` | Runs `terraform <args...>` with the session. `nipa terraform` is the same command |
 | `nipa exec <command> [args...]` | Runs any command with the session |
 | `nipa env [--shell bash\|zsh\|fish]` | Prints the session's `OS_*` variables as shell commands |
-| `nipa mcp` | Runs a Model Context Protocol (MCP) server on stdin and stdout, so an AI assistant such as Claude Code, Claude Desktop, Cursor or Codex can read your project with your session. An assistant starts it, so you add it to the assistant's configuration. nipa holds no AI key and calls no model. The server offers read-only tools and no tool that changes anything. `-P` and `-p` pick the profile and project for the whole run, and each tool takes a `project` of its own. When the session expired, a tool answers with an error that asks you to run `nipa login`, because nipa can't ask for a password on stdin. Messages go to stderr, and stdout carries only MCP messages. See [MCP tools](#mcp-tools) and [Use nipa with an AI assistant](use-with-ai.md) |
+| `nipa mcp` | Runs a Model Context Protocol (MCP) server on stdin and stdout, so an AI assistant such as Claude Code, Claude Desktop, Cursor or Codex can read your project with your session. An assistant starts it, so you add it to the assistant's configuration. nipa holds no AI key and calls no model. The server offers read-only tools and no tool that changes anything. `-P` and `-p` pick the profile and project for the whole run, and each tool but `whoami` and `list_projects` takes a `project` of its own. `list_projects` marks the project that the other tools read as current. When the session expired, a tool answers with an error that asks you to run `nipa login`, because nipa can't ask for a password on stdin. Messages go to stderr, and stdout carries only MCP messages. See [MCP tools](#mcp-tools) and [Use nipa with an AI assistant](use-with-ai.md) |
 | `nipa profile [ls\|add\|use\|rm]` | Lists (`nipa profile ls`), adds (`nipa profile add`), picks (`nipa profile use`) or removes (`nipa profile rm`) profiles. `nipa profile list` is the same as `nipa profile ls` |
 | `nipa doctor [--json]` | Checks the config files, the profile, its Keystone and Space API, the session and whether Keystone and the Space API accept its token, the folder's link, `openstack` and `terraform`, and the last update check. It prints how to fix each problem, changes nothing, never asks for a password, and exits with code `1` when a check fails. A warning doesn't change the exit code |
 | `nipa completion [shell] [--install]` | Prints the tab completion script for `bash`, `zsh`, `fish` or `pwsh`. Without a shell, nipa uses the one in `$SHELL`. With `--install`, nipa saves the script where the shell loads it instead of printing it: `~/.zfunc/_nipa` for zsh, `~/.local/share/bash-completion/completions/nipa` for bash and `~/.config/fish/completions/nipa.fish` for fish. bash and fish honour `XDG_DATA_HOME` and `XDG_CONFIG_HOME` for those folders. PowerShell has no such folder. A Tab press offers names from the profile and project typed on the line with `-P` and `-p`, waits at most 2 seconds for each request to the network, gives up at the first that fails, and offers the names it last saw, up to a day old, when it can't load new ones |
 
-`nipa help <command>` and `nipa <command> --help` print the help for one command. Options before and between the names are skipped, so `nipa help server -P staging stop` prints the stop page, and `nipa help --json server`, `nipa help -P staging server` and `nipa help --bogus server` print the server page, and `nipa help --json` prints the main page. `nipa help help` prints the main page too. A word after an option nipa doesn't know is read as a name, because nipa can't tell whether that option takes a value. A malformed global option, such as `nipa help -P` with no profile, fails with exit code `2` as it does on any command line. `nipa help profile rm` and `nipa profile rm --help` print the help for one subcommand. A command with subcommands runs its default subcommand when you name none, so `nipa server --json` runs `nipa server ls --json`. A mistyped command name gets a suggestion, such as "Did you mean `nipa login`?". When you asked for help, as in `nipa help logn` or `nipa logn --help`, the suggestion is to read that command's help, "Did you mean `nipa help login`?", never to run it. An unknown command or subcommand name fails with exit code `2` in every form, `nipa help nope`, `nipa nope --help` and `nipa server nope --help` included, instead of showing another page. Extra words after a command that has no subcommands, or after a subcommand, are ignored: `nipa help whoami nope`, `nipa help server ls nope` and `nipa whoami nope --help` print the page of `whoami` and `server ls`. Every page fits 80 columns, apart from an example command too long to fit, which stays on one line. The main page lists each command by name, and the other pages point to the main page for the global options.
+`nipa help <command>` and `nipa <command> --help` print the help for one command. Options before and between the names are skipped, so `nipa help server -P staging stop` prints the stop page, and `nipa help -y server`, `nipa help -P staging server` and `nipa help --bogus server` print the server page. `--json` is the one option that changes the page: `nipa help --json server` prints the server page as JSON and `nipa help --json` the main page as JSON, as [Help as JSON](#help-as-json) describes. `nipa help help` prints the main page. A word after an option nipa doesn't know is read as a name, because nipa can't tell whether that option takes a value. A malformed global option, such as `nipa help -P` with no profile, fails with exit code `2` as it does on any command line. `nipa help profile rm` and `nipa profile rm --help` print the help for one subcommand. A command with subcommands runs its default subcommand when you name none, so `nipa server --json` runs `nipa server ls --json`. A mistyped command, subcommand, option, resource name or project name gets a suggestion only when one candidate is close and no other is as close: `nipa logn` suggests "Did you mean `nipa login`?", `nipa server inpect web-1` suggests `nipa server inspect`, `nipa machine-type` suggests `nipa flavor` because aliases count, and `nipa server ls --jsno` suggests `--json`. A word that is no command but the name of one group's subcommand points to it, so `nipa logs web-1` suggests `nipa server logs`, and a subcommand that several groups share, such as `inspect`, suggests none. A word of one or two letters is matched only when it differs by case. When you asked for help, as in `nipa help logn` or `nipa logn --help`, the suggestion is to read that command's help, "Did you mean `nipa help login`?", never to run it. An unknown command or subcommand name fails with exit code `2` in every form, `nipa help nope`, `nipa nope --help` and `nipa server nope --help` included, instead of showing another page. Extra words after a command that has no subcommands, or after a subcommand, are ignored: `nipa help whoami nope`, `nipa help server ls nope` and `nipa whoami nope --help` print the page of `whoami` and `server ls`. Every page fits 80 columns, apart from an example command too long to fit, which stays on one line. The main page lists each command by name, and the other pages point to the main page for the global options.
 
 `nipa server start`, `stop` and `restart` wait up to 5 minutes for the server to finish, or as long as `--timeout` says. They exit with code `1` when the server goes into an error state or is still busy after that. With `--no-wait`, they return once the Space API takes the action, and `nipa server inspect` shows when the server finishes. Starting a running server or stopping a stopped one prints a note and exits with code `0`.
 
@@ -59,7 +60,7 @@ These options belong to one command:
 | --- | --- | --- |
 | `-u, --username <email>` | `login` | Logs in as this user instead of the last one |
 | `--remember` | `login` | Saves your password in the macOS Keychain, or with `secret-tool` on Linux, after Keystone accepts it. Later logins as that user skip the email and password questions. When Keystone refuses a saved password, nipa deletes it and asks |
-| `--json` | `whoami`, `doctor`, `profile ls`, `server ls`, `server search`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls`, `investigate` | Prints JSON on stdout |
+| `--json` | `whoami`, `doctor`, `profile ls`, `project ls`, `server ls`, `server search`, `server inspect`, `server history`, `server logs`, `flavor ls`, `volume ls`, `network ls`, `sg ls`, `sg inspect`, `k8s ls`, `db ls`, `db inspect`, `lb ls`, `lb inspect`, `ip ls`, `quota ls`, `investigate` | Prints JSON on stdout |
 | `--url` | `open` | Prints the portal URL on stdout instead of opening a browser |
 | `--shell <bash\|zsh\|fish>` | `env` | Picks the shell syntax. The default comes from `$SHELL` |
 | `--auth-url <url>` | `profile add` | The Keystone URL, ending in `/v3` |
@@ -81,16 +82,46 @@ Global options work with every command. Put them before `os`, `tf` and `exec`, b
 | Option | Variable | What it does |
 | --- | --- | --- |
 | `-P, --profile <name>` | `NIPA_PROFILE` | Uses this profile instead of the current one |
-| `-p, --project <project>` |  | Uses this project, by name or ID, for this run only, and beats a folder's link. `login` is the one command that saves it: there it names the project to scope the token to and save, instead of the last one. A name costs one request to list your projects, and a 32-character ID costs none. It fails when no project has the name or ID, and when two have the name, with their IDs. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up. `completion`, `whoami`, `doctor`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so they exit with code 2 and `--project doesn't apply to nipa switch` instead of ignoring it. `switch` and `link` take the project as an argument |
+| `-p, --project <project>` |  | Uses this project, by name or ID, for this run only, and beats a folder's link. `login` is the one command that saves it: there it names the project to scope the token to and save, instead of the last one. A name costs one request to list your projects, and a 32-character ID costs none. It fails when no project has the name or ID, and when two have the name, with their IDs. On a first login, nipa still asks for the 32-character project ID, because it needs a project to get a token before it can look a name up. `completion`, `whoami`, `doctor`, `project`, `switch`, `link`, `unlink`, `logout` and `profile` never read a project, so they exit with code 2 and `--project doesn't apply to nipa switch` instead of ignoring it. `switch` and `link` take the project as an argument |
 | `-d, --debug` | `NIPA_DEBUG=1` | Logs each HTTP request: method, URL, status and time. Never headers or bodies |
 | `--no-color` | `NO_COLOR=1` | Turns off colors. `FORCE_COLOR=1` turns them on for the messages nipa writes to a pipe, but help stays plain in a pipe. nipa decides for stdout and stderr separately, and `CI` doesn't change it |
-| `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json` and a `CI` value do the same |
+| `--non-interactive` |  | Never prompts, and draws no spinner or update notice. A command that needs an answer fails and names the flag to pass. `--json`, a `CI` value and the variables an AI coding agent sets do the same |
 | `-h, --help` |  | Prints help. It wins over `--version` when both are on the line |
-| `-v, --version` |  | Prints only the version, after a command too and before the command checks its other arguments: `nipa server stop web -y -v` and `nipa server stop -v` print the version and stop nothing. After `os`, `tf` and `exec`, `-v` belongs to their program |
+| `-v, --version` |  | Prints only the version, after a command too and before the command checks its other arguments: `nipa server stop web -y -v` and `nipa server stop -v` print the version and stop nothing. After `os`, `tf` and `exec`, `-v` belongs to their program. With `--json`, it prints `{"version":"…"}` on one line |
 
 nipa picks the project in this order: `--project`, then the folder's link, then the project of the saved session. `nipa -p Beta server ls` and `nipa server ls -p Beta` list the servers in Beta, and `nipa -p Beta os server list` runs `openstack` in Beta. For each, nipa exchanges the saved token for one in that project, without saving it, and prints `> Using project Beta`. `nipa server search` is the one command that reads every project when you give no `--project`, and it ignores a folder's link for that.
 
 nipa picks the profile in this order: `--profile`, then `NIPA_PROFILE`, then the profile in the closest `.nipa/project.json` at or above the folder you run it in, then `currentProfile` in `config.json`. When the link names the profile nipa picked, nipa exchanges the saved token for one in the linked project before each command, without saving it, and prints `> Using project my-project from .nipa/project.json`. `--project` beats the link.
+
+## Help as JSON
+
+A script or an AI assistant can read help as one JSON document, indented by 2, on stdout. It comes from the same data as the help pages, so the two list the same options in the same order:
+
+```sh
+nipa server stop --help --json
+nipa help server stop --json
+nipa --help --json
+nipa help --all --json
+```
+
+`nipa <command> --help --json` and `nipa help <command> --json` print one command. `nipa --help --json` and `nipa help --json` print the main page, and `nipa help --all --json` prints every command and subcommand. `--json` works before or after `--help`. Without `--help`, `--json` before a command is still an unknown option. After `os`, `tf` and `exec`, `--json` belongs to their program.
+
+A command's document has these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `path` | The words that name it, such as `["nipa", "server", "stop"]` |
+| `usage` | The usage line, such as `nipa server stop <server> [options]` |
+| `summary`, `description` | The one-line summary, and the longer paragraph when there is one |
+| `aliases` | Other names it answers to |
+| `kind` | `command`, `group` or `passthrough` |
+| `default` | A group's subcommand that runs when you give only the group's name |
+| `subcommands` | A group's subcommands, each with `name` and `summary`, else `[]` |
+| `arguments` | Each argument's `name`, `required`, `variadic` and, for a fixed set of values, `choices` |
+| `options` | Each option's `name` (without the dashes), `short`, `type` (`boolean` or `string`), `valueHint`, `choices` and `description` |
+| `examples` | Each example's `command` and `description` |
+
+The main page's document has `path`, `usage`, `summary`, `version`, `subcommands` for every listed command, `globalOptions` and `examples`. The document of `help --all` has `version`, `globalOptions` and `commands`, which holds one document per command and, after each group, one per subcommand. nipa may add fields. It doesn't rename or remove them.
 
 ## Other environment variables
 
@@ -104,6 +135,7 @@ These variables change where nipa keeps files and when it checks for updates. Th
 | `NIPA_NO_UPDATE_CHECK` | Turns off the update check when set to any value |
 | `NO_UPDATE_NOTIFIER` | Turns off the update check when set to any value |
 | `CI` | Turns off prompts, spinners and the update check when set to any value |
+| `CLAUDECODE`, `CURSOR_AGENT`, `AI_AGENT` and the other variables an AI coding agent sets for the commands it runs | Turn off prompts, spinners and the update check, as `CI` does, so a command that needs an answer fails and names the flag to pass. To get a prompt anyway, unset the variable for one run: `env -u CLAUDECODE nipa login` |
 | `NODE_COMPILE_CACHE` | The npm package keeps the code Node.js compiled for it in this directory. The default is `node-compile-cache` in the temporary directory. The nipa binary has no such cache |
 | `NODE_DISABLE_COMPILE_CACHE` | Turns that cache off when set to any value |
 
@@ -161,6 +193,20 @@ nipa exits with these codes:
 `project` is the saved session's project. In a linked folder, `link` has the link file's path in `file`, and the `project` that commands there use.
 
 Without a session, it prints `{"loggedIn":false,"profile":"prod"}` and exits with code `1`.
+
+`nipa project ls --json` prints the profile, the saved session's project, the folder's link and the projects the session can use, ordered by name. `project` and `link` are what `nipa whoami --json` prints. `current` is `true` for the project that commands in this folder use, which is the folder's link or else the saved project, and for no other, so `current` and `project` differ in a linked folder. `link` is `null` outside a linked folder:
+
+```json
+{
+  "link": null,
+  "profile": "prod",
+  "project": { "domainId": "1234…", "id": "5678…", "name": "my-project" },
+  "projects": [
+    { "current": false, "id": "9abc…", "name": "Beta" },
+    { "current": true, "id": "5678…", "name": "my-project" }
+  ]
+}
+```
 
 `nipa server ls --json` prints the profile, the project and its servers, newest first. `status` is the server's OpenStack status, such as `ACTIVE` or `SHUTOFF`, and an address's `type` is `fixed` for an internal IP or `floating` for an external one. `kubernetes` is `null` for a server you made. For a Kubernetes node, it has the Magnum cluster's `clusterId`, the node's `role`, such as `master`, and the Kubernetes `version` of its image, such as `1.34.9`. `role` and `version` are `null` when the server doesn't have them:
 
@@ -739,11 +785,12 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 
 ## MCP tools
 
-`nipa mcp` offers these tools. Each one reads, and returns the JSON that the matching command prints with `--json`, so the profile and project are named in every answer. Every tool except `whoami` also takes an optional `project`, a name or ID, which reads that project for the call and saves nothing.
+`nipa mcp` offers these tools. Each one reads, and returns the JSON that the matching command prints with `--json`, so the profile and project are named in every answer. Every tool except `whoami` and `list_projects` also takes an optional `project`, a name or ID, which reads that project for the call and saves nothing.
 
 | Tool | Input | Same as |
 | --- | --- | --- |
 | `whoami` | none | `nipa whoami --json` |
+| `list_projects` | none | `nipa project ls --json`. The list belongs to the profile, so `-p` and a folder's link don't change it, and the tool takes no `project`. `current` is `true` for the project that the other tools read when you give them no `project`: the server's `-p`, else the folder's link, else the saved project. A `-p` that matches no listed project, by ID or by exact name, is skipped. `project` is the saved project, as in `whoami`. Use an ID or name from the list as another tool's `project` |
 | `list_servers` | none | `nipa server ls --json` |
 | `inspect_server` | `server` | `nipa server inspect <server> --json` |
 | `server_console_log` | `server`, `tail` (1 to 500, default 100) | `nipa server logs <server> --tail <n> --json` |
@@ -762,7 +809,7 @@ A cluster without a primary has empty `replicas`, `logs` and `backups`. Each of 
 | `list_flavors` | none | `nipa flavor ls --json` |
 | `investigate` | `name`, `kind` (`server`, `lb`, `db`, `volume` or `k8s`) | `nipa investigate <name> [--kind <kind>] --json`. A name that fits more than one kind returns the `ambiguous_name` error, and the assistant retries with `kind` |
 
-A tool that fails returns an error result, with `isError` set, that holds the document `--json` writes to stderr for the same failure: `message`, `reason`, `status` and, when they apply, `hint` and `next`. An expired session gives the reason `token_expired`, or `login_required` when you never logged in.
+A tool that fails returns an error result, with `isError` set, that holds the document `--json` writes to stderr for the same failure: `message`, `reason`, `status` and, when they apply, `hint`, `next` and `data`. `data.suggestion` is nipa's guess at what you meant, a command line, an option such as `--json` or a name, set when a command, subcommand, option, resource or project name is close to one that exists. It is a guess, so it is never in `next`, and a script reads it and does not run it. `data.ids` lists every ID that a name matches. A server that isn't in the project gets a `next` with `nipa server search <name>` first and `nipa server ls` second. An expired session gives the reason `token_expired`, or `login_required` when you never logged in.
 
 ## Update check
 

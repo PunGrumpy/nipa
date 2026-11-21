@@ -28,15 +28,15 @@ The CLI's tests run against a fake Keystone, so you don't need a Nipa Cloud acco
 
 ## Check your change
 
-Run the checks that CI runs:
+Run the checks before you push:
 
 ```sh
-bun run check
-bun run typecheck
-bun run test
+bun run verify
 ```
 
-`bun run fix` formats the code and fixes the lint errors it can.
+It runs the lint and format check, the type check, the package check for the CLI, the tests and the build of the site, one after the other, and stops at the first one that fails. CI also builds the compiled binary and the npm package and runs `--version` on both, which `verify` does not.
+
+`bunx ultracite fix <files>` formats the files you changed and fixes the lint errors it can. Don't run `bun run fix`, which rewrites the whole repository.
 
 ## Open a pull request
 

@@ -1,20 +1,64 @@
 # ultracite
 #!/bin/sh
-# Check if there are any staged files
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
-if [ -z "$STAGED_FILES" ]; then
+# Format only the files this commit stages. A staged file that also has
+# unstaged changes is skipped, so formatting never pulls those changes into the
+# commit. Files that are not staged are never read or written.
+
+# git commit <paths> runs the hook with a temporary index. Formatting would
+# only reach that index, so the real index would keep the unformatted copy.
+# Skip the hook there; CI checks the files.
+case ${GIT_INDEX_FILE-} in
+  next-index-* | */next-index-*)
+    echo "Not formatting: git commit <paths> commits from a temporary index. CI checks it." >&2
+    exit 0
+    ;;
+esac
+
+# Read the names NUL separated so git never quotes them, then split on newlines
+# so names with spaces stay whole. A name with a newline in it is not supported.
+STAGED_FILES=$(git diff --cached --name-only -z --diff-filter=ACMRT | tr '\000' '\n')
+UNSTAGED_FILES=$(git diff --name-only -z | tr '\000' '\n')
+NL='
+'
+
+# Keep the files that are staged, are plain files and have nothing unstaged in
+# "$@". Say on stderr why any other staged file is left alone.
+set --
+OLD_IFS=$IFS
+IFS=$NL
+set -f
+for file in $STAGED_FILES; do
+  if [ -L "$file" ]; then
+    printf '%s\n' "Skipped $file: it is a symbolic link. CI checks it." >&2
+  elif [ ! -e "$file" ]; then
+    printf '%s\n' "Skipped $file: it is missing from the working tree. CI checks it." >&2
+  elif [ ! -f "$file" ]; then
+    printf '%s\n' "Skipped $file: it is not a regular file. CI checks it." >&2
+  else
+    case "$NL$UNSTAGED_FILES$NL" in
+      *"$NL$file$NL"*)
+        printf '%s\n' "Skipped $file: it has changes that aren't staged. CI checks it." >&2
+        ;;
+      *)
+        set -- "$@" "$file"
+        ;;
+    esac
+  fi
+done
+set +f
+IFS=$OLD_IFS
+
+if [ $# -eq 0 ]; then
   echo "No staged files to format"
 else
   # Run formatter, capturing the exit code so we can still re-stage and report
   FORMAT_EXIT_CODE=0
-  bunx ultracite fix || FORMAT_EXIT_CODE=$?
+  bunx ultracite fix "$@" || FORMAT_EXIT_CODE=$?
 
-  # Re-stage files that were already staged
-  echo "$STAGED_FILES" | while IFS= read -r file; do
-    if [ -f "$file" ]; then
-      git add -- "$file"
-    fi
-  done
+  # Re-stage the files that were formatted, all in one call. update-index takes
+  # literal paths, so [id] or * in a name matches nothing else, and it works
+  # for a file inside an ignored directory.
+  git update-index -- "$@"
 
   if [ $FORMAT_EXIT_CODE -ne 0 ]; then
     echo "Ultracite found issues that could not be auto-fixed."

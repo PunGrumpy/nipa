@@ -29,6 +29,7 @@ import {
   saveSession,
 } from "./store";
 import type { Config, Profile, Session } from "./store";
+import { closest } from "./suggest";
 import {
   bold,
   CliError,
@@ -37,6 +38,7 @@ import {
   log,
   note,
   oneLine,
+  someNames,
   success,
   withSpinner,
 } from "./ui";
@@ -87,7 +89,7 @@ export const resolveProfile = async (input: {
   ) ?? ["config", config.currentProfile];
   const profile = config.profiles[name];
   if (!profile) {
-    const known = Object.keys(config.profiles).join(", ");
+    const known = someNames(Object.keys(config.profiles), "nipa profile ls");
     const from =
       found?.link.profile === name ? ` in ${displayPath(found.file)}` : "";
     throw new CliError(`no profile named "${name}"${from}`, {
@@ -157,8 +159,25 @@ const findProject = (input: {
   const [match, ...others] =
     byId.length > 0 ? byId : projects.filter((p) => p.name === wanted);
   if (!match) {
+    const guess = closest(
+      wanted,
+      projects.map((p) => p.name)
+    );
+    // A name with a line break or a backtick can't sit in a hint to copy.
+    const suggestion =
+      guess !== undefined && oneLine(guess) === guess && !guess.includes("`")
+        ? guess
+        : undefined;
+    const list = `Your projects: ${someNames(
+      projects.map((p) => oneLine(p.name)),
+      "nipa project ls"
+    )}`;
     throw new CliError(`no project named or with ID "${oneLine(wanted)}"`, {
-      hint: `Your projects: ${projects.map((p) => oneLine(p.name)).join(", ")}`,
+      data: suggestion === undefined ? undefined : { suggestion },
+      hint:
+        suggestion === undefined
+          ? list
+          : `Did you mean \`${suggestion}\`? ${list}`,
       reason: "not_found",
     });
   }

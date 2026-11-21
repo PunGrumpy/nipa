@@ -21,6 +21,6 @@ Say what you couldn't check.
 
 ## Checklist
 
-- [ ] `bun run check`, `bun run typecheck` and `bun run test` pass
+- [ ] `bun run verify` passes
 - [ ] The pull request has a changeset from `bun changeset`, or the `semver: none` label when users don't see the change
 - [ ] The pages in `docs/` and the `--help` text match the change
