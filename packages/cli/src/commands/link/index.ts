@@ -10,6 +10,7 @@ import {
   dim,
   log,
   note,
+  someNames,
   success,
   withSpinner,
 } from "../../util/ui";
@@ -24,7 +25,10 @@ export const link = handle(linkCommand, async ({ args, client }) => {
   if (wanted === undefined && !client.prompts.interactive) {
     throw new CliError("tell nipa which project to link", {
       exitCode: 2,
-      hint: `Run \`nipa link <project>\`. Your projects: ${projects.map((p) => p.name).join(", ")}`,
+      hint: `Run \`nipa link <project>\`. Your projects: ${someNames(
+        projects.map((p) => p.name),
+        "nipa project ls"
+      )}`,
     });
   }
   const dir = process.cwd();

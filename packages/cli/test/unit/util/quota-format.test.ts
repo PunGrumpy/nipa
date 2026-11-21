@@ -6,6 +6,7 @@ import {
   formatPercent,
   groupLabel,
   levelOf,
+  pipeLine,
   quotaLabel,
   sortQuotas,
   summarize,
@@ -23,6 +24,12 @@ const quota = (
   name,
   unit: null,
   used,
+});
+
+test("a piped quota row keeps newlines and tabs out of its columns", () => {
+  const line = pipeLine(quota("cores\tforged", 1, 2, "compute\nforged"));
+  expect(line.match(/\t/gu)).toHaveLength(3);
+  expect(line).not.toContain("\n");
 });
 
 describe("labels", () => {

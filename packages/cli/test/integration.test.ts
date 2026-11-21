@@ -184,6 +184,32 @@ describe("help and usage", () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
+  test("--version --json prints the version as JSON", async () => {
+    const { code, stderr, stdout } = await run(["--version", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toEqual({ version: pkg.version });
+  });
+
+  test.each([
+    [["server", "stop", "--help", "--json"]],
+    [["help", "server", "stop", "--json"]],
+  ])("a command's help as JSON: %j", async (args) => {
+    const { code, stderr, stdout } = await run(args);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout).path).toEqual(["nipa", "server", "stop"]);
+  });
+
+  test("help --all --json prints every command with no session or network", async () => {
+    const { code, stderr, stdout } = await run(["help", "--all", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    const doc = JSON.parse(stdout);
+    expect(doc.version).toBe(pkg.version);
+    expect(doc.commands.length).toBeGreaterThan(30);
+  });
+
   test.each([
     [["--help", "--version"]],
     [["--version", "--help"]],
@@ -238,7 +264,7 @@ describe("help and usage", () => {
   });
 
   test.each([
-    [["help", "--json", "server"], "Usage: nipa server [ls|search"],
+    [["help", "-y", "server"], "Usage: nipa server [ls|search"],
     [["help", "--bogus", "server"], "Usage: nipa server [ls|search"],
     [["help", "-y", "server", "stop"], "Usage: nipa server stop <server>"],
     [["help", "--", "server"], "Usage: nipa server [ls|search"],
@@ -321,6 +347,26 @@ describe("help and usage", () => {
       data: { suggestion: "--json" },
       reason: "unknown_option",
     });
+  });
+
+  test("a mistyped choice value suggests the closest one", async () => {
+    const { code, stderr, stdout } = await run(["completion", "fis"]);
+    expect(code).toBe(2);
+    expect(stdout).toBe("");
+    expect(stderr).toContain(
+      "Did you mean `fish`? Use one of: bash, zsh, fish, pwsh."
+    );
+    expect(stderr).not.toContain("> Use one of");
+    const json = await run(["env", "--shell", "fis", "--json"]);
+    expect(json.stdout).toBe("");
+    expect(JSON.parse(json.stderr)).toMatchObject({
+      data: { suggestion: "fish" },
+      message: 'unknown shell "fis"',
+      reason: "invalid_arguments",
+    });
+    const far = await run(["completion", "xyz"]);
+    expect(far.stderr).toContain("Use one of: bash, zsh, fish, pwsh.");
+    expect(far.stderr).not.toContain("Did you mean");
   });
 
   test("a help request keeps the help verb in every suggestion", async () => {
@@ -627,6 +673,8 @@ describe("what a terminal changes", () => {
         ["--no-color", ...args]
       );
       expect(stderr).toContain(message);
+      expect(stderr).toContain("Canceled.");
+      expect(stderr).not.toContain("Error:");
       // The prompt still moves the cursor, which is not color.
       expect(colorCodes(stderr)).toEqual([]);
       expect(code).toBe(130);
@@ -1270,6 +1318,33 @@ describe("profiles", () => {
     const config = await readJsonFile("config.json");
     expect(config.currentProfile).toBe("prod");
   });
+
+  test("rm says when Keystone couldn't revoke the token", async () => {
+    await seedSession(dir, keystone.url);
+    const added = await run([
+      "profile",
+      "add",
+      "staging",
+      "--auth-url",
+      keystone.url,
+    ]);
+    expect(added.code).toBe(0);
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.staging = auth.sessions.prod;
+    await writeFile(inDir("auth.json"), JSON.stringify(auth));
+
+    keystone.setRevokeFailure(true);
+    try {
+      const { code, stderr } = await run(["profile", "rm", "staging", "--yes"]);
+      expect(code).toBe(0);
+      expect(stderr).toContain("Removed profile staging");
+      expect(stderr).toContain("couldn't revoke the token on Keystone");
+      const afterAuth = await readJsonFile("auth.json");
+      expect(afterAuth.sessions.staging).toBeUndefined();
+    } finally {
+      keystone.setRevokeFailure(false);
+    }
+  });
 });
 
 describe("completion", () => {
@@ -1461,6 +1536,18 @@ describe("with a session", () => {
     expect(stderr).toContain("Alpha, Beta");
   });
 
+  test("switch without a project fails for an agent on a terminal and never asks", async () => {
+    const { code, stderr } = await runOnTerminals({
+      args: ["switch"],
+      env: { ...testEnv(dir), CLAUDECODE: "1" },
+      terminals: ["stdin", "stderr"],
+    });
+    expect(code).toBe(2);
+    expect(stderr).toContain("tell nipa which project to use");
+    expect(stderr).toContain("Run `nipa switch <project>`");
+    expect(stderr).not.toContain("Switch to:");
+  });
+
   test("files are private", async () => {
     const info = await stat(path.join(dir, "auth.json"));
     expect(info.mode.toString(8).slice(-3)).toBe("600");
@@ -1475,10 +1562,26 @@ describe("with a session", () => {
     expect(stderr).not.toContain("tok-");
   });
 
+  test("logout says when Keystone couldn't revoke the token", async () => {
+    await seedSession(dir, keystone.url);
+    keystone.setRevokeFailure(true);
+    try {
+      const { code, stderr } = await run(["logout"]);
+      expect(code).toBe(0);
+      expect(stderr).toContain("Logged out of prod");
+      expect(stderr).toContain("couldn't revoke the token on Keystone");
+      expect(await exists(inDir("auth.json"))).toBe(false);
+    } finally {
+      keystone.setRevokeFailure(false);
+    }
+  });
+
   test("logout revokes and deletes the session", async () => {
+    await seedSession(dir, keystone.url);
     const { code, stderr } = await run(["logout"]);
     expect(code).toBe(0);
     expect(stderr).toContain("Logged out of prod");
+    expect(stderr).not.toContain("couldn't revoke the token");
     const after = await run(["whoami"]);
     expect(after.code).toBe(1);
   });
@@ -2208,6 +2311,40 @@ describe("server start, stop and restart", () => {
       "Run `nipa server start web-1` to start it."
     );
     expect(serverActions()).toHaveLength(before);
+  });
+
+  test("the suggested start command repeats a server ID", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    const stop = await run(["server", "stop", id, "--yes"]);
+    expect(stop.code).toBe(0);
+    const restart = await run(["server", "restart", id, "--yes"]);
+    expect(restart.code).toBe(1);
+    expect(restart.stderr).toContain(
+      `Run \`nipa server start ${id}\` to start it.`
+    );
+    expect(restart.stderr).not.toContain("nipa server start web-1");
+  });
+
+  test("quotes a server name with a space in the suggested command", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    const stop = await run(["server", "stop", id, "--yes"]);
+    expect(stop.code).toBe(0);
+    const server = FAKE_SERVERS.find((item) => item.id === id);
+    if (!server) {
+      throw new Error("web-1 is missing from the fake servers");
+    }
+    const { name } = server;
+    server.name = "web 1";
+    try {
+      const restart = await run(["server", "restart", "web 1"]);
+      expect(restart.code).toBe(1);
+      expect(restart.stderr).toContain(
+        "Run `nipa server start 'web 1'` to start it."
+      );
+      expect(restart.stderr).not.toContain("nipa server start web 1");
+    } finally {
+      server.name = name;
+    }
   });
 
   test("start needs no confirmation", async () => {
@@ -4626,11 +4763,27 @@ describe("ip ls", () => {
 });
 
 // A browser that does nothing, so a test can run `open` on a terminal.
+const browserMarker = () => inDir("browser-opened");
+
+const waitForBrowserMarker = async (attempt = 0): Promise<boolean> => {
+  if (attempt === 100) {
+    return false;
+  }
+  if (await exists(browserMarker())) {
+    return true;
+  }
+  await Bun.sleep(20);
+  return waitForBrowserMarker(attempt + 1);
+};
+
 const installOpeners = async () => {
   await mkdir(inDir("bin"), { recursive: true });
   await Promise.all(
     ["open", "xdg-open"].map(async (name) => {
-      await writeFile(inDir("bin", name), "#!/bin/sh\nexit 0\n");
+      await writeFile(
+        inDir("bin", name),
+        `#!/bin/sh\n: > "${browserMarker()}"\nexit 0\n`
+      );
       await chmod(inDir("bin", name), 0o755);
     })
   );
@@ -4701,20 +4854,52 @@ describe("open", () => {
 
     test("-p names the project to switch to in the portal, and checks it exists", async () => {
       await installOpeners();
+      await rm(browserMarker(), { force: true });
       const piped = await run(["-p", "Beta", "open", "--url"]);
       expect(piped.code).toBe(0);
       expect(piped.stdout).toBe(`${keystone.url}/project\n`);
       expect(piped.stderr).toBe("> Using project Beta\n");
+      expect(await exists(browserMarker())).toBe(false);
       const terminal = await runOnTerminals({
         args: ["-p", "Beta", "open"],
         env: testEnv(dir),
-        terminals: ["stdout", "stderr"],
+        terminals: ["stdin", "stdout", "stderr"],
       });
       expect(terminal.code).toBe(0);
+      expect(terminal.stderr).toContain("Opening ");
       expect(terminal.stderr).toContain("Switch to Beta there");
       expect(terminal.stderr).not.toContain("Alpha");
+      expect(await waitForBrowserMarker()).toBe(true);
       const saved = await run(["open", "--url"]);
       expect(saved.stderr).toBe("");
+    });
+
+    test("CI prints the URL instead of opening a browser", async () => {
+      await installOpeners();
+      await rm(browserMarker(), { force: true });
+      const result = await runOnTerminals({
+        args: ["open"],
+        env: { ...testEnv(dir), CI: "1" },
+        terminals: ["stdin", "stdout", "stderr"],
+      });
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe(`${keystone.url}/project\n`);
+      expect(result.stderr).not.toContain("Opening");
+      expect(await exists(browserMarker())).toBe(false);
+    });
+
+    test("--non-interactive prints the URL instead of opening a browser", async () => {
+      await installOpeners();
+      await rm(browserMarker(), { force: true });
+      const result = await runOnTerminals({
+        args: ["--non-interactive", "open"],
+        env: testEnv(dir),
+        terminals: ["stdin", "stdout", "stderr"],
+      });
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe(`${keystone.url}/project\n`);
+      expect(result.stderr).not.toContain("Opening");
+      expect(await exists(browserMarker())).toBe(false);
     });
 
     test("-p with a project that doesn't exist fails before opening anything", async () => {

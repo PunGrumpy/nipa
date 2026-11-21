@@ -10,11 +10,11 @@ export const mcpCommand = defineCommand({
       description: "Add nipa to Claude Code",
     },
     {
-      command: "claude mcp add nipa -- nipa -P staging mcp",
+      command: "claude mcp add nipa -- nipa --profile staging mcp",
       description: "Add nipa to Claude Code, reading the staging profile",
     },
     {
-      command: "claude mcp add nipa -- nipa -p Beta mcp",
+      command: "claude mcp add nipa -- nipa --project Beta mcp",
       description: "Add nipa to Claude Code, reading the Beta project",
     },
   ],

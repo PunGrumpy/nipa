@@ -7,7 +7,7 @@ export const loginCommand = defineCommand({
   examples: [
     { command: "nipa login", description: "Log in to the current profile" },
     {
-      command: "nipa -P staging login",
+      command: "nipa --profile staging login",
       description: "Log in to the staging profile",
     },
     {

@@ -38,6 +38,7 @@ import {
   log,
   note,
   oneLine,
+  someNames,
   success,
   withSpinner,
 } from "./ui";
@@ -88,7 +89,7 @@ export const resolveProfile = async (input: {
   ) ?? ["config", config.currentProfile];
   const profile = config.profiles[name];
   if (!profile) {
-    const known = Object.keys(config.profiles).join(", ");
+    const known = someNames(Object.keys(config.profiles), "nipa profile ls");
     const from =
       found?.link.profile === name ? ` in ${displayPath(found.file)}` : "";
     throw new CliError(`no profile named "${name}"${from}`, {
@@ -167,7 +168,10 @@ const findProject = (input: {
       guess !== undefined && oneLine(guess) === guess && !guess.includes("`")
         ? guess
         : undefined;
-    const list = `Your projects: ${projects.map((p) => oneLine(p.name)).join(", ")}`;
+    const list = `Your projects: ${someNames(
+      projects.map((p) => oneLine(p.name)),
+      "nipa project ls"
+    )}`;
     throw new CliError(`no project named or with ID "${oneLine(wanted)}"`, {
       data: suggestion === undefined ? undefined : { suggestion },
       hint:

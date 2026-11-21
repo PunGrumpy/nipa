@@ -13,7 +13,7 @@ import { NetworkError } from "../../../src/util/http";
 import { KeystoneError } from "../../../src/util/keystone";
 import type { RunScope } from "../../../src/util/scope";
 import { StoreError } from "../../../src/util/store";
-import { CliError, usageError } from "../../../src/util/ui";
+import { canceled, CliError, usageError } from "../../../src/util/ui";
 
 describe("the reason of an error", () => {
   test("is invalid_arguments for exit 2 and failed for anything else", () => {
@@ -58,6 +58,14 @@ describe("the reason of an error", () => {
 });
 
 describe("jsonErrorDocument", () => {
+  test("reports a cancel with its own reason", () => {
+    expect(jsonErrorDocument(canceled())).toEqual({
+      message: "Canceled",
+      reason: "canceled",
+      status: "error",
+    });
+  });
+
   test("holds only what applies", () => {
     expect(jsonErrorDocument(new CliError("boom"))).toEqual({
       message: "boom",

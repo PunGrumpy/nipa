@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 
 import { program } from "../../../src/commands";
+import { AGENT_VARIABLES } from "../../../src/util/agent";
 import type { GlobalValues } from "../../../src/util/arg-common";
 import { createClient } from "../../../src/util/client";
 import { programSpec } from "../../../src/util/command";
@@ -20,6 +21,9 @@ describe("whether a run animates", () => {
     CI: process.env.CI,
     NO_COLOR: process.env.NO_COLOR,
     TERM: process.env.TERM,
+    ...Object.fromEntries(
+      AGENT_VARIABLES.map((name) => [name, process.env[name]])
+    ),
   };
   const ttys = {
     stderr: Object.getOwnPropertyDescriptor(process.stderr, "isTTY"),
@@ -34,7 +38,9 @@ describe("whether a run animates", () => {
       written.push(String(chunk));
       return true;
     });
-    Reflect.deleteProperty(process.env, "CI");
+    for (const name of ["CI", ...AGENT_VARIABLES]) {
+      Reflect.deleteProperty(process.env, name);
+    }
     process.env.TERM = "xterm-256color";
     setTerminal("stderr", true);
     setTerminal("stdin", true);
@@ -99,6 +105,11 @@ describe("whether a run animates", () => {
 
   test("CI draws nothing", async () => {
     process.env.CI = "1";
+    expect(await drawn({})).toBe(false);
+  });
+
+  test("an AI agent's variable draws nothing", async () => {
+    process.env.CLAUDECODE = "1";
     expect(await drawn({})).toBe(false);
   });
 

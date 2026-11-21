@@ -9,7 +9,15 @@ import {
   loadSession,
   saveConfig,
 } from "../../util/store";
-import { bold, CliError, log, success, usageError } from "../../util/ui";
+import {
+  bold,
+  canceled,
+  CliError,
+  log,
+  note,
+  success,
+  usageError,
+} from "../../util/ui";
 import { rmSubcommand } from "./command";
 
 // The parser already rejected a missing <name>: `args.name` is a string.
@@ -37,15 +45,17 @@ export const rm = handle(rmSubcommand, async ({ args, client, flags }) => {
       message: `Remove profile ${name} and log out of it?`,
     });
     if (!sure) {
-      throw new CliError("Canceled", { exitCode: 130 });
+      throw canceled();
     }
   }
   const session = await loadSession(name);
+  let revoked = true;
   if (isActive(session)) {
     try {
       await revoke({ authUrl: profile.authUrl, token: session.token });
     } catch {
-      // The token expires on its own.
+      revoked = false;
+      // It can stay valid until it expires.
     }
   }
   await clearSession(name);
@@ -61,6 +71,11 @@ export const rm = handle(rmSubcommand, async ({ args, client, flags }) => {
   success(`Removed profile ${bold(name)}`);
   if (wasCurrent) {
     log(`Now using ${bold(DEFAULT_PROFILE)}`);
+  }
+  if (!revoked) {
+    note(
+      "nipa couldn't revoke the token on Keystone, so it stays valid until it expires."
+    );
   }
   return 0;
 });
