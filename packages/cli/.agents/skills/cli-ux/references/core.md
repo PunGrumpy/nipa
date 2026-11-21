@@ -113,6 +113,7 @@ Rules:
 
 - The message is a lowercase fragment without a final period. It names the object, quoting values the person typed: `no profile named "staging"`
 - The hint is a full sentence that ends with a period. It names the exact command, flag or file to fix it, in backticks. One exception: a name that matches several items lists up to 5 of them, one per line, with what tells them apart, and then how to get the rest
+- A hint that lists the person's projects or profiles shows at most 5 through `someNames` in `src/util/ui.ts`, then how many more and the command that lists them all
 - Use `usageError(message, hint)` when the command line was wrong. It exits with 2
 - Suggest the closest command, subcommand, option, resource name or project name when a word is unknown, as the dispatcher does: ``Did you mean `nipa server`?``. Use `closest` in `src/util/suggest.ts`, never a rule of your own: it suggests a candidate only when it is the single best match and it is close (the same word in another case, else 1 edit for a word of 4 letters or fewer, 2 for 5 to 8, 3 for longer, and none by distance for a word of 1 or 2), and a tie suggests nothing. A wrong suggestion costs more than none. A command counts by its name and its aliases and is suggested by its name. A server that isn't found points to `nipa server search <name>` before `nipa server ls`, because the likeliest miss is a server in another project
 - For a server-side or network failure, the hint points to `--debug` or to the Keystone URL

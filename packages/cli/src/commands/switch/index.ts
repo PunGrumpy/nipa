@@ -7,7 +7,14 @@ import {
   saveLogin,
   toSession,
 } from "../../util/session";
-import { bold, CliError, note, success, withSpinner } from "../../util/ui";
+import {
+  bold,
+  CliError,
+  note,
+  someNames,
+  success,
+  withSpinner,
+} from "../../util/ui";
 import { switchCommand } from "./command";
 
 export const switchProject = handle(switchCommand, async ({ args, client }) => {
@@ -21,7 +28,10 @@ export const switchProject = handle(switchCommand, async ({ args, client }) => {
   if (wanted === undefined && !client.prompts.interactive) {
     throw new CliError("tell nipa which project to use", {
       exitCode: 2,
-      hint: `Run \`nipa switch <project>\`. Your projects: ${projects.map((p) => p.name).join(", ")}`,
+      hint: `Run \`nipa switch <project>\`. Your projects: ${someNames(
+        projects.map((p) => p.name),
+        "nipa project ls"
+      )}`,
     });
   }
   const project = await pickProject({
