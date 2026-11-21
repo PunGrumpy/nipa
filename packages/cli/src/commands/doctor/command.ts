@@ -8,7 +8,7 @@ export const doctorCommand = defineCommand({
   examples: [
     { command: "nipa doctor", description: "Check the current profile" },
     {
-      command: "nipa -P staging doctor --json",
+      command: "nipa --profile staging doctor --json",
       description: "Check the staging profile and print JSON",
     },
   ],

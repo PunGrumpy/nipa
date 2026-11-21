@@ -48,7 +48,7 @@ export const program: Program = {
       description: "Run any openstack command with the session",
     },
     {
-      command: "nipa -P staging tf plan",
+      command: "nipa --profile staging tf plan",
       description: "Run terraform against the staging profile",
     },
   ],
