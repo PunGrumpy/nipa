@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import { utcTime } from "./api";
 import type { Space } from "./api";
+import { listServers } from "./compute";
 import type { Server } from "./compute";
+import { listPorts } from "./network";
 import type { Port } from "./network";
 
 const RuleSchema = z.object({
@@ -89,6 +91,25 @@ export interface Member {
   /** The server's addresses on the ports that carry the group. */
   addresses: string[];
 }
+
+/**
+ * Starts the port and server lists, which need no group, so a caller can look
+ * its group up while they load. Call the returned function to wait for both.
+ * A failure of either list is raised there, not before, so a caller that
+ * throws first, such as for a group that doesn't exist, leaves no rejection
+ * unhandled.
+ */
+export const startMemberReads = (
+  space: Space
+): (() => Promise<[Port[], Server[]]>) => {
+  const ports = listPorts(space);
+  const servers = listServers(space);
+  const settled = Promise.allSettled([ports, servers]);
+  return async () => {
+    await settled;
+    return Promise.all([ports, servers]);
+  };
+};
 
 // A server's security groups belong to its ports, which name them by ID.
 // The server list names them, and two groups can share a name.

@@ -29,14 +29,33 @@ import { TOOLS, ToolArgumentsSchema } from "./mcp-tools";
 import type { RegisteredTool, ToolArguments, ToolContext } from "./mcp-tools";
 import { runScope } from "./scope";
 import { connect, requireSession, requireSpaceUrl } from "./session";
-import type { ActiveProfile } from "./session";
+import type { ActiveProfile, SignedIn } from "./session";
+import { isActive } from "./store";
 import { createPrompts } from "./ui";
 
 /**
- * The profile chosen when the server starts, and the session, read on each
- * call so that a `nipa login` in another terminal takes effect without a
- * restart. The
- * prompts say they can't ask, so an expired session is an error.
+ * The sessions one saved login has scoped to a project, by the project a call
+ * asked for. Each is a promise, so two calls at once share one exchange.
+ */
+interface ProjectSessions {
+  /** The saved session's token, which every entry here came from. */
+  readonly token: string;
+  readonly byProject: Map<string | undefined, Promise<SignedIn>>;
+}
+
+/**
+ * The profile chosen when the server starts, and the saved session, read from
+ * disk on each call so that a `nipa login` in another terminal takes effect
+ * without a restart. The prompts say they can't ask, so an expired session is
+ * an error.
+ *
+ * A call for a project (the tool's own, else the run's `-p`, else the
+ * folder's link) needs a token for it, which costs a project list and a token
+ * exchange. The server keeps each project's session in memory, never on disk,
+ * for as long as it runs. It drops all of them when the saved token changes
+ * (a login or a switch elsewhere) and one when it expires, so a call after
+ * `nipa logout` still fails with the login error, and it keeps no failed
+ * exchange.
  */
 export const createToolContext = (input: {
   active: ActiveProfile;
@@ -51,15 +70,46 @@ export const createToolContext = (input: {
     stderr: process.stderr,
     stdin: process.stdin,
   });
+  let held: ProjectSessions | undefined;
+  const signIn = async (project: string | undefined): Promise<SignedIn> => {
+    // Reads the saved session first: it fails with the login error when there
+    // is none, and its token says whether the entries are still its own.
+    const saved = await requireSession({ active, prompts, saved: true });
+    const wanted = project ?? input.project;
+    if (wanted === undefined && !active.link) {
+      return saved;
+    }
+    if (held?.token !== saved.session.token) {
+      held = { byProject: new Map(), token: saved.session.token };
+    }
+    const { byProject } = held;
+    const entry = byProject.get(wanted);
+    if (entry) {
+      const signedIn = await entry;
+      if (isActive(signedIn.session)) {
+        return signedIn;
+      }
+      if (byProject.get(wanted) === entry) {
+        byProject.delete(wanted);
+      }
+    }
+    const fresh = requireSession({ active, project: wanted, prompts });
+    byProject.set(wanted, fresh);
+    try {
+      return await fresh;
+    } catch (error) {
+      if (byProject.get(wanted) === fresh) {
+        byProject.delete(wanted);
+      }
+      throw error;
+    }
+  };
   return {
-    cloud: async (project) => {
-      const signedIn = await requireSession({
-        active,
-        project: project ?? input.project,
-        prompts,
-      });
-      return connect({ signedIn, spaceUrl: requireSpaceUrl(active) });
-    },
+    cloud: async (project) =>
+      connect({
+        signedIn: await signIn(project),
+        spaceUrl: requireSpaceUrl(active),
+      }),
     profile: () => Promise.resolve(active),
     project: input.project,
     savedSession: () => requireSession({ active, prompts, saved: true }),

@@ -1,8 +1,10 @@
 import { handle } from "../../util/command";
-import { listServers } from "../../util/compute";
 import { findResource, SECURITY_GROUPS } from "../../util/find";
-import { listPorts } from "../../util/network";
-import { listSecurityGroups, membersOf } from "../../util/security-group";
+import {
+  listSecurityGroups,
+  membersOf,
+  startMemberReads,
+} from "../../util/security-group";
 import type { Member, SecurityGroup } from "../../util/security-group";
 import {
   compareRules,
@@ -84,6 +86,8 @@ export const inspect = handle(
     const started = performance.now();
     // The same list finds the group and names the remote groups in its rules.
     const groups = listSecurityGroups(space);
+    // The ports and servers don't depend on the group, so they load meanwhile.
+    const readMembers = startMemberReads(space);
     const group = await findResource({
       kind: { ...SECURITY_GROUPS, list: () => groups },
       projectName: project.name,
@@ -92,7 +96,7 @@ export const inspect = handle(
     });
     const [ports, servers] = await withSpinner(
       `Loading the servers in ${project.name}…`,
-      () => Promise.all([listPorts(space), listServers(space)])
+      readMembers
     );
     const allGroups = await groups;
     const groupNames = new Map(allGroups.map((g) => [g.id, g.name]));

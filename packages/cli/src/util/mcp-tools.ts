@@ -35,11 +35,15 @@ import {
   inspectLoadBalancer,
   listLoadBalancers,
 } from "./load-balancer";
-import { listNetworks, listPorts } from "./network";
+import { listNetworks } from "./network";
 import { projectsDocument } from "./projects";
 import { listQuotas } from "./quota";
 import { sortQuotas } from "./quota-format";
-import { listSecurityGroups, membersOf } from "./security-group";
+import {
+  listSecurityGroups,
+  membersOf,
+  startMemberReads,
+} from "./security-group";
 import { isExposed, toRule } from "./security-group-rule";
 import {
   isFailed,
@@ -415,16 +419,15 @@ const inspectSecurityGroup = defineTool({
     const { scope, space } = await open(ctx, project);
     // The same list finds the group and names the remote groups in its rules.
     const groups = listSecurityGroups(space);
+    // The ports and servers don't depend on the group, so they load meanwhile.
+    const reads = startMemberReads(space);
     const group = await findResource({
       kind: { ...SECURITY_GROUPS, list: () => groups },
       projectName: scope.project.name,
       ref,
       space,
     });
-    const [ports, servers] = await Promise.all([
-      listPorts(space),
-      listServers(space),
-    ]);
+    const [ports, servers] = await reads();
     const allGroups = await groups;
     const groupNames = new Map(allGroups.map((g) => [g.id, g.name]));
     const rules = group.rules.map((rule) => ({
