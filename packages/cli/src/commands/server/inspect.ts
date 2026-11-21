@@ -141,7 +141,7 @@ export const inspect = handle(
       for (const [what, read] of reads) {
         if (!read.ok) {
           log(
-            `Couldn't load ${server.name}'s ${what}: ${read.reason}. Run the command again, or add \`--debug\` to see the request.`
+            `Couldn't load ${oneLine(server.name)}'s ${what}: ${read.reason}. Run the command again, or add \`--debug\` to see the request.`
           );
         }
       }
@@ -160,7 +160,9 @@ export const inspect = handle(
       return 0;
     }
     const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
-    log(`Server ${bold(server.name)} in ${bold(project.name)} ${elapsed}`);
+    log(
+      `Server ${bold(oneLine(server.name))} in ${bold(project.name)} ${elapsed}`
+    );
     printFields(fieldsOf({ actions, now: Date.now(), server, state }));
     logFailures();
     if (server.status === "ERROR") {

@@ -90,7 +90,7 @@ describe("refWord", () => {
     expect(refWord("it's", "id-1")).toBe(shellQuote("it's"));
   });
 
-  test.each(["a`b", "a\nb", "", "-x"])(
+  test.each(["a`b", "a\nb", "a\tb", "", "-x"])(
     "uses the ID when %j can't sit in a hint",
     (name) => {
       expect(refWord(name, "id-1")).toBe("id-1");
