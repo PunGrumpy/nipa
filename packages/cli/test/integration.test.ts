@@ -4648,6 +4648,17 @@ describe("ip ls", () => {
 // A browser that does nothing, so a test can run `open` on a terminal.
 const browserMarker = () => inDir("browser-opened");
 
+const waitForBrowserMarker = async (attempt = 0): Promise<boolean> => {
+  if (attempt === 100) {
+    return false;
+  }
+  if (await exists(browserMarker())) {
+    return true;
+  }
+  await Bun.sleep(20);
+  return waitForBrowserMarker(attempt + 1);
+};
+
 const installOpeners = async () => {
   await mkdir(inDir("bin"), { recursive: true });
   await Promise.all(
@@ -4741,7 +4752,7 @@ describe("open", () => {
       expect(terminal.stderr).toContain("Opening ");
       expect(terminal.stderr).toContain("Switch to Beta there");
       expect(terminal.stderr).not.toContain("Alpha");
-      expect(await exists(browserMarker())).toBe(true);
+      expect(await waitForBrowserMarker()).toBe(true);
       const saved = await run(["open", "--url"]);
       expect(saved.stderr).toBe("");
     });
