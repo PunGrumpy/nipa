@@ -325,6 +325,33 @@ export const asksOnlyForJsonVersion = (words: readonly string[]): boolean =>
   words.some((word) => word === "--version" || word === "-v") &&
   words.every((word) => ["--json", "--version", "-v"].includes(word));
 
+/** The options at the start of a line, up to the first word that isn't one or a `--`. */
+export const leadingOptions = (words: readonly string[]): readonly string[] => {
+  const end = words.findIndex(
+    (word) => word === "--" || word === "-" || !word.startsWith("-")
+  );
+  return end === -1 ? words : words.slice(0, end);
+};
+
+/**
+ * The line without its front `--json` words when it asks for help before the
+ * command, as `nipa --help --json` and `nipa --json -h` do, else undefined.
+ * `--json` is a leaf's flag, so the global options reject it before a command
+ * everywhere else.
+ */
+export const withoutFrontJsonHelp = (
+  words: readonly string[]
+): readonly string[] | undefined => {
+  const front = leadingOptions(words);
+  if (!front.includes("--json") || !asksForHelp(front)) {
+    return undefined;
+  }
+  return [
+    ...front.filter((word) => word !== "--json"),
+    ...words.slice(front.length),
+  ];
+};
+
 const tokenize = (input: {
   flags: readonly FlagSpec[];
   hints: Hints;

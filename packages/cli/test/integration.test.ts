@@ -192,6 +192,25 @@ describe("help and usage", () => {
   });
 
   test.each([
+    [["server", "stop", "--help", "--json"]],
+    [["help", "server", "stop", "--json"]],
+  ])("a command's help as JSON: %j", async (args) => {
+    const { code, stderr, stdout } = await run(args);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout).path).toEqual(["nipa", "server", "stop"]);
+  });
+
+  test("help --all --json prints every command with no session or network", async () => {
+    const { code, stderr, stdout } = await run(["help", "--all", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    const doc = JSON.parse(stdout);
+    expect(doc.version).toBe(pkg.version);
+    expect(doc.commands.length).toBeGreaterThan(30);
+  });
+
+  test.each([
     [["--help", "--version"]],
     [["--version", "--help"]],
     [["-v", "-h"]],
@@ -245,7 +264,7 @@ describe("help and usage", () => {
   });
 
   test.each([
-    [["help", "--json", "server"], "Usage: nipa server [ls|search"],
+    [["help", "-y", "server"], "Usage: nipa server [ls|search"],
     [["help", "--bogus", "server"], "Usage: nipa server [ls|search"],
     [["help", "-y", "server", "stop"], "Usage: nipa server stop <server>"],
     [["help", "--", "server"], "Usage: nipa server [ls|search"],
