@@ -28,7 +28,7 @@ export const logout = handle(logoutCommand, async ({ client }) => {
     }
     if (!revoked) {
       note(
-        "nipa couldn't reach Keystone to revoke the token, so it stays valid until it expires."
+        "nipa couldn't revoke the token on Keystone, so it stays valid until it expires."
       );
     }
   } else if (forgot) {

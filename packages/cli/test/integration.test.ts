@@ -1312,9 +1312,7 @@ describe("profiles", () => {
       const { code, stderr } = await run(["profile", "rm", "staging", "--yes"]);
       expect(code).toBe(0);
       expect(stderr).toContain("Removed profile staging");
-      expect(stderr).toContain(
-        "nipa couldn't reach Keystone to revoke the token"
-      );
+      expect(stderr).toContain("couldn't revoke the token on Keystone");
       const afterAuth = await readJsonFile("auth.json");
       expect(afterAuth.sessions.staging).toBeUndefined();
     } finally {
@@ -1533,9 +1531,7 @@ describe("with a session", () => {
       const { code, stderr } = await run(["logout"]);
       expect(code).toBe(0);
       expect(stderr).toContain("Logged out of prod");
-      expect(stderr).toContain(
-        "nipa couldn't reach Keystone to revoke the token"
-      );
+      expect(stderr).toContain("couldn't revoke the token on Keystone");
       expect(await exists(inDir("auth.json"))).toBe(false);
     } finally {
       keystone.setRevokeFailure(false);
@@ -1547,7 +1543,7 @@ describe("with a session", () => {
     const { code, stderr } = await run(["logout"]);
     expect(code).toBe(0);
     expect(stderr).toContain("Logged out of prod");
-    expect(stderr).not.toContain("couldn't reach Keystone");
+    expect(stderr).not.toContain("couldn't revoke the token");
     const after = await run(["whoami"]);
     expect(after.code).toBe(1);
   });
