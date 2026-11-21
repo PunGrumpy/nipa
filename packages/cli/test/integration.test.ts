@@ -1299,6 +1299,33 @@ describe("profiles", () => {
     const config = await readJsonFile("config.json");
     expect(config.currentProfile).toBe("prod");
   });
+
+  test("rm says when Keystone couldn't revoke the token", async () => {
+    await seedSession(dir, keystone.url);
+    const added = await run([
+      "profile",
+      "add",
+      "staging",
+      "--auth-url",
+      keystone.url,
+    ]);
+    expect(added.code).toBe(0);
+    const auth = await readJsonFile("auth.json");
+    auth.sessions.staging = auth.sessions.prod;
+    await writeFile(inDir("auth.json"), JSON.stringify(auth));
+
+    keystone.setRevokeFailure(true);
+    try {
+      const { code, stderr } = await run(["profile", "rm", "staging", "--yes"]);
+      expect(code).toBe(0);
+      expect(stderr).toContain("Removed profile staging");
+      expect(stderr).toContain("couldn't revoke the token on Keystone");
+      const afterAuth = await readJsonFile("auth.json");
+      expect(afterAuth.sessions.staging).toBeUndefined();
+    } finally {
+      keystone.setRevokeFailure(false);
+    }
+  });
 });
 
 describe("completion", () => {
@@ -1504,10 +1531,26 @@ describe("with a session", () => {
     expect(stderr).not.toContain("tok-");
   });
 
+  test("logout says when Keystone couldn't revoke the token", async () => {
+    await seedSession(dir, keystone.url);
+    keystone.setRevokeFailure(true);
+    try {
+      const { code, stderr } = await run(["logout"]);
+      expect(code).toBe(0);
+      expect(stderr).toContain("Logged out of prod");
+      expect(stderr).toContain("couldn't revoke the token on Keystone");
+      expect(await exists(inDir("auth.json"))).toBe(false);
+    } finally {
+      keystone.setRevokeFailure(false);
+    }
+  });
+
   test("logout revokes and deletes the session", async () => {
+    await seedSession(dir, keystone.url);
     const { code, stderr } = await run(["logout"]);
     expect(code).toBe(0);
     expect(stderr).toContain("Logged out of prod");
+    expect(stderr).not.toContain("couldn't revoke the token");
     const after = await run(["whoami"]);
     expect(after.code).toBe(1);
   });
