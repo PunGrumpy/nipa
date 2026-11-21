@@ -3,7 +3,7 @@ import { handle } from "../../util/command";
 import type { Client } from "../../util/command";
 import { powerServer, waitForServer } from "../../util/compute";
 import type { PowerAction, Server } from "../../util/compute";
-import { findServer } from "../../util/find";
+import { findServer, refWord } from "../../util/find";
 import { statusLabel } from "../../util/status";
 import {
   bold,
@@ -11,6 +11,7 @@ import {
   CliError,
   log,
   note,
+  oneLine,
   success,
   usageError,
   withSpinner,
@@ -75,12 +76,13 @@ const confirm = async (input: {
   action: PowerAction;
   client: Client;
   server: Server;
+  shown: string;
   projectName: string;
 }): Promise<void> => {
-  const { action, client, server } = input;
+  const { action, client, server, shown } = input;
   if (!client.prompts.interactive) {
     throw usageError(
-      `${WORDING[action].doing.toLowerCase()} ${server.name} needs confirmation`,
+      `${WORDING[action].doing.toLowerCase()} ${shown} needs confirmation`,
       `Add \`--yes\` to ${action} it without asking.`
     );
   }
@@ -117,10 +119,12 @@ const power = async (input: {
     ref: input.ref,
     space,
   });
-  const name = bold(server.name);
+  const ref = refWord(input.ref, server.id);
+  const shown = oneLine(server.name);
+  const name = bold(shown);
   if (action === "restart" && server.status === "SHUTOFF") {
-    throw new CliError(`${server.name} is stopped`, {
-      hint: `Run \`nipa server start ${server.name}\` to start it.`,
+    throw new CliError(`${shown} is stopped`, {
+      hint: `Run \`nipa server start ${ref}\` to start it.`,
     });
   }
   if (action !== "restart" && server.status === wording.status) {
@@ -128,12 +132,12 @@ const power = async (input: {
     return 0;
   }
   if (wording.confirm && !flags.yes) {
-    await confirm({ action, client, projectName, server });
+    await confirm({ action, client, projectName, server, shown });
   }
   const started = performance.now();
-  const inspectLine = `\`nipa server inspect ${server.name}\``;
+  const inspectLine = `\`nipa server inspect ${ref}\``;
   if (flags["no-wait"]) {
-    await withSpinner(`Asking to ${action} ${server.name}…`, () =>
+    await withSpinner(`Asking to ${action} ${shown}…`, () =>
       powerServer(space, server.id, action)
     );
     success(
@@ -143,37 +147,34 @@ const power = async (input: {
     log(`Run ${inspectLine} to check on it.`);
     return 0;
   }
-  const outcome = await withSpinner(
-    `${wording.doing} ${server.name}…`,
-    async () => {
-      await powerServer(space, server.id, action);
-      try {
-        return await waitForServer({
-          id: server.id,
-          intervalMs: POLL_MS,
-          space,
-          status: wording.status,
-          timeoutMs,
+  const outcome = await withSpinner(`${wording.doing} ${shown}…`, async () => {
+    await powerServer(space, server.id, action);
+    try {
+      return await waitForServer({
+        id: server.id,
+        intervalMs: POLL_MS,
+        space,
+        status: wording.status,
+        timeoutMs,
+      });
+    } catch (error) {
+      // The action went through, so running the command again isn't the fix.
+      if (error instanceof CliError || error instanceof ApiError) {
+        throw new CliError(error.message, {
+          hint: `nipa asked to ${action} ${shown} before this failed. Run ${inspectLine} to check it.`,
         });
-      } catch (error) {
-        // The action went through, so running the command again isn't the fix.
-        if (error instanceof CliError || error instanceof ApiError) {
-          throw new CliError(error.message, {
-            hint: `nipa asked to ${action} ${server.name} before this failed. Run ${inspectLine} to check it.`,
-          });
-        }
-        throw error;
       }
+      throw error;
     }
-  );
+  });
   if (outcome.kind === "error") {
-    throw new CliError(`${server.name} went into an error state`, {
+    throw new CliError(`${shown} went into an error state`, {
       hint: `Run ${inspectLine}, or check the server in the Space portal.`,
     });
   }
   if (outcome.kind === "timeout") {
     const status = statusLabel(outcome.state.status);
-    throw new CliError(`${server.name} is still ${status} after ${timeout}`, {
+    throw new CliError(`${shown} is still ${status} after ${timeout}`, {
       hint: `Run ${inspectLine} to check it again, or wait longer with \`--timeout\`.`,
     });
   }

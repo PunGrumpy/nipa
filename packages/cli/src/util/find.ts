@@ -149,7 +149,14 @@ export type FindableName = Pick<
 // A word that can sit inside backticks in a hint, and after a command name,
 // and be copied back as it is.
 const copyable = (word: string): boolean =>
-  word !== "" && !word.startsWith("-") && !/[\n\r`]/u.test(word);
+  word !== "" && !word.startsWith("-") && !/[\n\r\t`]/u.test(word);
+
+/**
+ * The word for a resource in a command nipa prints: what the person typed,
+ * quoted for a shell, or the ID when that text can't sit in a hint.
+ */
+export const refWord = (typed: string, id: string): string =>
+  copyable(typed) ? shellQuote(typed) : id;
 
 /**
  * The error for a `ref` that names no item of `kind`. `names` are the names

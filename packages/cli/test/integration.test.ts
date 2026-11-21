@@ -2282,6 +2282,40 @@ describe("server start, stop and restart", () => {
     expect(serverActions()).toHaveLength(before);
   });
 
+  test("the suggested start command repeats a server ID", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    const stop = await run(["server", "stop", id, "--yes"]);
+    expect(stop.code).toBe(0);
+    const restart = await run(["server", "restart", id, "--yes"]);
+    expect(restart.code).toBe(1);
+    expect(restart.stderr).toContain(
+      `Run \`nipa server start ${id}\` to start it.`
+    );
+    expect(restart.stderr).not.toContain("nipa server start web-1");
+  });
+
+  test("quotes a server name with a space in the suggested command", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    const stop = await run(["server", "stop", id, "--yes"]);
+    expect(stop.code).toBe(0);
+    const server = FAKE_SERVERS.find((item) => item.id === id);
+    if (!server) {
+      throw new Error("web-1 is missing from the fake servers");
+    }
+    const { name } = server;
+    server.name = "web 1";
+    try {
+      const restart = await run(["server", "restart", "web 1"]);
+      expect(restart.code).toBe(1);
+      expect(restart.stderr).toContain(
+        "Run `nipa server start 'web 1'` to start it."
+      );
+      expect(restart.stderr).not.toContain("nipa server start web 1");
+    } finally {
+      server.name = name;
+    }
+  });
+
   test("start needs no confirmation", async () => {
     const { code, stderr } = await run(["server", "start", "web-1"]);
     expect(code).toBe(0);

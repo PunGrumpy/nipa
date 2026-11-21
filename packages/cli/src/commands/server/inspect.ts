@@ -5,7 +5,7 @@ import {
   listServerActions,
 } from "../../util/compute";
 import type { Server, ServerAction, ServerState } from "../../util/compute";
-import { findServer } from "../../util/find";
+import { findServer, refWord } from "../../util/find";
 import { statusCell } from "../../util/status";
 import {
   bold,
@@ -141,7 +141,7 @@ export const inspect = handle(
       for (const [what, read] of reads) {
         if (!read.ok) {
           log(
-            `Couldn't load ${server.name}'s ${what}: ${read.reason}. Run the command again, or add \`--debug\` to see the request.`
+            `Couldn't load ${oneLine(server.name)}'s ${what}: ${read.reason}. Run the command again, or add \`--debug\` to see the request.`
           );
         }
       }
@@ -160,14 +160,16 @@ export const inspect = handle(
       return 0;
     }
     const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
-    log(`Server ${bold(server.name)} in ${bold(project.name)} ${elapsed}`);
+    log(
+      `Server ${bold(oneLine(server.name))} in ${bold(project.name)} ${elapsed}`
+    );
     printFields(fieldsOf({ actions, now: Date.now(), server, state }));
     logFailures();
     if (server.status === "ERROR") {
       // The reference the person typed, so an ID stays an ID when the name
       // is ambiguous.
       log(
-        `Run \`nipa server history ${args.server}\` to see what failed, and \`nipa server logs ${args.server}\` for its console log.`
+        `Run \`nipa server history ${refWord(args.server, server.id)}\` to see what failed, and \`nipa server logs ${refWord(args.server, server.id)}\` for its console log.`
       );
     }
     if (!client.stdout.isTTY) {

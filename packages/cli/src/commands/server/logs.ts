@@ -1,12 +1,13 @@
 import { handle } from "../../util/command";
 import { getConsoleLog, lastLines } from "../../util/compute";
-import { findServer } from "../../util/find";
+import { findServer, refWord } from "../../util/find";
 import {
   bold,
   CliError,
   dim,
   formatElapsed,
   log,
+  oneLine,
   usageError,
   withSpinner,
 } from "../../util/ui";
@@ -33,13 +34,13 @@ export const logs = handle(logsSubcommand, async ({ args, client, flags }) => {
     ref: args.server,
     space,
   });
-  const consoleLog = await withSpinner(
-    `Loading ${server.name}'s console log…`,
-    () => getConsoleLog(space, server.id)
+  const shown = oneLine(server.name);
+  const consoleLog = await withSpinner(`Loading ${shown}'s console log…`, () =>
+    getConsoleLog(space, server.id)
   );
   if (consoleLog.kind === "none") {
-    throw new CliError(`${server.name} has no console log yet`, {
-      hint: `A server has one once it boots, so this one most likely never booted. Run \`nipa server history ${args.server}\` to see what failed.`,
+    throw new CliError(`${shown} has no console log yet`, {
+      hint: `A server has one once it boots, so this one most likely never booted. Run \`nipa server history ${refWord(args.server, server.id)}\` to see what failed.`,
     });
   }
   const text = lastLines(consoleLog.text, tail);
@@ -54,12 +55,10 @@ export const logs = handle(logsSubcommand, async ({ args, client, flags }) => {
   }
   const elapsed = dim(`[${formatElapsed(performance.now() - started)}]`);
   if (text === "") {
-    log(`${bold(server.name)}'s console log is empty ${elapsed}`);
+    log(`${bold(shown)}'s console log is empty ${elapsed}`);
     return 0;
   }
-  log(
-    `Console log of ${bold(server.name)} in ${bold(project.name)} ${elapsed}`
-  );
+  log(`Console log of ${bold(shown)} in ${bold(project.name)} ${elapsed}`);
   client.stdout.write(text);
   return 0;
 });
