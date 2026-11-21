@@ -254,7 +254,7 @@ export const lastLines = (text: string, count: number | undefined): string => {
     lines.pop();
   }
   return lines
-    .slice(-count)
+    .slice(Math.max(0, lines.length - count))
     .map((line) => `${line}\n`)
     .join("");
 };
