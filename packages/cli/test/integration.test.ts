@@ -184,6 +184,13 @@ describe("help and usage", () => {
     expect(stdout.trim()).toBe(pkg.version);
   });
 
+  test("--version --json prints the version as JSON", async () => {
+    const { code, stderr, stdout } = await run(["--version", "--json"]);
+    expect(code).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toEqual({ version: pkg.version });
+  });
+
   test.each([
     [["--help", "--version"]],
     [["--version", "--help"]],

@@ -315,6 +315,16 @@ export const asksForJson = (words: readonly string[]): boolean => {
   return optionWords(words).some((word) => spellings.has(word));
 };
 
+/**
+ * True for a line that only asks for the version as JSON, in any order:
+ * `--version --json`, `--json -v`. `--json` is a leaf's flag, so the global
+ * options reject it everywhere else before a command.
+ */
+export const asksOnlyForJsonVersion = (words: readonly string[]): boolean =>
+  words.includes("--json") &&
+  words.some((word) => word === "--version" || word === "-v") &&
+  words.every((word) => ["--json", "--version", "-v"].includes(word));
+
 const tokenize = (input: {
   flags: readonly FlagSpec[];
   hints: Hints;
