@@ -742,6 +742,9 @@ ${shown.flatMap((spec) => fishLines(spec)).join("\n")}
 `;
 };
 
+/** The words PowerShell reads as one literal word without quotes. */
+const PWSH_PLAIN = String.raw`\A[A-Za-z0-9_.:/=@+,-]+\z`;
+
 const pwshQuote = (text: string): string => `'${text.replaceAll("'", "''")}'`;
 
 const pwshList = (words: readonly string[]): string =>
@@ -844,7 +847,7 @@ const pwshBody = (spec: CommandSpec, pad: string): string => {
         ];
   });
   lines.push(
-    `if ($wordToComplete -like '-*') { return Complete ${pwshList(flags.flatMap(flagWords))} }`
+    `if ($wordToComplete -like '-*') { return Complete ${pwshList(flags.flatMap(flagWords))} -flags }`
   );
   const arg = offered(spec);
   const positional = arg && pwshArg(arg.arg.value);
@@ -881,10 +884,21 @@ Register-ArgumentCompleter -Native -CommandName nipa -ScriptBlock {
   $commands = [ordered]@{
 ${commands}
   }
-  function Complete([string[]]$values, [hashtable]$tips = @{}) {
-    $values | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+  # The text a completion puts on the command line: a word made of plain
+  # characters as it is, a flag as it is, anything else in single quotes, where
+  # PowerShell reads it as one literal word. The list shows the plain value.
+  function Complete([string[]]$values, [hashtable]$tips = @{}, [switch]$flags) {
+    # The typed word, without the quote it opened with or the one PowerShell closed.
+    $prefix = $wordToComplete
+    if ($prefix -match '^[''"]') {
+      $quote = $prefix[0]
+      $prefix = $prefix.Substring(1)
+      if ($prefix.Length -gt 0 -and $prefix[$prefix.Length - 1] -ceq $quote) { $prefix = $prefix.Substring(0, $prefix.Length - 1) }
+    }
+    $values | Where-Object { $_.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object {
       $tip = if ($tips[$_]) { $tips[$_] } else { $_ }
-      [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $tip)
+      $text = if ($_ -cmatch '${PWSH_PLAIN}' -and ($flags -or $_ -cnotlike '-*')) { $_ } else { "'" + $_.Replace("'", "''") + "'" }
+      [System.Management.Automation.CompletionResult]::new($text, $_, 'ParameterValue', $tip)
     }
   }
   function Dynamic([string]$kind) { @(nipa @scope __complete $kind 2>$null) }
@@ -931,7 +945,7 @@ ${commands}
   }
   if (-not $command) {
 ${pwshGlobalValues}
-    if ($wordToComplete -like '-*') { return Complete ${pwshList(GLOBAL_FLAGS.flatMap(flagWords))} }
+    if ($wordToComplete -like '-*') { return Complete ${pwshList(GLOBAL_FLAGS.flatMap(flagWords))} -flags }
     return Complete ([string[]]$commands.Keys) $commands
   }
   switch ($command) {
