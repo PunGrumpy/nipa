@@ -3,6 +3,7 @@
 // the Vercel CLI's output manager. Results go through the client's stdout,
 // and questions through the client's prompts.
 
+import { agentVariable } from "./agent";
 import type { Reason } from "./errors";
 import { inRun } from "./scope";
 import { theme } from "./theme";
@@ -403,7 +404,8 @@ interface ConfirmPrompt {
 export interface Prompts {
   /**
    * True when stdin and stderr are terminals and nothing said not to ask:
-   * not `--non-interactive`, not `--json`, and no CI variable. Ask only then.
+   * not `--non-interactive`, not `--json`, no CI variable and no AI agent's
+   * variable. Ask only then.
    * Otherwise a command fails with a hint naming the flag or argument to pass.
    */
   readonly interactive: boolean;
@@ -450,7 +452,11 @@ export const createPrompts = (streams: {
   json: boolean;
 }): Prompts => {
   const context = { input: streams.stdin, output: streams.stderr };
-  const refused = streams.nonInteractive || streams.json || !!streams.env.CI;
+  const refused =
+    streams.nonInteractive ||
+    streams.json ||
+    !!streams.env.CI ||
+    agentVariable(streams.env) !== undefined;
   const interactive =
     !refused && streams.stdin.isTTY === true && streams.stderr.isTTY === true;
   return {
