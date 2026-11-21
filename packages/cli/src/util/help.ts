@@ -157,8 +157,9 @@ export const usageLine = (path: CommandPath): string => {
 };
 
 /**
- * A leaf's own flags. A group's page lists its subcommands' flags, each
- * once, so `server ls --json` and `server inspect --json` show one `--json`.
+ * A leaf's own flags. A group's page lists the flags of the subcommand that
+ * runs when the group's name comes alone, so it never shows an option the bare
+ * group rejects. Each subcommand's own page lists its own flags.
  */
 const pageFlags = (spec: CommandSpec): readonly FlagSpec[] => {
   switch (spec.kind) {
@@ -166,9 +167,8 @@ const pageFlags = (spec: CommandSpec): readonly FlagSpec[] => {
       return spec.flags;
     }
     case "group": {
-      const all = spec.subcommands.flatMap((sub) => sub.flags);
-      return all.filter(
-        (flag, index) => all.findIndex((f) => f.long === flag.long) === index
+      return (
+        spec.subcommands.find((sub) => sub.name === spec.default)?.flags ?? []
       );
     }
     case "passthrough": {
