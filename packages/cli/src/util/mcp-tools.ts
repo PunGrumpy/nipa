@@ -35,7 +35,7 @@ import {
   inspectLoadBalancer,
   listLoadBalancers,
 } from "./load-balancer";
-import { listNetworks, listPorts } from "./network";
+import { listNetworks } from "./network";
 import { projectsDocument } from "./projects";
 import { listQuotas } from "./quota";
 import { sortQuotas } from "./quota-format";
