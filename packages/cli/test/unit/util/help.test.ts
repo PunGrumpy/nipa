@@ -4,7 +4,13 @@ import { stripVTControlCharacters } from "node:util";
 import { program } from "../../../src/commands";
 import { GLOBAL_FLAGS } from "../../../src/util/arg-common";
 import { programSpec } from "../../../src/util/command";
-import { commandHelp, mainHelp } from "../../../src/util/help";
+import {
+  allHelpDocument,
+  commandHelp,
+  commandHelpDocument,
+  mainHelp,
+  mainHelpDocument,
+} from "../../../src/util/help";
 import type { CommandPath, CommandSpec, Example } from "../../../src/util/spec";
 import { visibleCommands } from "../../../src/util/spec";
 
@@ -190,24 +196,60 @@ describe("a command page", () => {
     }
   });
 
-  test("a group lists each subcommand's flag once, sorted by long name", () => {
+  test("a group lists only the options its default subcommand accepts", () => {
     const server = plain(commandHelp([commandNamed("server")]));
     const options = server.slice(
       server.indexOf("  Options:"),
       server.indexOf("Global Options:")
     );
-    const longs = [
-      ...options.matchAll(/^ {4}(?:-\w, | {4})--(?<long>[a-z-]+)/gmu),
-    ].map((m) => m.groups?.long);
-    expect(longs).toEqual(["json", "no-wait", "tail", "timeout", "yes"]);
+    expect(options).toContain("--json");
+    for (const flag of ["--timeout", "--tail", "--no-wait", "--yes"]) {
+      expect(options).not.toContain(flag);
+    }
+  });
+
+  test("every group's page lists only options its default subcommand has", () => {
+    const groups = [...visibleCommands(spec), ...spec.hidden].filter(
+      (command) => command.kind === "group"
+    );
+    expect(groups.length).toBeGreaterThan(1);
+    for (const group of groups) {
+      if (group.kind !== "group") {
+        continue;
+      }
+      const fallback = group.subcommands.find(
+        (sub) => sub.name === group.default
+      );
+      expect(fallback).toBeDefined();
+      const page = plain(commandHelp([group]));
+      const start = page.indexOf("  Options:");
+      const options =
+        start === -1 ? "" : page.slice(start, page.indexOf("Global Options:"));
+      const longs = [
+        ...options.matchAll(/^ {4}(?:-\w, | {4})--(?<long>[a-z-]+)/gmu),
+      ].map((m) => m.groups?.long);
+      const accepted = fallback?.flags.map((flag) => flag.long) ?? [];
+      for (const long of longs) {
+        expect(accepted).toContain(long ?? "");
+      }
+    }
+  });
+
+  test("a subcommand's page lists its own options", () => {
+    const page = PAGES.find(([name]) => name === "nipa server stop")?.[1];
+    expect(page).toContain("--timeout <duration>");
+    expect(page).toContain("--no-wait");
+    expect(page).toContain("--yes");
   });
 
   test("a wrapped description sits two columns in from its label's text", () => {
-    const server = plain(commandHelp([commandNamed("server")])).split("\n");
-    const at = server.indexOf("        --no-wait");
+    const stop = (
+      PAGES.find(([name]) => name === "nipa server stop")?.[1] ?? ""
+    ).split("\n");
+    const at = stop.indexOf("        --no-wait");
     expect(at).toBeGreaterThan(0);
     // The label's text starts at column 8, so the description starts at 10.
-    expect(server[at + 1]).toMatch(/^ {10}\S/u);
+    expect(stop[at + 1]).toMatch(/^ {10}\S/u);
   });
 
   test.each(PAGES)(
@@ -237,5 +279,110 @@ describe("a command page", () => {
     expect(server).toMatch(
       /^ {4}stop <server> \[options\] {3,}Stop a server$/mu
     );
+  });
+});
+
+const optionNamesOnPage = (text: string): string[] => {
+  const start = text.indexOf("\n  Options:\n");
+  if (start === -1) {
+    return [];
+  }
+  const body = text.slice(start + 1).split("\n\n");
+  const options = body[1] ?? "";
+  return [...options.matchAll(/^ {4}(?:-\w, | {4})--(?<long>[a-z-]+)/gmu)].map(
+    (match) => match.groups?.long ?? ""
+  );
+};
+
+describe("help as a document", () => {
+  const stopPath = PATHS.find((path) => nameOf(path) === "nipa server stop");
+  if (!stopPath) {
+    throw new Error("no server stop");
+  }
+  const stop = commandHelpDocument(stopPath);
+
+  test("a command names its path, arguments and options", () => {
+    expect(stop.path).toEqual(["nipa", "server", "stop"]);
+    expect(stop.kind).toBe("command");
+    expect(stop.usage).toBe("nipa server stop <server> [options]");
+    expect(stop.arguments).toEqual([
+      { name: "server", required: true, variadic: false },
+    ]);
+    const timeout = stop.options.find((option) => option.name === "timeout");
+    expect(timeout?.type).toBe("string");
+    expect(timeout?.valueHint).toMatch(/^<.+>$/u);
+    expect(stop.options.find((option) => option.name === "yes")).toMatchObject({
+      short: "y",
+      type: "boolean",
+    });
+    expect(
+      stop.options.find((option) => option.name === "yes")
+    ).not.toHaveProperty("valueHint");
+    expect(stop.subcommands).toEqual([]);
+    expect(stop.default).toBeUndefined();
+  });
+
+  test("a group names its default and every subcommand in spec order", () => {
+    const server = commandNamed("server");
+    if (server.kind !== "group") {
+      throw new Error("server is not a group");
+    }
+    const doc = commandHelpDocument([server]);
+    expect(doc.kind).toBe("group");
+    expect(doc.default).toBe("ls");
+    expect(doc.subcommands.map((sub) => sub.name)).toEqual(
+      server.subcommands.map((sub) => sub.name)
+    );
+    expect(doc.arguments).toEqual([]);
+  });
+
+  test("a passthrough has no options", () => {
+    const doc = commandHelpDocument([commandNamed("os")]);
+    expect(doc.kind).toBe("passthrough");
+    expect(doc.options).toEqual([]);
+    expect(doc.arguments).toEqual([]);
+    expect(doc.subcommands).toEqual([]);
+  });
+
+  test("a choice carries its choices", () => {
+    const docs = PATHS.map(commandHelpDocument);
+    const choice = docs
+      .flatMap((doc) => doc.options)
+      .find((option) => option.choices !== undefined);
+    expect(choice?.valueHint).toBe(`<${choice?.choices?.join("|")}>`);
+  });
+
+  test.each(PATHS.map((path) => [nameOf(path), path] as const))(
+    "%s lists the options its human page lists, in the same order",
+    (_name, path) => {
+      const names = commandHelpDocument(path).options.map((o) => o.name);
+      expect(names).toEqual(optionNamesOnPage(plain(commandHelp(path))));
+    }
+  );
+
+  test("the main document lists every listed command and the global options", () => {
+    const doc = mainHelpDocument({ program: spec, version: "1.2.3" });
+    expect(doc.path).toEqual(["nipa"]);
+    expect(doc.version).toBe("1.2.3");
+    expect(doc.subcommands.map((sub) => sub.name)).toEqual(
+      visibleCommands(spec).map((command) => command.name)
+    );
+    expect(doc.subcommands.map((sub) => sub.name)).not.toContain("__complete");
+    expect(doc.globalOptions.map((option) => option.name)).toEqual(
+      GLOBAL_FLAGS.map((flag) => flag.long).toSorted()
+    );
+    expect(doc.examples).toEqual(spec.examples);
+  });
+
+  test("the full document has one unique entry per command and subcommand, and no hidden one", () => {
+    const doc = allHelpDocument({ program: spec, version: "1.2.3" });
+    const expected = visibleCommands(spec).flatMap(pathsOf);
+    expect(doc.commands.map((entry) => entry.path.join(" "))).toEqual(
+      expected.map(nameOf)
+    );
+    const paths = doc.commands.map((entry) => entry.path.join(" "));
+    expect(new Set(paths).size).toBe(paths.length);
+    expect(paths.some((path) => path.includes("__complete"))).toBe(false);
+    expect(doc.commands.length).toBeGreaterThan(30);
   });
 });

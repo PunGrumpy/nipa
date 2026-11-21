@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { findCommand } from "../../../src/util/env";
-import { requireSession, resolveProfile } from "../../../src/util/session";
+import {
+  pickProject,
+  requireSession,
+  resolveProfile,
+} from "../../../src/util/session";
 import { loadConfig, loadSession } from "../../../src/util/store";
 import type { Prompts } from "../../../src/util/ui";
 import { CliError } from "../../../src/util/ui";
@@ -132,5 +136,30 @@ describe("an expired session with --project", () => {
     expect(asked).toEqual([]);
     const after = await loadSession("prod");
     expect(after?.project.id).toBe(ALPHA_ID);
+  });
+});
+
+describe("a not-found project hint with many projects", () => {
+  test("caps the list and names the project list command", async () => {
+    const projects = Array.from({ length: 7 }, (_, index) => ({
+      id: String(index),
+      name: `Project ${index + 1}`,
+    }));
+    let failure: unknown;
+    try {
+      await pickProject({
+        ask: () => Promise.reject(new Error("unexpected prompt")),
+        projects,
+        wanted: "zzzzzzzz",
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(CliError);
+    const hint = failure instanceof CliError ? (failure.hint ?? "") : "";
+    expect(hint).toContain("and 2 more");
+    expect(hint).toContain("nipa project ls");
+    expect(hint).not.toContain("Project 6");
+    expect(hint).not.toContain("Project 7");
   });
 });

@@ -3,6 +3,7 @@
 // the Vercel CLI's output manager. Results go through the client's stdout,
 // and questions through the client's prompts.
 
+import { agentVariable } from "./agent";
 import type { Reason } from "./errors";
 import { inRun } from "./scope";
 import { theme } from "./theme";
@@ -57,6 +58,10 @@ export class CliError extends Error {
   }
 }
 
+/** The person said no or pressed Ctrl-C. Exit code 130, and no error to read. */
+export const canceled = (): CliError =>
+  new CliError("Canceled", { exitCode: 130, reason: "canceled" });
+
 /** Exit code 2: the command line was wrong. The hint says how to write it. */
 export const usageError = (
   message: string,
@@ -103,6 +108,20 @@ export const andList = (words: readonly string[]): string => {
   const rest = words.slice(0, -1);
   return rest.length === 0 ? last : `${rest.join(", ")} and ${last}`;
 };
+
+const LISTED = 5;
+
+/**
+ * Names for a hint: all of them up to 5, else the first 5, how many are
+ * left, and the command that lists them all.
+ */
+export const someNames = (
+  names: readonly string[],
+  lsCommand: string
+): string =>
+  names.length <= LISTED
+    ? names.join(", ")
+    : `${names.slice(0, LISTED).join(", ")} and ${names.length - LISTED} more (run \`${lsCommand}\` to see them all)`;
 
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
@@ -289,6 +308,10 @@ export const note = (message: string): void => {
 };
 
 export const printError = (error: CliError): void => {
+  if (error.reason === "canceled") {
+    writeStderr("Canceled.");
+    return;
+  }
   writeStderr(`${bold(red("Error:"))} ${error.message}`);
   if (error.hint) {
     writeStderr(`${dim(">")} ${inRun(error.hint)}`);
@@ -346,7 +369,7 @@ const prompt = async <T>(ask: () => Promise<T>): Promise<T> => {
     return await ask();
   } catch (error) {
     if (error instanceof Error && error.name === "ExitPromptError") {
-      throw new CliError("Canceled", { exitCode: 130 });
+      throw canceled();
     }
     throw error;
   }
@@ -381,7 +404,8 @@ interface ConfirmPrompt {
 export interface Prompts {
   /**
    * True when stdin and stderr are terminals and nothing said not to ask:
-   * not `--non-interactive`, not `--json`, and no CI variable. Ask only then.
+   * not `--non-interactive`, not `--json`, no CI variable and no AI agent's
+   * variable. Ask only then.
    * Otherwise a command fails with a hint naming the flag or argument to pass.
    */
   readonly interactive: boolean;
@@ -428,7 +452,11 @@ export const createPrompts = (streams: {
   json: boolean;
 }): Prompts => {
   const context = { input: streams.stdin, output: streams.stderr };
-  const refused = streams.nonInteractive || streams.json || !!streams.env.CI;
+  const refused =
+    streams.nonInteractive ||
+    streams.json ||
+    !!streams.env.CI ||
+    agentVariable(streams.env) !== undefined;
   const interactive =
     !refused && streams.stdin.isTTY === true && streams.stderr.isTTY === true;
   return {

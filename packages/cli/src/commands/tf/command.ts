@@ -6,7 +6,7 @@ export const tfCommand = definePassthrough({
     "Runs `terraform <args...>` with the session. It's the same as `nipa exec terraform <args...>`.",
   examples: [
     {
-      command: "nipa -P staging tf plan",
+      command: "nipa --profile staging tf plan",
       description: "Plan against the staging profile",
     },
   ],
