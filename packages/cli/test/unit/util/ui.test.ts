@@ -17,6 +17,7 @@ import {
   printTable,
   setAnimation,
   setJsonMode,
+  someNames,
   success,
   tabSeparated,
   withSpinner,
@@ -66,6 +67,25 @@ describe("printable", () => {
     expect(printable(`${ESC}[8mhidden${ESC}[0m ${ESC}[38;5;9mred`)).toBe(
       "hidden red"
     );
+  });
+});
+
+describe("someNames", () => {
+  test("keeps short lists unchanged", () => {
+    expect(someNames(["a", "b"], "nipa project ls")).toBe("a, b");
+    expect(someNames(["a", "b", "c", "d", "e"], "nipa project ls")).toBe(
+      "a, b, c, d, e"
+    );
+  });
+
+  test("caps long lists and names the list command", () => {
+    expect(
+      someNames(["a", "b", "c", "d", "e", "f", "g"], "nipa project ls")
+    ).toBe("a, b, c, d, e and 2 more (run `nipa project ls` to see them all)");
+  });
+
+  test("an empty list stays empty", () => {
+    expect(someNames([], "nipa project ls")).toBe("");
   });
 });
 

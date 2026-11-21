@@ -108,6 +108,20 @@ export const andList = (words: readonly string[]): string => {
   return rest.length === 0 ? last : `${rest.join(", ")} and ${last}`;
 };
 
+const LISTED = 5;
+
+/**
+ * Names for a hint: all of them up to 5, else the first 5, how many are
+ * left, and the command that lists them all.
+ */
+export const someNames = (
+  names: readonly string[],
+  lsCommand: string
+): string =>
+  names.length <= LISTED
+    ? names.join(", ")
+    : `${names.slice(0, LISTED).join(", ")} and ${names.length - LISTED} more (run \`${lsCommand}\` to see them all)`;
+
 export const formatDuration = (ms: number): string => {
   const minutes = Math.max(0, Math.floor(ms / 60_000));
   const hours = Math.floor(minutes / 60);
