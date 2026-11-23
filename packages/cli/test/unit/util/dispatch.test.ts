@@ -779,6 +779,11 @@ describe("help and version, on the real table", () => {
       ["nipa", "server"],
     ],
     [["--help", "--json"], ["nipa"]],
+    [["-P", "staging", "--help", "--json"], ["nipa"]],
+    [
+      ["--project", "web", "--json", "--help", "server", "ls"],
+      ["nipa", "server", "ls"],
+    ],
     [["--json", "--help"], ["nipa"]],
     [["-h", "--json"], ["nipa"]],
     [["help", "--json"], ["nipa"]],

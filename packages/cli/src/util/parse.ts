@@ -337,12 +337,24 @@ export const asksOnlyForJsonVersion = (words: readonly string[]): boolean =>
   words.some((word) => word === "--version" || word === "-v") &&
   words.every((word) => ["--json", "--version", "-v"].includes(word));
 
-/** The options at the start of a line, up to the first word that isn't one or a `--`. */
+const VALUED_GLOBAL_WORDS = new Set(
+  GLOBAL_FLAGS.filter((flag) => flag.value.kind !== "none").flatMap(flagWords)
+);
+
+/**
+ * The options at the start of a line, with the values of the global options
+ * that take one, up to the first word that isn't one or a `--`.
+ */
 export const leadingOptions = (words: readonly string[]): readonly string[] => {
-  const end = words.findIndex(
-    (word) => word === "--" || word === "-" || !word.startsWith("-")
-  );
-  return end === -1 ? words : words.slice(0, end);
+  let end = 0;
+  while (end < words.length) {
+    const word = words[end] ?? "";
+    if (word === "--" || word === "-" || !word.startsWith("-")) {
+      break;
+    }
+    end += VALUED_GLOBAL_WORDS.has(word) && end + 1 < words.length ? 2 : 1;
+  }
+  return words.slice(0, end);
 };
 
 /**
