@@ -80,18 +80,25 @@ const checked = (flag: FlagSpec, value: string): string => {
   return value;
 };
 
+const missingValue = (input: {
+  flag: FlagSpec;
+  hints: Hints;
+  name: string;
+}): CliError =>
+  usageError(
+    `${input.name} needs${flagPlaceholder(input.flag.value)}`,
+    `Usage: ${input.hints.usage}`
+  );
+
 const needed = (input: {
   flag: FlagSpec;
   hints: Hints;
   name: string;
   next: string | undefined;
 }): string => {
-  const { flag, hints, name, next } = input;
+  const { flag, next } = input;
   if (next === undefined || next.startsWith("-")) {
-    throw usageError(
-      `${name} needs${flagPlaceholder(flag.value)}`,
-      `Usage: ${hints.usage}`
-    );
+    throw missingValue(input);
   }
   return checked(flag, next);
 };
@@ -127,40 +134,48 @@ const unknownOption = (input: {
   });
 };
 
-const readOption = (input: {
+const readLong = (input: {
   hints: Hints;
   index: Index;
   next: string | undefined;
   word: string;
 }): Consumed | undefined => {
   const { hints, index, next, word } = input;
-  if (word.startsWith("--")) {
-    const eq = word.indexOf("=");
-    const name = eq === -1 ? word : word.slice(0, eq);
-    const flag = index.get(name);
-    if (!flag) {
-      return undefined;
-    }
-    if (flag.value.kind === "none") {
-      if (eq !== -1) {
-        throw usageError(
-          `${name} doesn't take a value`,
-          `Usage: ${hints.usage}`
-        );
-      }
-      return { options: [{ flag, value: true }], used: 1 };
-    }
-    if (eq !== -1) {
-      return {
-        options: [{ flag, value: checked(flag, word.slice(eq + 1)) }],
-        used: 1,
-      };
-    }
-    return {
-      options: [{ flag, value: needed({ flag, hints, name, next }) }],
-      used: 2,
-    };
+  const eq = word.indexOf("=");
+  const name = eq === -1 ? word : word.slice(0, eq);
+  const flag = index.get(name);
+  if (!flag) {
+    return undefined;
   }
+  if (flag.value.kind === "none") {
+    if (eq !== -1) {
+      throw usageError(`${name} doesn't take a value`, `Usage: ${hints.usage}`);
+    }
+    return { options: [{ flag, value: true }], used: 1 };
+  }
+  if (eq !== -1) {
+    const value = word.slice(eq + 1);
+    if (value === "") {
+      throw missingValue({ flag, hints, name });
+    }
+    return { options: [{ flag, value: checked(flag, value) }], used: 1 };
+  }
+  return {
+    options: [{ flag, value: needed({ flag, hints, name, next }) }],
+    used: 2,
+  };
+};
+
+const readOption = (input: {
+  hints: Hints;
+  index: Index;
+  next: string | undefined;
+  word: string;
+}): Consumed | undefined => {
+  if (input.word.startsWith("--")) {
+    return readLong(input);
+  }
+  const { hints, index, next, word } = input;
   const letters = [...word].slice(1);
   const flags = letters.map((letter) => index.get(`-${letter}`));
   const known = flags.filter((flag) => flag !== undefined);
@@ -179,10 +194,7 @@ const readOption = (input: {
       });
       used = 2;
     } else {
-      throw usageError(
-        `-${letters[i]} needs${flagPlaceholder(flag.value)}`,
-        `Usage: ${hints.usage}`
-      );
+      throw missingValue({ flag, hints, name: `-${letters[i]}` });
     }
   }
   return { options, used };

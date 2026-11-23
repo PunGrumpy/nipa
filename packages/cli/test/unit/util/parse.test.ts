@@ -185,3 +185,20 @@ describe("a value outside a fixed set", () => {
     expect(parse("fish", "--output", "xyz").data).toBeUndefined();
   });
 });
+
+describe("an option given no value", () => {
+  test("--profile= is refused the way --profile alone is", () => {
+    const alone = failure(() =>
+      takeGlobals({ unknown: "reject", words: ["--profile"] })
+    );
+    const empty = failure(() =>
+      takeGlobals({ unknown: "reject", words: ["--profile="] })
+    );
+    expect(alone.message).toBe("--profile needs <name>");
+    expect(empty).toMatchObject({
+      exitCode: alone.exitCode,
+      hint: alone.hint,
+      message: alone.message,
+    });
+  });
+});
