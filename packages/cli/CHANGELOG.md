@@ -1,5 +1,12 @@
 # nipa-cli
 
+## 0.1.11
+
+### Patch Changes
+
+- 99aed3c: An option given an empty value with `=`, such as `--profile=`, now fails with the same usage error as the option with no value at all, instead of running with an empty value.
+- 426ac4a: Print help as JSON when a global option with a value comes first, as in `nipa -P staging --help --json`.
+
 ## 0.1.10
 
 ### Patch Changes
